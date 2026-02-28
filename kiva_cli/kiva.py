@@ -10,7 +10,13 @@ from pathlib import Path
 from kiva_cli.core.project_manager import ProjectManager
 from kiva_cli.core.deployment_manager import DeploymentManager
 from kiva_cli.core.config_manager import ConfigManager
+
+# Command groups
 from kiva_cli.commands.scaffold import scaffold_group
+from kiva_cli.commands.secrets import secrets
+from kiva_cli.commands.monitoring import monitoring
+from kiva_cli.commands.rollback import rollback_group
+from kiva_cli.commands.health import health
 
 __version__ = "1.0.0"
 
@@ -100,34 +106,12 @@ def config(config_file, schema):
         sys.exit(1)
 
 
-@cli.command()
-@click.argument("project_name")
-@click.option("--env", "-e", default="staging", help="Target environment")
-@click.option("--version", "-v", help="Target version (default: previous)")
-def rollback(project_name, env, version):
-    """Rollback deployment to previous version"""
-    try:
-        manager = DeploymentManager()
-        result = manager.rollback(
-            project_name=project_name,
-            environment=env,
-            target_version=version
-        )
-        
-        if result["status"] == "SUCCESS":
-            click.echo(f"✅ Rollback successful")
-            click.echo(f"   Version: {result['rolled_back_version']}")
-        else:
-            click.echo(f"❌ Rollback failed: {result.get('error')}")
-            sys.exit(1)
-    
-    except Exception as e:
-        click.echo(f"❌ Error: {str(e)}", err=True)
-        sys.exit(1)
-
-
-# Register scaffold command group
+# Register command groups
 cli.add_command(scaffold_group)
+cli.add_command(secrets)
+cli.add_command(monitoring)
+cli.add_command(rollback_group)
+cli.add_command(health)
 
 
 if __name__ == "__main__":
