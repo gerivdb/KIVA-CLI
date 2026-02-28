@@ -1,0 +1,294 @@
+name: Ecosystem Cross-Repo Sync
+
+on:
+  schedule:
+    # Run daily at 02:00 UTC
+    - cron: '0 2 * * *'
+  
+  push:
+    branches:
+      - main
+    paths:
+      - 'ECOS_ROOT.json'
+      - 'scripts/cross_repo_sync.py'
+      - '.github/workflows/ecosystem_sync.yml'
+  
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: 'Sync operation to perform'
+        required: false
+        default: 'full'
+        type: choice
+        options:
+          - full
+          - ecos_root
+          - wal
+          - validate
+      target_repos:
+        description: 'Target repositories (comma-separated, or "all")'
+        required: false
+        default: 'all'
+        type: string
+
+jobs:
+  sync:
+    name: Cross-Repo Sync
+    runs-on: ubuntu-latest
+    
+    permissions:
+      contents: write
+      issues: write
+    
+    steps:
+      - name: Checkout KIVA-CLI
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Checkout ECOYSTEM
+        uses: actions/checkout@v4
+        with:
+          repository: gerivdb/ECOYSTEM
+          path: ../ECOYSTEM
+          token: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Checkout DevTools
+        uses: actions/checkout@v4
+        with:
+          repository: gerivdb/DevTools
+          path: ../DevTools
+          token: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+      
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pyyaml
+      
+      - name: Validate ECOS_ROOT.json
+        run: |
+          python -c "import json; json.load(open('ECOS_ROOT.json'))"
+          echo "✅ ECOS_ROOT.json is valid JSON"
+      
+      - name: Run Cross-Repo Sync
+        id: sync
+        run: |
+          OPERATION="${{ github.event.inputs.operation || 'full' }}"
+          TARGET_REPOS="${{ github.event.inputs.target_repos || 'all' }}"
+          
+          echo "🚀 Starting sync operation: $OPERATION"
+          echo "🎯 Target repos: $TARGET_REPOS"
+          
+          # Run sync script
+          python scripts/cross_repo_sync.py \
+            --root .. \
+            --source KIVA-CLI \
+            --operation "$OPERATION" \
+            --output sync_report.md
+          
+          # Check if sync report was generated
+          if [ -f "sync_report.md" ]; then
+            echo "✅ Sync report generated"
+            echo "sync_success=true" >> $GITHUB_OUTPUT
+          else
+            echo "⚠️ No sync report generated"
+            echo "sync_success=false" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Commit changes to ECOYSTEM
+        if: steps.sync.outputs.sync_success == 'true'
+        run: |
+          cd ../ECOYSTEM
+          
+          # Configure git
+          git config user.name "ECOS-AUTO"
+          git config user.email "ecos-auto@ecosystem-1.dev"
+          
+          # Check if there are changes
+          if [ -n "$(git status --porcelain)" ]; then
+            git add .
+            git commit -m "[ECOS-AUTO] Sync from KIVA-CLI via GitHub Actions
+            
+            IntentHash: 0x9C7E4D2A8F5B1E3A-ACTIONS-SYNC
+            Δφ-CPS: +0.001
+            Workflow: ecosystem_sync.yml"
+            
+            git push
+            echo "✅ Changes pushed to ECOYSTEM"
+          else
+            echo "ℹ️ No changes to commit in ECOYSTEM"
+          fi
+      
+      - name: Upload sync report
+        if: steps.sync.outputs.sync_success == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: sync-report-${{ github.run_number }}
+          path: sync_report.md
+          retention-days: 30
+      
+      - name: Generate metrics dashboard
+        if: steps.sync.outputs.sync_success == 'true'
+        run: |
+          python scripts/ecosystem_metrics_dashboard.py \
+            --root .. \
+            --format markdown \
+            --output metrics_dashboard.md
+          
+          echo "📊 Metrics dashboard generated"
+      
+      - name: Upload metrics dashboard
+        if: steps.sync.outputs.sync_success == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: metrics-dashboard-${{ github.run_number }}
+          path: metrics_dashboard.md
+          retention-days: 30
+      
+      - name: Check φ-CPS drift
+        id: phi_check
+        if: steps.sync.outputs.sync_success == 'true'
+        run: |
+          # Extract φ-CPS from ECOS_ROOT.json
+          PHI_GENESIS=$(python -c "import json; print(json.load(open('ECOS_ROOT.json'))['phi_cps_genesis'])")
+          PHI_CURRENT=$(python -c "import json; print(json.load(open('ECOS_ROOT.json'))['phi_cps_current'])")
+          PHI_DRIFT=$(python -c "print(abs($PHI_CURRENT - $PHI_GENESIS))")
+          PHI_THRESHOLD=0.05
+          
+          echo "φ_genesis: $PHI_GENESIS"
+          echo "φ_current: $PHI_CURRENT"
+          echo "φ_drift: $PHI_DRIFT"
+          
+          # Check if drift exceeds threshold
+          DRIFT_EXCEEDED=$(python -c "print('true' if $PHI_DRIFT > $PHI_THRESHOLD else 'false')")
+          echo "drift_exceeded=$DRIFT_EXCEEDED" >> $GITHUB_OUTPUT
+          
+          if [ "$DRIFT_EXCEEDED" = "true" ]; then
+            echo "⚠️ WARNING: φ-CPS drift ($PHI_DRIFT) exceeds threshold ($PHI_THRESHOLD)"
+          else
+            echo "✅ φ-CPS drift within acceptable threshold"
+          fi
+      
+      - name: Create issue if drift exceeds threshold
+        if: steps.phi_check.outputs.drift_exceeded == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const ecosRoot = JSON.parse(fs.readFileSync('ECOS_ROOT.json', 'utf8'));
+            
+            const phiGenesis = ecosRoot.phi_cps_genesis;
+            const phiCurrent = ecosRoot.phi_cps_current;
+            const phiDrift = Math.abs(phiCurrent - phiGenesis);
+            
+            const issueBody = `## ⚠️ φ-CPS Drift Threshold Exceeded
+            
+            **Detected by**: GitHub Actions Workflow \`ecosystem_sync.yml\`
+            **Timestamp**: ${new Date().toISOString()}
+            **Run**: ${{ github.run_number }}
+            
+            ### Metrics
+            
+            | Metric | Value |
+            |--------|-------|
+            | φ_genesis | ${phiGenesis.toFixed(4)} |
+            | φ_current | ${phiCurrent.toFixed(4)} |
+            | φ_drift | ${phiDrift.toFixed(4)} |
+            | φ_threshold | 0.05 |
+            | Status | ⚠️ **THRESHOLD EXCEEDED** |
+            
+            ### Actions Required
+            
+            1. Review recent commits and their φ-CPS impact
+            2. Validate IntentHash¹¹ chain integrity
+            3. Check for semantic drift in ECOS_ROOT.json
+            4. Consider auto-rollback if drift is critical
+            
+            ### Recent Events
+            
+            \`\`\`json
+            ${JSON.stringify(ecosRoot.recent_events.slice(-5), null, 2)}
+            \`\`\`
+            
+            ### Next Steps
+            
+            - [ ] Investigate drift cause
+            - [ ] Validate all IntentHash entries
+            - [ ] Review φ-CPS calculation formula
+            - [ ] Update ECOS_ROOT.json if necessary
+            - [ ] Run comprehensive φ-CPS audit
+            
+            **Auto-generated by**: ECOS-AUTO H0 Autonomous System`;
+            
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: '⚠️ φ-CPS Drift Threshold Exceeded',
+              body: issueBody,
+              labels: ['φ-CPS', 'drift-alert', 'automated']
+            });
+      
+      - name: Notify on failure
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issueBody = `## ❌ Ecosystem Sync Failed
+            
+            **Workflow**: \`ecosystem_sync.yml\`
+            **Run**: ${{ github.run_number }}
+            **Timestamp**: ${new Date().toISOString()}
+            
+            ### Error Details
+            
+            The automated cross-repo sync workflow failed. Please review the workflow logs:
+            
+            [View Logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+            
+            ### Possible Causes
+            
+            - GitHub API rate limiting
+            - Repository permission issues
+            - Invalid ECOS_ROOT.json structure
+            - Network connectivity issues
+            - Script execution errors
+            
+            ### Next Steps
+            
+            1. Check workflow logs for error details
+            2. Verify GitHub token permissions
+            3. Validate ECOS_ROOT.json syntax
+            4. Re-run workflow manually if transient error
+            5. Investigate and fix script issues
+            
+            **Auto-generated by**: ECOS-AUTO H0 Autonomous System`;
+            
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: '❌ Ecosystem Sync Workflow Failed',
+              body: issueBody,
+              labels: ['sync-failure', 'automated', 'ci-cd']
+            });
+      
+      - name: Summary
+        if: always()
+        run: |
+          echo "## 🌐 Ecosystem Sync Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Operation**: ${{ github.event.inputs.operation || 'full' }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Status**: ${{ job.status }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Timestamp**: $(date -u +"%Y-%m-%dT%H:%M:%SZ")" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [ -f "sync_report.md" ]; then
+            echo "### Sync Report" >> $GITHUB_STEP_SUMMARY
+            cat sync_report.md >> $GITHUB_STEP_SUMMARY
+          fi
