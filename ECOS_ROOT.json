@@ -1,10 +1,10 @@
 {
-  "manifest_version": "1.0.2",
+  "manifest_version": "1.0.3",
   "ecosystem_id": "ecosystem-1",
   "genesis_timestamp": "2026-02-28T18:00:00Z",
   "phi_cps_genesis": 4.092,
-  "phi_cps_current": 4.231,
-  "last_updated": "2026-02-28T18:47:10.851867Z",
+  "phi_cps_current": 4.233,
+  "last_updated": "2026-02-28T19:26:24.945876Z",
   "repositories": [
     {
       "name": "KIVA-CLI",
@@ -12,12 +12,12 @@
       "url": "https://github.com/gerivdb/KIVA-CLI",
       "role": "orchestrator",
       "status": "ACTIVE",
-      "phi_cps": 4.231,
-      "phi_delta_total": 0.139,
+      "phi_cps": 4.233,
+      "phi_delta_total": 0.141,
       "open_issues": 0,
       "closed_issues": 4,
-      "total_commits": 23,
-      "last_sync": "2026-02-28T18:47:10.851867Z",
+      "total_commits": 24,
+      "last_sync": "2026-02-28T19:26:24.945876Z",
       "dependencies": [
         "ECOYSTEM",
         "DevTools",
@@ -34,7 +34,8 @@
         "GitHub Actions automation",
         "Comprehensive documentation",
         "HTML metrics visualization",
-        "WAL database backup"
+        "WAL database backup",
+        "Integration testing suite"
       ]
     },
     {
@@ -227,12 +228,12 @@
     "active_repositories": 11,
     "deprecated_repositories": 0,
     "archived_repositories": 0,
-    "total_commits": 23,
+    "total_commits": 24,
     "total_open_issues": 0,
     "total_closed_issues": 4,
-    "cumulative_phi_delta": 0.139,
+    "cumulative_phi_delta": 0.141,
     "avg_phi_cps": 4.105,
-    "last_wal_sync": "2026-02-28T18:47:10.851867Z"
+    "last_wal_sync": "2026-02-28T19:26:24.945876Z"
   },
   "wal_configuration": {
     "enabled": true,
@@ -560,6 +561,16 @@
       "intent_hash": "0x9F7E4D2A8C5B1E3A-WAL-BACKUP",
       "phi_delta": 0.002,
       "description": "Setup WAL database backup strategy"
+    },
+    {
+      "timestamp": "2026-02-28T19:24:45Z",
+      "repo": "KIVA-CLI",
+      "event_type": "commit",
+      "entity_id": "4d4684c",
+      "action": "create",
+      "intent_hash": "0x4E8D2A9F7C5B1E3A-INTEGRATION-TESTS",
+      "phi_delta": 0.002,
+      "description": "Add integration tests for cross-repo sync (Phase 4)"
     }
   ],
   "next_steps": [
@@ -590,7 +601,8 @@
       "dependencies": [
         "ECOYSTEM"
       ],
-      "status": "pending"
+      "status": "completed",
+      "completed_at": "2026-02-28T19:24:45Z"
     },
     {
       "priority": "LOW",
