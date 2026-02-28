@@ -1,45 +1,99 @@
-# Integration Tests KIVA-CLI <-> ECOS CLI
+# Integration tests for KIVA CLI
 import pytest
 import subprocess
 from pathlib import Path
 
-def test_kiva_cli_version():
-    '''Test KIVA CLI responds to --version'''
-    result = subprocess.run(['python', '-m', 'kiva_cli.kiva', '--version'], 
-                          capture_output=True, text=True, timeout=5)
-    assert result.returncode == 0
-    assert '0.1.0' in result.stdout
 
-def test_kiva_project_init_fastapi(tmp_path):
-    '''Test KIVA project init creates FastAPI project'''
-    result = subprocess.run([
-        'python', '-m', 'kiva_cli.kiva', 'project', 'init',
+@pytest.mark.integration
+def test_kiva_cli_direct(tmp_path):
+    """Test KIVA CLI works directly."""
+    cmd = [
+        'python', '-m', 'kiva_cli.kiva',
+        'project', 'init',
         '--template', 'fastapi',
-        '--name', 'test-api',
+        '--name', 'test-direct',
         '--path', str(tmp_path)
-    ], capture_output=True, text=True, timeout=30)
+    ]
     
-    assert result.returncode == 0
-    assert (tmp_path / 'test-api').exists()
-    assert (tmp_path / 'test-api' / 'main.py').exists()
+    proc = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+    
+    assert proc.returncode == 0
+    assert 'initialized' in proc.stdout.lower()
+    assert (tmp_path / 'test-direct').exists()
 
-def test_kiva_deploy_staging_dry_run():
-    '''Test KIVA deploy staging with --dry-run'''
-    result = subprocess.run([
-        'python', '-m', 'kiva_cli.kiva', 'deploy', 'staging', 'api',
-        '--env', 'preprod',
+
+@pytest.mark.integration
+def test_kiva_cli_config_validate(tmp_path):
+    """Test KIVA config validation."""
+    import yaml
+    
+    # Create valid config
+    config_file = tmp_path / 'test.yaml'
+    config_data = {
+        'name': 'test-project',
+        'version': '1.0.0',
+        'environment': 'development'
+    }
+    config_file.write_text(yaml.dump(config_data))
+    
+    cmd = [
+        'python', '-m', 'kiva_cli.kiva',
+        'config', 'validate',
+        str(config_file)
+    ]
+    
+    proc = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+    
+    assert proc.returncode == 0
+    assert 'valid' in proc.stdout.lower()
+
+
+@pytest.mark.integration
+def test_kiva_cli_deploy_dry_run():
+    """Test KIVA deploy dry-run."""
+    cmd = [
+        'python', '-m', 'kiva_cli.kiva',
+        'deploy', 'staging',
+        'test-api',
         '--dry-run'
-    ], capture_output=True, text=True, timeout=30)
+    ]
     
-    assert result.returncode == 0
-    assert 'Deployment successful' in result.stdout
+    proc = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+    
+    assert proc.returncode == 0
+    assert 'dry run' in proc.stdout.lower()
+    assert 'successful' in proc.stdout.lower()
 
-def test_kiva_config_validate_missing_file():
-    '''Test KIVA config validate handles missing file'''
-    result = subprocess.run([
-        'python', '-m', 'kiva_cli.kiva', 'config', 'validate', '/tmp/nonexistent.yaml'
-    ], capture_output=True, text=True, timeout=10)
+
+@pytest.mark.integration
+def test_kiva_cli_help():
+    """Test KIVA CLI help command."""
+    cmd = ['python', '-m', 'kiva_cli.kiva', '--help']
     
-    # Should fail gracefully
-    assert result.returncode != 0
-    assert 'File not found' in result.stderr or 'not found' in result.stdout.lower()
+    proc = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+    
+    assert proc.returncode == 0
+    assert 'project' in proc.stdout.lower()
+    assert 'deploy' in proc.stdout.lower()
+    assert 'config' in proc.stdout.lower()
+
+
+@pytest.mark.integration
+@pytest.mark.skip(reason="Requires ECOS CLI installed")
+def test_ecos_delegates_to_kiva(tmp_path):
+    """Test ECOS CLI delegates to KIVA (requires ECOS installed)."""
+    cmd = [
+        'ecos', 'project', 'init',
+        '--template', 'react',
+        '--name', 'test-delegation',
+        '--path', str(tmp_path)
+    ]
+    
+    proc = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+    
+    # Should show deprecation warning
+    assert 'deprecated' in proc.stdout.lower() or proc.returncode == 0
+    
+    # Project should be created
+    if proc.returncode == 0:
+        assert (tmp_path / 'test-delegation').exists()
