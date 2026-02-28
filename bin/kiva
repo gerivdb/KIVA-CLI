@@ -1,0 +1,13 @@
+#!/usr/bin/env python3
+"""KIVA CLI executable wrapper.
+
+Shim to invoke kiva_cli.kiva:main() as executable command.
+Installation: pip install -e .
+Usage: kiva project init --template fastapi --name my-api
+"""
+
+import sys
+from kiva_cli.kiva import main
+
+if __name__ == "__main__":
+    sys.exit(main())

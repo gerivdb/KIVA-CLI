@@ -1,1 +1,1 @@
-# Tests package
+"""Test suite for KIVA-CLI."""
