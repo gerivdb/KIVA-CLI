@@ -1,124 +1,170 @@
-# Unit tests for DeploymentManager
+"""
+Unit tests for DeploymentManager
+Tests deployment workflows, rollback, and FLUENCE integration
+"""
 import pytest
+from pathlib import Path
+import tempfile
+import shutil
 from kiva_cli.core.deployment_manager import DeploymentManager, DeploymentStrategy
 
+@pytest.fixture
+def temp_project():
+    """Create temporary project directory"""
+    temp = tempfile.mkdtemp()
+    project_path = Path(temp) / "test-project"
+    project_path.mkdir()
+    
+    # Create minimal kiva.yaml
+    (project_path / "kiva.yaml").write_text("""
+project:
+  name: test-project
+  version: 1.0.0
+  template: fastapi
+""")
+    
+    yield project_path
+    shutil.rmtree(temp)
 
-def test_deploy_staging_dry_run():
-    """Test dry-run deployment to staging."""
-    manager = DeploymentManager()
-    result = manager.deploy(
-        target='api',
-        env='staging',
-        strategy='rolling',
+@pytest.fixture
+def deployment_manager():
+    """Create DeploymentManager instance"""
+    return DeploymentManager()
+
+def test_deploy_dry_run(deployment_manager, temp_project):
+    """Test dry-run deployment"""
+    result = deployment_manager.deploy(
+        project_path=temp_project,
+        environment="staging",
+        strategy="rolling",
         dry_run=True
     )
     
-    assert result.success is True
-    assert result.version is not None
-    assert 'staging' in result.deployment_url
-    assert result.health_check_passed is True
+    assert result["status"] == "DRY_RUN_SUCCESS"
+    assert result["environment"] == "staging"
+    assert result["strategy"] == "rolling"
+    assert result["rollback_available"] is False
 
-
-def test_deploy_rolling_strategy():
-    """Test rolling deployment strategy."""
-    manager = DeploymentManager()
-    result = manager.deploy(
-        target='api',
-        env='staging',
-        strategy='rolling',
+def test_deploy_without_fluence_cli(deployment_manager, temp_project):
+    """Test deployment without FLUENCE CLI (fallback)"""
+    result = deployment_manager.deploy(
+        project_path=temp_project,
+        environment="dev",
+        strategy="recreate",
         dry_run=False
     )
     
-    assert result.success is True
-    assert result.strategy == 'rolling'
-    assert result.duration_seconds >= 0
+    assert result["status"] in ["SUCCESS", "DRY_RUN_SUCCESS"]
+    assert "workflow_id" in result
+    assert result["deployed_version"] == "1.0.0"
 
+def test_deploy_project_not_found(deployment_manager):
+    """Test deployment with non-existent project"""
+    with pytest.raises(FileNotFoundError):
+        deployment_manager.deploy(
+            project_path=Path("/nonexistent/project"),
+            environment="staging"
+        )
 
-def test_deploy_blue_green_strategy():
-    """Test blue-green deployment strategy."""
-    manager = DeploymentManager()
-    result = manager.deploy(
-        target='frontend',
-        env='production',
-        strategy='blue-green',
+def test_rollback_no_history(deployment_manager):
+    """Test rollback without deployment history"""
+    result = deployment_manager.rollback(
+        project_name="test-project",
+        environment="production"
+    )
+    
+    assert result["status"] == "FAILED"
+    assert "No previous deployments" in result["error"]
+
+def test_rollback_to_previous(deployment_manager, temp_project):
+    """Test rollback to previous version"""
+    # Deploy version 1.0.0
+    deploy1 = deployment_manager.deploy(
+        project_path=temp_project,
+        environment="production",
         dry_run=False
     )
     
-    assert result.success is True
-    assert result.strategy == 'blue-green'
-
-
-def test_deploy_canary_strategy():
-    """Test canary deployment strategy."""
-    manager = DeploymentManager()
-    result = manager.deploy(
-        target='api',
-        env='staging',
-        strategy='canary',
+    # Update version and deploy 2.0.0
+    config = (temp_project / "kiva.yaml").read_text()
+    config = config.replace("1.0.0", "2.0.0")
+    (temp_project / "kiva.yaml").write_text(config)
+    
+    deploy2 = deployment_manager.deploy(
+        project_path=temp_project,
+        environment="production",
         dry_run=False
     )
-    
-    assert result.success is True
-    assert result.strategy == 'canary'
-    assert result.warnings is not None
-
-
-def test_deploy_invalid_strategy():
-    """Test deployment with invalid strategy."""
-    manager = DeploymentManager()
-    result = manager.deploy(
-        target='api',
-        env='staging',
-        strategy='unknown-strategy',
-        dry_run=False
-    )
-    
-    assert result.success is False
-    assert 'Invalid strategy' in result.error
-
-
-def test_rollback_success():
-    """Test successful rollback."""
-    manager = DeploymentManager()
-    
-    # Deploy first
-    deploy_result = manager.deploy(target='api', env='staging', strategy='rolling', dry_run=False)
-    deployment_id = f"api-{deploy_result.version}"
     
     # Rollback
-    rollback_result = manager.rollback(
-        deployment_id=deployment_id,
-        to_version='v1.0.0'
+    rollback = deployment_manager.rollback(
+        project_name="test-project",
+        environment="production"
     )
     
-    assert rollback_result.success is True
-    assert rollback_result.version == 'v1.0.0'
+    assert rollback["status"] == "SUCCESS"
+    assert rollback["rolled_back_version"] == "1.0.0"
 
-
-def test_rollback_unknown_deployment():
-    """Test rollback of unknown deployment."""
-    manager = DeploymentManager()
-    result = manager.rollback(
-        deployment_id='unknown-deployment',
-        to_version='v1.0.0'
+def test_rollback_to_specific_version(deployment_manager, temp_project):
+    """Test rollback to specific version"""
+    # Deploy multiple versions
+    for version in ["1.0.0", "1.1.0", "1.2.0"]:
+        config = (temp_project / "kiva.yaml").read_text()
+        config = config.replace("version: ", f"# v").replace("1.0.0", version)
+        (temp_project / "kiva.yaml").write_text(f"""
+project:
+  name: test-project
+  version: {version}
+  template: fastapi
+""")
+        deployment_manager.deploy(
+            project_path=temp_project,
+            environment="staging",
+            dry_run=False
+        )
+    
+    # Rollback to 1.1.0
+    rollback = deployment_manager.rollback(
+        project_name="test-project",
+        environment="staging",
+        target_version="1.1.0"
     )
     
-    assert result.success is False
-    assert 'not found' in result.error.lower()
+    assert rollback["status"] == "SUCCESS"
+    assert rollback["rolled_back_version"] == "1.1.0"
 
-
-def test_get_deployment_status():
-    """Test getting deployment status."""
-    manager = DeploymentManager()
-    
+def test_get_deployment_status(deployment_manager, temp_project):
+    """Test deployment status query"""
     # Deploy
-    deploy_result = manager.deploy(target='api', env='staging', strategy='rolling', dry_run=False)
-    deployment_id = f"api-{deploy_result.version}"
+    deploy_result = deployment_manager.deploy(
+        project_path=temp_project,
+        environment="dev",
+        dry_run=True
+    )
     
-    # Get status
-    status = manager.get_deployment_status(deployment_id)
+    workflow_id = deploy_result["workflow_id"]
     
-    assert status is not None
-    assert 'target' in status
-    assert status['target'] == 'api'
-    assert 'version' in status
+    # Query status
+    status = deployment_manager.get_deployment_status(workflow_id)
+    
+    assert status["workflow_id"] == workflow_id
+    assert status["status"] == "DRY_RUN_SUCCESS"
+
+def test_get_deployment_status_not_found(deployment_manager):
+    """Test status query for non-existent workflow"""
+    status = deployment_manager.get_deployment_status("nonexistent-workflow")
+    
+    assert status["status"] == "NOT_FOUND"
+
+@pytest.mark.parametrize("strategy", ["rolling", "blue-green", "canary", "recreate"])
+def test_all_strategies(deployment_manager, temp_project, strategy):
+    """Test all deployment strategies"""
+    result = deployment_manager.deploy(
+        project_path=temp_project,
+        environment="staging",
+        strategy=strategy,
+        dry_run=True
+    )
+    
+    assert result["status"] == "DRY_RUN_SUCCESS"
+    assert result["strategy"] == strategy

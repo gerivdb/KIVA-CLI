@@ -1,26 +1,6 @@
 # Contributing to KIVA-CLI
 
-Thank you for your interest in contributing to KIVA-CLI! This document provides guidelines and workflows for contributors.
-
-## 📜 Table of Contents
-
-- [Development Setup](#development-setup)
-- [Coding Standards](#coding-standards)
-- [Testing Guidelines](#testing-guidelines)
-- [Commit Conventions](#commit-conventions)
-- [Pull Request Process](#pull-request-process)
-- [Base-3 Logic](#base-3-logic)
-- [φ-CPS Validation](#φ-cps-validation)
-
-## 🛠️ Development Setup
-
-### Prerequisites
-
-- Python 3.11 or higher
-- pip
-- git
-
-### Local Setup
+## Development Setup
 
 ```bash
 # Clone repository
@@ -29,259 +9,138 @@ cd KIVA-CLI
 
 # Create virtual environment
 python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
+source venv/bin/activate  # On Windows: venv\\Scripts\\activate
 
-# Install in editable mode with dev dependencies
+# Install dev dependencies
+pip install -r requirements.txt
 pip install -e ".[dev]"
 
-# Verify installation
-kiva --version
-pytest --version
+# Install pre-commit hooks
+pre-commit install
 ```
 
-## 📝 Coding Standards
+## Coding Standards
 
 ### Python Style
+- **PEP 8** compliance (enforced by flake8)
+- **Black** formatting (line length: 100)
+- **Type hints** for all functions
+- **Docstrings** (Google style)
 
-- **Formatter**: Black (line length: 88)
-- **Linter**: Ruff (pycodestyle + pyflakes + isort)
-- **Type Hints**: Required for public APIs
-- **Docstrings**: Google style
+### Commit Messages
+Format: `[ECOS-AUTO] <type>: <description>`
 
-```python
-def example_function(param: str) -> Dict[str, Any]:
-    """Short description.
-    
-    Longer description with details.
-    
-    Args:
-        param: Description of parameter.
-    
-    Returns:
-        Dict with status and data.
-    
-    Raises:
-        ValueError: If param is invalid.
-    """
-    pass
+Types:
+- `feat`: New feature
+- `fix`: Bug fix
+- `docs`: Documentation changes
+- `test`: Test additions/modifications
+- `refactor`: Code restructuring
+- `chore`: Maintenance tasks
+
+Example:
+```
+[ECOS-AUTO] feat: Add canary deployment strategy
+
+Intent-Hash: 0x4A7C9E2B5F8D1A63
+φ-CPS: +0.003
 ```
 
-### Code Organization
+## Testing Requirements
 
-- **Modules**: One class per file (exceptions for small helpers)
-- **Managers**: `kiva_cli/managers/` - Business logic
-- **Core**: `kiva_cli/core/` - Utilities (templates, validation)
-- **Tests**: Mirror source structure (`tests/unit/`, `tests/integration/`)
+### Coverage Target
+- **Minimum:** 85%
+- **Critical paths:** 95%+
 
-## 🧪 Testing Guidelines
-
-### Test Categories
-
-- **Unit Tests** (`@pytest.mark.unit`): Fast, no I/O, mock external dependencies
-- **Integration Tests** (`@pytest.mark.integration`): Filesystem, subprocess, real scenarios
-
-### Writing Tests
-
-```python
-import pytest
-from kiva_cli.managers import ProjectManager
-
-@pytest.mark.unit
-def test_template_registry():
-    """Test template retrieval."""
-    manager = ProjectManager()
-    templates = manager.list_templates()
-    assert templates["status"] == "SUCCESS"
-    assert len(templates["templates"]) >= 4
-
-@pytest.mark.integration
-def test_project_init(temp_workspace, mock_ecos_cli):
-    """Test project initialization (integration)."""
-    manager = ProjectManager(workspace_root=temp_workspace)
-    result = manager.init_project(name="test", template="fastapi")
-    assert result["status"] == "SUCCESS"
+### Test Structure
+```
+tests/
+├── unit/
+│   ├── test_project_manager.py
+│   ├── test_deployment_manager.py
+│   └── test_config_manager.py
+├── integration/
+│   ├── test_ecos_gateway.py
+│   └── test_fluence_workflow.py
+└── fixtures/
+    ├── sample_kiva.yaml
+    └── mock_templates/
 ```
 
 ### Running Tests
-
 ```bash
 # All tests
 pytest
 
 # Unit tests only
-pytest -m unit
+pytest tests/unit/
 
-# Integration tests only
-pytest -m integration
+# Integration tests (requires FLUENCE CLI)
+pytest tests/integration/ -m integration
 
 # With coverage
-pytest --cov=kiva_cli --cov-report=html
-
-# Specific file
-pytest tests/unit/test_template_registry.py -v
+pytest --cov=kiva_cli --cov-report=term-missing
 ```
 
-### Coverage Requirements
+## φ-CPS Validation
 
-- **Minimum**: 80% overall coverage
-- **Target**: 90% for core modules
-- **Exclusions**: CLI wrappers, external integrations (ECOS Gateway)
-
-## 📝 Commit Conventions
-
-### Format
-
-```
-[ECOS-AUTO] <type>(<scope>): <subject>
-
-<body>
-
-<footer>
-```
-
-### Types
-
-- `feat`: New feature
-- `fix`: Bug fix
-- `docs`: Documentation only
-- `test`: Adding/updating tests
-- `refactor`: Code restructuring
-- `perf`: Performance improvement
-- `chore`: Maintenance tasks
-
-### Examples
-
-```bash
-[ECOS-AUTO] feat(managers): Add ProjectManager with template scaffolding
-
-- Initialize projects from templates (FastAPI, React, Go, Rust)
-- Create kiva.json config file
-- Scaffold directory structure
-- Integrate with ECOS Gateway for WAL tracking
-
-IntentHash: 0xH1_KIVA_PROJECT_MANAGER_INIT
-φ-CPS: +0.002
-
----
-
-[ECOS-AUTO] fix(deployment): Handle missing health_check gracefully
-
-Validation now treats health_check as optional with warning.
-
-Closes: #42
-```
-
-## 🔀 Pull Request Process
-
-### Before Submitting
-
-1. **Run Tests**: Ensure all tests pass
-   ```bash
-   pytest
-   ```
-
-2. **Lint Code**: Fix all linting errors
-   ```bash
-   ruff check . && black --check .
-   ```
-
-3. **Update Docs**: Add/update relevant documentation
-
-4. **Add Tests**: New features require tests (unit + integration)
-
-### Submission
-
-1. **Create Branch**: `feature/<name>` or `fix/<name>`
-   ```bash
-   git checkout -b feature/add-terraform-template
-   ```
-
-2. **Commit Changes**: Follow commit conventions
-   ```bash
-   git commit -m "[ECOS-AUTO] feat(templates): Add Terraform template"
-   ```
-
-3. **Push Branch**:
-   ```bash
-   git push origin feature/add-terraform-template
-   ```
-
-4. **Open PR**: Use PR template, link related issues
-
-### Review Process
-
-- **Automated Checks**: CI must pass (tests, linting, coverage)
-- **Code Review**: At least one approval required
-- **φ-CPS Validation**: Ensure delta < 0.05
-- **Merge Strategy**: Squash and merge
-
-## 🔺 Base-3 Logic
-
-### State Machine
-
-All operations return Base-3 states:
-
-- **PENDING** (0): Queued or in progress
-- **SUCCESS** (1): Completed successfully
-- **FAILED** (2): Encountered error
-
-### Implementation
+All commits must validate φ-CPS drift:
 
 ```python
-from typing import Literal
+# Before commit
+phi_baseline = 4.413
+phi_post = calculate_phi_cps(changes)
+delta = phi_post - phi_baseline
 
-Status = Literal["PENDING", "SUCCESS", "FAILED"]
-
-def operation() -> Dict[str, Any]:
-    return {
-        "status": "SUCCESS",  # Base-3 state
-        "data": {...},
-        "phi_delta": 0.002,   # φ-CPS contribution
-    }
+if delta > 0.05:
+    raise ValueError(f"φ-CPS drift too high: {delta:.3f}")
 ```
 
-### Validation States
+## Pull Request Process
 
-ConfigValidator uses extended Base-3:
+1. **Create branch**: `feature/your-feature-name`
+2. **Implement changes** with tests
+3. **Run validation**:
+   ```bash
+   black kiva_cli/
+   flake8 kiva_cli/
+   mypy kiva_cli/
+   pytest --cov=kiva_cli
+   ```
+4. **Commit** with Intent-Hash
+5. **Push** and create PR
+6. **CI/CD** must pass (GitHub Actions)
 
-- **UNKNOWN** (0.0): Cannot determine validity
-- **VALID** (0.5 or 1.0): Passes validation (with/without warnings)
-- **INVALID** (1.0): Fails validation
+## Branch Strategy
 
-## 🎯 φ-CPS Validation
+- `main`: Stable production code
+- `develop`: Integration branch
+- `feature/*`: New features
+- `fix/*`: Bug fixes
+- `docs/*`: Documentation updates
 
-### Constraints
+## Code Review Checklist
 
-- **Baseline**: φ = 4.092
-- **Alert Threshold**: Δφ > 0.05 (5% drift)
-- **Action on Breach**: Auto-rollback + incident ticket
+- [ ] Tests pass (unit + integration)
+- [ ] Coverage ≥ 85%
+- [ ] Black + flake8 + mypy clean
+- [ ] Documentation updated
+- [ ] φ-CPS drift < 5%
+- [ ] Backward compatibility maintained
+- [ ] Examples updated (if applicable)
 
-### Tracking
+## Issue Reporting
 
-Every operation contributes to φ-CPS:
+Use GitHub Issues with labels:
 
-```python
-def deploy_project() -> Dict[str, Any]:
-    # ... deployment logic ...
-    
-    return {
-        "status": "SUCCESS",
-        "deployment_id": "abc123",
-        "phi_delta": 0.005,  # Deployment contribution
-        "intent_hash": "0xDEPLOY_ABC123",
-    }
-```
+- `bug`: Code defects
+- `feature`: New functionality
+- `docs`: Documentation improvements
+- `performance`: Optimization needs
+- `question`: Clarifications
 
-### Calculation
+## Contact
 
-φ_post = φ_pre + Σ(semantic_weight × confidence)
-
-Where:
-- `semantic_weight`: Operation complexity (0.001-0.01)
-- `confidence`: Success probability (0.0-1.0)
-
-## ❓ Questions?
-
-Open an issue or discussion on GitHub:
-- [Issues](https://github.com/gerivdb/KIVA-CLI/issues)
-- [Discussions](https://github.com/gerivdb/KIVA-CLI/discussions)
+- **Maintainer:** gerivdb
+- **Ecosystem:** ECOS Ecosystem-1
+- **Chat:** [Discord/Slack link]

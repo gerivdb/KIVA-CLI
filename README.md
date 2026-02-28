@@ -1,171 +1,222 @@
-# KIVA-CLI
+# KIVA-CLI - Project & Deployment Orchestrator
 
-**Project & Application Orchestration CLI**
+**Version:** 1.0.0  
+**Status:** Active  
+**Part of:** ECOS Ecosystem-1 (16 repos)
 
-Autonomous orchestrator for project initialization, deployment management, and cross-repo coordination with ECOS ecosystem integration.
+## Overview
 
-[![CI](https://github.com/gerivdb/KIVA-CLI/actions/workflows/ci.yml/badge.svg)](https://github.com/gerivdb/KIVA-CLI/actions/workflows/ci.yml)
-[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+KIVA-CLI is a specialized command-line tool for project scaffolding and deployment orchestration within the ECOS ecosystem. It provides template-based project initialization (FastAPI, React, Go, Rust, etc.) and deployment workflows integrated with FLUENCE pipeline engine.
 
-## ✨ Features
+## Features
 
-- **Project Initialization**: Scaffold projects from templates (FastAPI, React, Go, Rust)
-- **Deployment Management**: Deploy, rollback, and manage environments
-- **Base-3 State Logic**: PENDING/SUCCESS/FAILED with fuzzy confidence
-- **φ-CPS Validation**: Global coherence tracking across operations
-- **ECOS Gateway Integration**: Delegates to specialized CLIs (ECOS, BRAIN, FLUENCE)
-- **IntentHash¹¹**: Cryptographic integrity for all operations
+- 🚀 **Project Scaffolding**: Initialize projects from ecosystem templates
+- 🔄 **Deployment Management**: Rolling, blue-green, canary strategies
+- ✅ **Configuration Validation**: JSON Schema-based config validation
+- ↩️ **Rollback Support**: Version-tracked deployment rollbacks
+- 🔗 **ECOS Integration**: Seamless integration via ECOS CLI Gateway
+- 📊 **FLUENCE Workflows**: Native FLUENCE pipeline orchestration
 
-## 🚀 Quick Start
-
-### Installation
+## Installation
 
 ```bash
 # Clone repository
 git clone https://github.com/gerivdb/KIVA-CLI.git
 cd KIVA-CLI
 
-# Install in editable mode
+# Install dependencies
+pip install -r requirements.txt
+
+# Install CLI (development mode)
 pip install -e .
 
 # Verify installation
 kiva --version
 ```
 
-### Basic Usage
+## Quick Start
+
+### 1. Initialize Project
 
 ```bash
-# List available templates
-kiva project templates
+# FastAPI project
+kiva project my-api --template fastapi
 
-# Initialize new FastAPI project
-kiva project init --name my-api --template fastapi
+# React TypeScript app
+kiva project my-app --template react
 
-# List projects in workspace
-kiva project list
-
-# Deploy to staging
-kiva deploy --project-path ./my-api --environment staging --target k8s-cluster-1
-
-# List deployments
-kiva deployment list --environment staging
-
-# Rollback deployment
-kiva rollback --deployment-id abc12345
+# Go microservice
+kiva project my-service --template go --path ./services/
 ```
 
-## 🏗️ Architecture
-
-### Base-3 State Machine
-
-All operations return one of three states:
-
-- **PENDING** (0): Operation queued or in progress
-- **SUCCESS** (1): Operation completed successfully
-- **FAILED** (2): Operation encountered error
-
-### φ-CPS Validation
-
-Global coherence tracking ensures ecosystem consistency:
-
-- **Baseline**: φ = 4.092
-- **Alert Threshold**: Δφ > 0.05 (5% drift)
-- **Auto-Rollback**: Triggered on threshold breach
-- **Formula**: φ_post = φ_pre + Σ(semantic_weight × confidence)
-
-### Components
-
-- **ProjectManager**: Project lifecycle (init, list, validate)
-- **DeploymentManager**: Deployment operations (deploy, rollback, list)
-- **TemplateRegistry**: Manages project templates (FastAPI, React, Go, Rust)
-- **ConfigValidator**: Base-3 validation (UNKNOWN/VALID/INVALID)
-- **ECOS Gateway**: Delegates to specialized CLIs via subprocess
-
-## 📚 Documentation
-
-- [Architecture Overview](docs/architecture.md)
-- [API Reference](docs/api.md)
-- [Contributing Guide](CONTRIBUTING.md)
-- [Changelog](CHANGELOG.md)
-
-## 🧪 Development
-
-### Setup
+### 2. Deploy to Environment
 
 ```bash
-# Install development dependencies
-pip install -e ".[dev]"
+# Dry-run deployment (no actual changes)
+kiva deploy ./my-api --env staging --dry-run
 
-# Run tests
+# Deploy to staging (rolling strategy)
+kiva deploy ./my-api --env staging --strategy rolling
+
+# Deploy to production (blue-green strategy)
+kiva deploy ./my-api --env production --strategy blue-green
+```
+
+### 3. Validate Configuration
+
+```bash
+# Validate kiva.yaml
+kiva config ./my-api/kiva.yaml
+
+# Validate with custom schema
+kiva config ./my-api/kiva.yaml --schema custom-schema
+```
+
+### 4. Rollback Deployment
+
+```bash
+# Rollback to previous version
+kiva rollback my-api --env production
+
+# Rollback to specific version
+kiva rollback my-api --env production --version 1.2.3
+```
+
+## Configuration
+
+KIVA uses `kiva.yaml` for project configuration:
+
+```yaml
+project:
+  name: my-api
+  version: 1.0.0
+  template: fastapi
+  
+deployment:
+  environments:
+    - dev
+    - staging
+    - production
+  
+  strategies:
+    staging: rolling
+    production: blue-green
+  
+  health_checks:
+    enabled: true
+    path: /health
+    timeout: 30s
+```
+
+## Templates
+
+Available templates in ECOYSTEM/templates/:
+
+| Template | Description | Stack |
+|----------|-------------|-------|
+| **fastapi** | REST API with FastAPI | Python 3.11+, FastAPI, Pydantic |
+| **react** | React TypeScript app | React 18, TypeScript, Vite |
+| **go** | Go microservice | Go 1.21+, net/http, gorilla/mux |
+| **rust** | Rust service | Rust 1.75+, Actix-web |
+| **nextjs** | Next.js full-stack | Next.js 14, React, TypeScript |
+| **django** | Django REST API | Python 3.11+, Django 4.2, DRF |
+
+## Integration with ECOS CLI
+
+KIVA-CLI commands are accessible via ECOS CLI through the gateway:
+
+```bash
+# Direct KIVA call
+kiva project my-app --template react
+
+# Via ECOS CLI (delegated to KIVA)
+ecos project my-app --template react
+
+# Both execute identically
+```
+
+## Deployment Strategies
+
+### Rolling Deployment
+- Gradual instance replacement
+- Zero-downtime updates
+- Automatic rollback on failure
+
+### Blue-Green Deployment
+- Parallel environment preparation
+- Instant traffic switch
+- Easy rollback (traffic reversal)
+
+### Canary Deployment
+- Phased traffic migration (10% → 50% → 100%)
+- Real-time monitoring integration
+- Automated rollback on anomalies
+
+## Architecture
+
+```
+KIVA-CLI/
+├── kiva_cli/
+│   ├── core/
+│   │   ├── project_manager.py      # Template scaffolding
+│   │   ├── deployment_manager.py   # FLUENCE integration
+│   │   └── config_manager.py       # JSON Schema validation
+│   ├── kiva.py                     # CLI entry point
+│   └── __init__.py
+├── tests/                          # Unit & integration tests
+├── examples/                       # Usage examples
+├── requirements.txt
+└── README.md
+```
+
+## φ-CPS Integration
+
+KIVA operations contribute to global φ-CPS (Coherence-Productivity Score):
+
+- **Project Init:** +0.001 per successful scaffold
+- **Deployment:** +0.002 per successful production deploy
+- **Rollback:** -0.001 (temporary degradation)
+- **Config Validation:** +0.0005 per valid config
+
+φ-CPS threshold: Δφ > 0.05 triggers automatic rollback.
+
+## Examples
+
+See [examples/](examples/) directory:
+
+1. **fastapi-project/** - Complete FastAPI REST API
+2. **react-app/** - React TypeScript SPA
+3. **deployment-workflow/** - Multi-environment pipeline
+4. **rollback-scenario/** - Production rollback simulation
+5. **config-validation/** - kiva.yaml validation examples
+
+## Testing
+
+```bash
+# Run all tests
 pytest
 
-# Run tests with coverage
+# With coverage report
 pytest --cov=kiva_cli --cov-report=html
 
-# Lint code
-ruff check .
-black --check .
+# Specific test file
+pytest tests/test_project_manager.py -v
 
-# Format code
-black .
-ruff check --fix .
+# Integration tests only
+pytest tests/integration/ -m integration
 ```
 
-### Testing
+## Contributing
 
-- **Unit Tests**: `tests/unit/` - Fast, no I/O
-- **Integration Tests**: `tests/integration/` - Filesystem, subprocess
-- **Coverage Target**: >80%
+See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
-## 🔧 Project Templates
+## License
 
-### FastAPI
-- Python 3.12 + FastAPI + SQLAlchemy
-- Alembic migrations + Pydantic validation
-- Docker + pytest + uvicorn
+MIT License - Part of ECOS Ecosystem-1
 
-### React
-- TypeScript + Vite + TailwindCSS
-- React 18 + Vitest + ESLint
-- Docker multi-stage build
+## Links
 
-### Go Service
-- Go 1.21 + Gin + GORM
-- PostgreSQL driver + Docker
-- Alpine-based production image
-
-### Rust Service
-- Rust 1.75 + Actix-Web + SQLx
-- Tokio async runtime + Serde
-- Alpine-based production image
-
-## 🌐 ECOS Ecosystem Integration
-
-KIVA-CLI integrates with ECOS ecosystem via Gateway pattern:
-
-```bash
-# ECOS Gateway delegates operations
-ecos-cli gateway delegate --source kiva-cli --action project_init
-
-# Global WAL tracking
-ecos-cli wal append --source kiva-cli --event deployment_execute
-
-# φ-CPS validation
-ecos-cli validate phi-cps --delta 0.012
-```
-
-## 📄 License
-
-MIT License - see [LICENSE](LICENSE)
-
-## 👥 Authors
-
-ECOS Ecosystem - H0 Autonomous Mode
-
-## 🔗 Links
-
-- [GitHub Repository](https://github.com/gerivdb/KIVA-CLI)
-- [ECOS-CLI](https://github.com/gerivdb/DevTools)
-- [ECOYSTEM](https://github.com/gerivdb/ECOYSTEM)
-- [BRAIN](https://github.com/gerivdb/BRAIN)
+- **GitHub:** https://github.com/gerivdb/KIVA-CLI
+- **ECOYSTEM:** https://github.com/gerivdb/ECOYSTEM
+- **FLUENCE:** https://github.com/gerivdb/FLUENCE
+- **Documentation:** https://github.com/gerivdb/BRAIN-DOCS
