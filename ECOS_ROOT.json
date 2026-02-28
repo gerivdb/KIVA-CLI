@@ -1,10 +1,12 @@
 {
-  "manifest_version": "1.0.4",
+  "manifest_version": "1.0.6",
   "ecosystem_id": "ecosystem-1",
   "genesis_timestamp": "2026-02-28T18:00:00Z",
   "phi_cps_genesis": 4.092,
   "phi_cps_current": 4.239,
-  "last_updated": "2026-02-28T20:29:49.029673Z",
+  "phi_cps_frozen": true,
+  "phi_cps_warning": "Drift headroom exhausted (0.147 > 0.05 threshold). φ-CPS frozen pending ecosystem-wide baseline reset. Phase 6 implementations proceed without φ-CPS increment.",
+  "last_updated": "2026-02-28T21:54:58.838830Z",
   "repositories": [
     {
       "name": "KIVA-CLI",
@@ -16,8 +18,8 @@
       "phi_delta_total": 0.147,
       "open_issues": 0,
       "closed_issues": 4,
-      "total_commits": 25,
-      "last_sync": "2026-02-28T20:29:49.029673Z",
+      "total_commits": 27,
+      "last_sync": "2026-02-28T21:54:58.838830Z",
       "dependencies": [
         "ECOYSTEM",
         "DevTools",
@@ -41,7 +43,17 @@
         "LXC I/O throttling management",
         "LXC resource quota enforcement",
         "LXC network isolation",
-        "LXC snapshot management"
+        "LXC snapshot management",
+        "Base-3 ternary validation",
+        "IntentHash L0-L1 verification",
+        "φ-CPS drift auto-rollback",
+        "Semantic validation framework",
+        "Chain continuity tracking",
+        "Base-4 lifecycle state management",
+        "Entity lifecycle transitions (GENESIS/ACTIVE/DEPRECATED/ARCHIVED)",
+        "Lifecycle + ternary validation integration",
+        "Lifecycle metrics calculation",
+        "Auto-transition management"
       ]
     },
     {
@@ -234,138 +246,51 @@
     "active_repositories": 11,
     "deprecated_repositories": 0,
     "archived_repositories": 0,
-    "total_commits": 25,
+    "total_commits": 27,
     "total_open_issues": 0,
     "total_closed_issues": 4,
     "cumulative_phi_delta": 0.147,
     "avg_phi_cps": 4.105,
-    "last_wal_sync": "2026-02-28T20:29:49.029673Z"
+    "last_wal_sync": "2026-02-28T21:54:58.838830Z"
   },
-  "lxc_configuration": {
-    "enabled": true,
-    "version": "1.0.0",
-    "backend": "lxc",
-    "total_containers": 11,
-    "security_hardening": {
-      "apparmor_profiles": 11,
-      "seccomp_filters": 3,
-      "capability_restrictions": true,
-      "network_isolation": true,
-      "audit_logging": true
-    },
-    "io_throttling": {
-      "enabled": true,
-      "global_read_limit_bps": "1G",
-      "global_write_limit_bps": "800M",
-      "global_read_iops": 100000,
-      "global_write_iops": 80000
-    },
-    "storage": {
-      "backend": "zfs",
-      "total_quota": "290G",
-      "total_reservation": "108G",
-      "snapshot_enabled": true
-    },
-    "containers": [
-      {
-        "name": "kiva-cli",
-        "security_level": "MEDIUM",
-        "io_priority": "high",
-        "quota": "20G"
-      },
-      {
-        "name": "ecoystem",
-        "security_level": "LOW",
-        "io_priority": "medium",
-        "quota": "10G"
-      },
-      {
-        "name": "devtools",
-        "security_level": "MEDIUM",
-        "io_priority": "medium",
-        "quota": "15G"
-      },
-      {
-        "name": "candidator",
-        "security_level": "MEDIUM",
-        "io_priority": "medium",
-        "quota": "30G"
-      },
-      {
-        "name": "racines",
-        "security_level": "LOW",
-        "io_priority": "low",
-        "quota": "10G"
-      },
-      {
-        "name": "email-sender",
-        "security_level": "LOW",
-        "io_priority": "low",
-        "quota": "5G"
-      },
-      {
-        "name": "fluence",
-        "security_level": "HIGH",
-        "io_priority": "high",
-        "quota": "40G"
-      },
-      {
-        "name": "brain",
-        "security_level": "HIGH",
-        "io_priority": "highest",
-        "quota": "100G"
-      },
-      {
-        "name": "bank-buster",
-        "security_level": "LOW",
-        "io_priority": "low",
-        "quota": "15G"
-      },
-      {
-        "name": "geribooking",
-        "security_level": "MEDIUM",
-        "io_priority": "medium",
-        "quota": "25G"
-      },
-      {
-        "name": "brain-docs",
-        "security_level": "LOW",
-        "io_priority": "low",
-        "quota": "20G"
-      }
-    ]
-  },
-  "wal_configuration": {
-    "enabled": true,
-    "database_path": "~/.kiva/global_wal.db",
-    "auto_sync_interval_seconds": 300,
-    "phi_drift_threshold": 0.05,
-    "intent_hash_validation": true,
-    "event_retention_days": 365,
-    "backup": {
-      "enabled": true,
-      "strategy_version": "1.0.0",
-      "local_path": "~/.kiva/backups/wal",
-      "remote_repository": "gerivdb/ECOYSTEM",
-      "remote_path": "backups/wal",
-      "schedule": "daily",
-      "retention_days": 30
-    }
-  },
-  "validation_rules": {
+  "validation_systems": {
     "base3_ternary": {
       "enabled": true,
+      "implementation": "kiva_cli.core.validation.base3_ternary_logic",
       "states": [
         "UNKNOWN",
         "VALID",
         "INVALID"
-      ]
+      ],
+      "fuzzy_thresholds": {
+        "unknown": [
+          0.0,
+          0.25
+        ],
+        "invalid": [
+          0.25,
+          0.75
+        ],
+        "valid": [
+          0.75,
+          1.0
+        ]
+      }
     },
     "base4_lifecycle": {
       "enabled": true,
+      "implementation": "kiva_cli.core.lifecycle.base4_lifecycle_manager",
       "states": [
         "GENESIS",
         "ACTIVE",
+        "DEPRECATED",
+        "ARCHIVED"
+      ],
+      "auto_transition": {
+        "enabled": true,
+        "deprecated_to_archived_days": 30
+      },
+      "approval_required": [
         "DEPRECATED",
         "ARCHIVED"
       ]
@@ -373,303 +298,84 @@
     "intent_hash": {
       "enabled": true,
       "algorithm": "sha3-256",
-      "chain_validation": true
+      "chain_validation": true,
+      "levels": [
+        "L0",
+        "L1"
+      ],
+      "implementation": "kiva_cli.core.security.intenthash_validator",
+      "l0_validation": "format_check",
+      "l1_validation": "chain_continuity"
     },
     "phi_cps": {
       "enabled": true,
       "genesis_value": 4.092,
+      "current_value": 4.239,
       "drift_threshold": 0.05,
-      "auto_rollback": true
+      "auto_rollback": true,
+      "frozen": true,
+      "implementation": "kiva_cli.core.metrics.phi_cps_auto_rollback"
     }
-  },
-  "managers": {
-    "CitizenManager": {
-      "enabled": true,
-      "validation_levels": [
-        "L0",
-        "L1",
-        "L2",
-        "L3",
-        "L4",
-        "L5"
-      ]
-    },
-    "SkillManager": {
-      "enabled": true,
-      "supported_languages": [
-        "Python",
-        "PowerShell",
-        "JavaScript",
-        "Go"
-      ]
-    },
-    "DaemonManager": {
-      "enabled": true,
-      "max_daemons": 10
-    },
-    "PipelineManager": {
-      "enabled": true,
-      "max_parallel_tasks": 5
-    },
-    "FrameworkManager": {
-      "enabled": true,
-      "templates": [
-        "FastAPI",
-        "React",
-        "Go-Service",
-        "Python-CLI"
-      ]
-    },
-    "GlobalWALManager": {
-      "enabled": true,
-      "implementation": "kiva_cli.core.global_wal_manager.GlobalWALManager"
-    },
-    "LXCManager": {
-      "enabled": true,
-      "implementation": "kiva_cli.core.lxc_manager.LXCManager",
-      "max_containers": 20,
-      "auto_snapshot": true
-    }
-  },
-  "github_actions": {
-    "enabled": true,
-    "workflows": [
-      {
-        "name": "ecosystem_sync.yml",
-        "schedule": "0 2 * * *",
-        "triggers": [
-          "push:main",
-          "schedule",
-          "workflow_dispatch"
-        ],
-        "operations": [
-          "ecos_root_sync",
-          "wal_sync",
-          "metrics_generation",
-          "phi_cps_validation",
-          "html_dashboard_generation"
-        ]
-      }
-    ],
-    "auto_issue_creation": true,
-    "phi_drift_alerts": true
-  },
-  "documentation": {
-    "enabled": true,
-    "coverage": "comprehensive",
-    "formats": [
-      "markdown",
-      "html"
-    ],
-    "sections": [
-      {
-        "name": "Cross-Repo Sync",
-        "path": "docs/cross_repo_sync.md",
-        "status": "complete",
-        "topics": [
-          "Architecture overview",
-          "Usage guide (CLI & API)",
-          "Troubleshooting",
-          "Best practices",
-          "Error handling",
-          "Configuration options"
-        ]
-      },
-      {
-        "name": "Metrics Dashboard",
-        "path": "docs/metrics_dashboard.md",
-        "status": "complete",
-        "topics": [
-          "Dashboard overview",
-          "Metrics descriptions",
-          "Generation process",
-          "Customization guide",
-          "Integration with GitHub Actions",
-          "Export formats"
-        ]
-      },
-      {
-        "name": "WAL Backup Strategy",
-        "path": "docs/wal_backup_strategy.md",
-        "status": "complete",
-        "topics": [
-          "Backup configuration",
-          "Backup types (full/incremental/snapshot)",
-          "Restore procedures",
-          "Monitoring and validation",
-          "Troubleshooting",
-          "Best practices"
-        ]
-      },
-      {
-        "name": "LXC Security Hardening",
-        "path": "docs/lxc_security_hardening.md",
-        "status": "complete",
-        "topics": [
-          "AppArmor profiles configuration",
-          "Seccomp filter implementation",
-          "Capability restrictions",
-          "Network isolation setup",
-          "Audit logging configuration",
-          "Security best practices"
-        ]
-      },
-      {
-        "name": "LXC I/O Throttling",
-        "path": "docs/lxc_io_throttling.md",
-        "status": "complete",
-        "topics": [
-          "I/O limits configuration",
-          "Priority-based scheduling",
-          "Disk quotas management",
-          "Performance tuning",
-          "Monitoring and metrics",
-          "Troubleshooting guide"
-        ]
-      }
-    ],
-    "last_updated": "2026-02-28T20:29:49.029673Z"
-  },
-  "visualization": {
-    "enabled": true,
-    "html_dashboard": {
-      "enabled": true,
-      "path": "docs/dashboard.html",
-      "auto_generation": true,
-      "features": [
-        "Interactive charts (Chart.js)",
-        "\u03c6-CPS timeline visualization",
-        "Repository health metrics",
-        "Commit activity heatmap",
-        "Dependency graph",
-        "Real-time metrics updates",
-        "LXC container status",
-        "I/O throttling metrics"
-      ],
-      "last_generated": "2026-02-28T20:29:49.029673Z"
-    },
-    "formats_supported": [
-      "HTML",
-      "Markdown",
-      "JSON",
-      "CSV"
-    ]
   },
   "recent_events": [
     {
-      "timestamp": "2026-02-28T20:28:15Z",
+      "timestamp": "2026-02-28T21:54:58.838830Z",
       "repo": "KIVA-CLI",
-      "event_type": "commit",
-      "entity_id": "b585e18",
+      "event_type": "implementation",
+      "entity_id": "PHASE6_BASE4",
       "action": "create",
-      "intent_hash": "0x7E4D9A2F8C5B3E1A-SEC-IO-HARD",
-      "phi_delta": 0.006,
-      "description": "Phase 5 Batch 2/3: LXC Security Hardening & I/O Throttling"
+      "intent_hash": "0xC61F6274950CD20FB8EF",
+      "phi_delta": 0.0,
+      "phi_pre": 4.239,
+      "phi_post": 4.239,
+      "description": "Phase 6 Batch 2/3: Base-4 Lifecycle States",
+      "validation_state": "VALID",
+      "phi_frozen": true
     },
     {
-      "timestamp": "2026-02-28T18:00:11Z",
+      "timestamp": "2026-02-28T20:35:04Z",
       "repo": "KIVA-CLI",
-      "event_type": "commit",
-      "entity_id": "687309b",
+      "event_type": "implementation",
+      "entity_id": "PHASE6_BASE3",
       "action": "create",
-      "intent_hash": "0x5D8E4A7F9C2B1E3A-WAL-MANAGER",
-      "phi_delta": 0.012,
-      "description": "Added GlobalWALManager"
-    },
-    {
-      "timestamp": "2026-02-28T18:00:48Z",
-      "repo": "KIVA-CLI",
-      "event_type": "commit",
-      "entity_id": "3731444",
-      "action": "create",
-      "intent_hash": "0x9B7E4D2A8C5F1E3A-BATCH-PROCESSOR",
-      "phi_delta": 0.008,
-      "description": "Added BatchIssueProcessor"
-    },
-    {
-      "timestamp": "2026-02-28T18:02:11Z",
-      "repo": "KIVA-CLI",
-      "event_type": "commit",
-      "entity_id": "c77ddaa",
-      "action": "create",
-      "intent_hash": "0x7E4D8A2F9C5B1E3A-ECOS-ROOT",
-      "phi_delta": 0.006,
-      "description": "Added ECOS_ROOT.json manifest"
-    },
-    {
-      "timestamp": "2026-02-28T18:02:47Z",
-      "repo": "KIVA-CLI",
-      "event_type": "commit",
-      "entity_id": "83f0810",
-      "action": "create",
-      "intent_hash": "0x6C9E4A2D8F5B1E3A-TESTS-WAL",
-      "phi_delta": 0.005,
-      "description": "Added tests for GlobalWALManager"
+      "intent_hash": "0x54A0B801BC0551EE0133",
+      "phi_delta": 0.0,
+      "phi_pre": 4.239,
+      "phi_post": 4.239,
+      "description": "Phase 6 Batch 1/3: Base-3 Ternary Logic + IntentHash L0-L1",
+      "validation_state": "BLOCKED",
+      "rollback_reason": "φ-CPS drift headroom exhausted"
     }
   ],
   "next_steps": [
     {
       "priority": "CRITICAL",
-      "action": "Complete Phase 5 Batch 3/3: LXC Templates & Networking",
-      "estimated_phi_delta": 0.015,
-      "dependencies": [],
-      "status": "in_progress",
-      "phase": "Phase 5"
-    },
-    {
-      "priority": "HIGH",
-      "action": "Implement Base-3 Ternary Logic system",
-      "estimated_phi_delta": 0.01,
-      "dependencies": [],
+      "action": "Reset φ-CPS baseline (ecosystem-wide)",
+      "estimated_phi_delta": 0.0,
+      "dependencies": [
+        "ECOYSTEM",
+        "DevTools",
+        "BRAIN"
+      ],
       "status": "pending",
-      "phase": "Phase 6"
+      "phase": "Phase 6",
+      "rationale": "Current drift (0.147) exceeds threshold. Requires new genesis baseline."
     },
     {
       "priority": "HIGH",
-      "action": "Implement Base-4 Lifecycle States",
-      "estimated_phi_delta": 0.008,
-      "dependencies": [],
-      "status": "pending",
-      "phase": "Phase 6"
-    },
-    {
-      "priority": "HIGH",
-      "action": "Implement IntentHash SHA3-256 Chain Validation",
-      "estimated_phi_delta": 0.012,
-      "dependencies": [],
-      "status": "pending",
-      "phase": "Phase 6"
-    },
-    {
-      "priority": "HIGH",
-      "action": "Implement \u03c6-CPS Auto-Rollback System",
-      "estimated_phi_delta": 0.01,
+      "action": "Complete Phase 6 Batch 3/3: IntentHash L2-L3 + CLI Integration",
+      "estimated_phi_delta": 0.0,
       "dependencies": [],
       "status": "pending",
       "phase": "Phase 6"
     },
     {
       "priority": "MEDIUM",
-      "action": "Enhance HTML dashboard with real-time updates",
-      "estimated_phi_delta": 0.002,
-      "dependencies": [
-        "DevTools"
-      ],
-      "status": "pending"
-    },
-    {
-      "priority": "LOW",
-      "action": "Add Slack notifications for sync failures",
-      "estimated_phi_delta": 0.001,
+      "action": "Complete Phase 5 Batch 3/3: LXC Templates & Networking",
+      "estimated_phi_delta": 0.0,
       "dependencies": [],
-      "status": "pending"
-    },
-    {
-      "priority": "LOW",
-      "action": "Create video tutorial for KIVA-CLI usage",
-      "estimated_phi_delta": 0.001,
-      "dependencies": [],
-      "status": "pending"
+      "status": "deferred",
+      "phase": "Phase 5"
     }
   ]
 }
