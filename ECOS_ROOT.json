@@ -1,10 +1,10 @@
 {
-  "manifest_version": "1.0.0",
+  "manifest_version": "1.0.1",
   "ecosystem_id": "ecosystem-1",
   "genesis_timestamp": "2026-02-28T18:00:00Z",
   "phi_cps_genesis": 4.092,
-  "phi_cps_current": 4.228,
-  "last_updated": "2026-02-28T18:29:00Z",
+  "phi_cps_current": 4.229,
+  "last_updated": "2026-02-28T19:41:00Z",
   "repositories": [
     {
       "name": "KIVA-CLI",
@@ -12,12 +12,12 @@
       "url": "https://github.com/gerivdb/KIVA-CLI",
       "role": "orchestrator",
       "status": "ACTIVE",
-      "phi_cps": 4.228,
-      "phi_delta_total": 0.136,
+      "phi_cps": 4.229,
+      "phi_delta_total": 0.137,
       "open_issues": 0,
       "closed_issues": 4,
-      "total_commits": 21,
-      "last_sync": "2026-02-28T18:29:00Z",
+      "total_commits": 22,
+      "last_sync": "2026-02-28T19:41:00Z",
       "dependencies": [
         "ECOYSTEM",
         "DevTools",
@@ -32,7 +32,8 @@
         "Ecosystem metrics dashboard",
         "Cross-repo synchronization",
         "GitHub Actions automation",
-        "Comprehensive documentation"
+        "Comprehensive documentation",
+        "HTML metrics visualization"
       ]
     },
     {
@@ -46,7 +47,7 @@
       "open_issues": 0,
       "closed_issues": 0,
       "total_commits": 1,
-      "last_sync": "2026-02-28T18:29:00Z",
+      "last_sync": "2026-02-28T19:41:00Z",
       "dependencies": [],
       "capabilities": [
         "Ecosystem manifests",
@@ -66,7 +67,7 @@
       "open_issues": 0,
       "closed_issues": 0,
       "total_commits": 0,
-      "last_sync": "2026-02-28T18:29:00Z",
+      "last_sync": "2026-02-28T19:41:00Z",
       "dependencies": [],
       "capabilities": [
         "Development utilities",
@@ -225,12 +226,12 @@
     "active_repositories": 11,
     "deprecated_repositories": 0,
     "archived_repositories": 0,
-    "total_commits": 21,
+    "total_commits": 22,
     "total_open_issues": 0,
     "total_closed_issues": 4,
-    "cumulative_phi_delta": 0.136,
-    "avg_phi_cps": 4.108,
-    "last_wal_sync": "2026-02-28T18:29:00Z"
+    "cumulative_phi_delta": 0.137,
+    "avg_phi_cps": 4.109,
+    "last_wal_sync": "2026-02-28T19:41:00Z"
   },
   "wal_configuration": {
     "enabled": true,
@@ -328,7 +329,8 @@
           "ecos_root_sync",
           "wal_sync",
           "metrics_generation",
-          "phi_cps_validation"
+          "phi_cps_validation",
+          "html_dashboard_generation"
         ]
       }
     ],
@@ -371,6 +373,29 @@
       }
     ],
     "last_updated": "2026-02-28T18:20:31Z"
+  },
+  "visualization": {
+    "enabled": true,
+    "html_dashboard": {
+      "enabled": true,
+      "path": "docs/dashboard.html",
+      "auto_generation": true,
+      "features": [
+        "Interactive charts (Chart.js)",
+        "φ-CPS timeline visualization",
+        "Repository health metrics",
+        "Commit activity heatmap",
+        "Dependency graph",
+        "Real-time metrics updates"
+      ],
+      "last_generated": "2026-02-28T19:41:00Z"
+    },
+    "formats_supported": [
+      "HTML",
+      "Markdown",
+      "JSON",
+      "CSV"
+    ]
   },
   "recent_events": [
     {
@@ -492,6 +517,16 @@
       "intent_hash": "0x4C7E3D2A8F5B1E3A-PHASE3-DOCS",
       "phi_delta": 0.002,
       "description": "Phase 3 documentation complete"
+    },
+    {
+      "timestamp": "2026-02-28T19:41:00Z",
+      "repo": "KIVA-CLI",
+      "event_type": "update",
+      "entity_id": "ECOS_ROOT",
+      "action": "update",
+      "intent_hash": "0x3E8D9A2F7C5B1E4A-HTML-VIZ",
+      "phi_delta": 0.001,
+      "description": "Added HTML visualization capability"
     }
   ],
   "next_steps": [
@@ -502,7 +537,8 @@
       "dependencies": [
         "DevTools"
       ],
-      "status": "pending"
+      "status": "completed",
+      "completed_at": "2026-02-28T19:41:00Z"
     },
     {
       "priority": "MEDIUM",
@@ -534,6 +570,15 @@
       "action": "Create video tutorial for KIVA-CLI usage",
       "estimated_phi_delta": 0.001,
       "dependencies": [],
+      "status": "pending"
+    },
+    {
+      "priority": "MEDIUM",
+      "action": "Enhance HTML dashboard with real-time updates",
+      "estimated_phi_delta": 0.002,
+      "dependencies": [
+        "DevTools"
+      ],
       "status": "pending"
     }
   ]
