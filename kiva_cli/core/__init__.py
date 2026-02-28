@@ -1,10 +1,6 @@
-# Core module
-from .project_manager import ProjectManager, ProjectResult
-from .deployment_manager import DeploymentManager, DeploymentResult
-from .config_manager import ConfigManager, ConfigResult
+"""Core utilities for KIVA-CLI operations."""
 
-__all__ = [
-    'ProjectManager', 'ProjectResult',
-    'DeploymentManager', 'DeploymentResult',
-    'ConfigManager', 'ConfigResult'
-]
+from .template_registry import TemplateRegistry
+from .config_validator import ConfigValidator
+
+__all__ = ["TemplateRegistry", "ConfigValidator"]
