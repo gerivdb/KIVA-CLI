@@ -1,59 +1,183 @@
-version: "1.0"
-ecosystem: "ecosystem-1"
-role: "orchestration_projects"
-priority: 1
+# KIVA-CLI - Cline Rules Configuration
+# H0 Autonomous Mode - Base-3 Ternary Logic
+# φ-CPS Global Coherence Validation
 
-rules:
-  - name: "Intent Hash Mandatory"
-    pattern: "^\\[KIVA-AUTO\\]|^\\[ECOS-AUTO\\]"
-    scope: "commit_messages"
-    enforcement: "strict"
-  
-  - name: "Tests Required"
-    threshold: 0.80
-    scope: "pull_requests"
-    enforcement: "strict"
-  
-  - name: "Phi-CPS Tracking"
-    validate: true
-    scope: "deployments"
-    threshold: 0.05
+## Mode Configuration
+mode: H0_AUTONOMOUS_BASE3_NO_HITL
+auto_approval: true
+batch_operations: true
+max_parallel_agents: 3
 
-integrations:
-  ecos_cli:
-    registry_path: "../ECOYSTEM/tooling/ecos_cli/registry.json"
-    wal_endpoint: "sqlite://ECOYSTEM/global_wal.db"
-    delegation: "subprocess"
-  
-  brain_cli:
-    optional: true
-    coordination: "subprocess"
-    commands:
-      - "pattern"
-      - "knowledge"
-  
-  fluence_cli:
-    optional: true
-    coordination: "subprocess"
-    commands:
-      - "workflow"
-      - "execute"
+## State Logic
+state_system: BASE3_TERNARY
+states:
+  - PENDING: 0    # Operation queued or in progress
+  - SUCCESS: 1    # Operation completed successfully
+  - FAILED: 2     # Operation encountered error
 
+validation_states:
+  - UNKNOWN: 0.0  # Cannot determine validity
+  - VALID: 0.5    # Valid with warnings
+  - VALID: 1.0    # Fully valid
+  - INVALID: 1.0  # Failed validation
+
+lifecycle_states:
+  - GENESIS: 0    # Initial creation
+  - ACTIVE: 1     # Currently active
+  - DEPRECATED: 2 # Marked for removal
+  - ARCHIVED: 3   # Historical record
+
+## φ-CPS Validation
+phi_cps:
+  baseline: 4.092
+  alert_threshold: 0.05  # 5% drift
+  action_on_breach: auto_rollback
+  tracking: true
+  formula: "phi_post = phi_pre + sum(semantic_weight * confidence)"
+
+## Commit Conventions
+commit_prefix: "[ECOS-AUTO]"
+commit_format: "<type>(<scope>): <subject>"
+include_intent_hash: true
+include_phi_delta: true
+
+commit_types:
+  - feat: New feature
+  - fix: Bug fix
+  - docs: Documentation
+  - test: Tests
+  - refactor: Refactoring
+  - perf: Performance
+  - chore: Maintenance
+
+## Testing Requirements
+test_coverage_min: 80
+test_categories:
+  - unit: Fast, no I/O
+  - integration: Filesystem, subprocess
+test_runner: pytest
+coverage_tool: pytest-cov
+
+## Linting & Formatting
+formatter: black
+linter: ruff
+type_checker: mypy  # Optional, not enforced in phase 1A
+
+## Retry Policy
+max_retries: 2
+retry_strategy: exponential_backoff
+retry_base_delay: 1  # seconds
+retry_max_delay: 10  # seconds
+
+## ECOS Gateway Integration
+ecos_gateway:
+  enabled: true
+  timeout: 60  # seconds
+  delegate_actions:
+    - project_init
+    - deployment_execute
+    - deployment_rollback
+  wal_tracking: true
+
+## Templates
+template_registry:
+  builtin:
+    - fastapi: Python + FastAPI + SQLAlchemy
+    - react: TypeScript + Vite + TailwindCSS
+    - go-service: Go + Gin + GORM
+    - rust-service: Rust + Actix-Web + SQLx
+  hot_reload: false  # Phase 1B feature
+  external_sources: []  # Phase 1B feature
+
+## Deployment Strategies
+deployment:
+  strategies:
+    - rolling: Sequential pod replacement
+    - blue-green: Dual environment swap
+    - canary: Gradual traffic shift
+  default_strategy: rolling
+  health_check_required: false  # Phase 1A: optional
+  rollback_on_failure: true
+
+## Error Handling
+error_handling:
+  on_conflict: apply_strategy_ours
+  on_test_fail: retry_2x_then_skip
+  on_rate_limit: switch_to_browser
+  log_warnings_to_wal: true
+
+## Documentation
+docs:
+  inline_comments: minimal  # Avoid verbose comments
+  docstrings: google_style
+  readme_required: true
+  changelog_required: true
+  api_reference: true
+
+## CI/CD
+ci_cd:
+  provider: github_actions
+  python_versions:
+    - "3.11"
+    - "3.12"
+  triggers:
+    - push
+    - pull_request
+  jobs:
+    - lint: black + ruff
+    - test: pytest + coverage
+    - build: setup.py sdist
+
+## File Structure
+project_structure:
+  src: kiva_cli/
+  tests: tests/
+  docs: docs/
+  bin: bin/
+  config:
+    - setup.py
+    - pytest.ini
+    - .clinerules
+    - .gitignore
+
+## Dependencies
 dependencies:
-  required:
-    - "ECOYSTEM>=5.0.0"
-  optional:
-    - "BRAIN>=1.0.0"
-    - "FLUENCE>=0.5.0"
+  runtime: stdlib_only  # No external deps in phase 1A
+  dev:
+    - pytest>=8.0.0
+    - pytest-cov>=4.1.0
+    - pytest-mock>=3.12.0
+    - black>=24.0.0
+    - ruff>=0.2.0
 
-ternary_states:
-  validation:
-    - "PENDING"
-    - "VALID"
-    - "INVALID"
-  
-  lifecycle:
-    - "GENESIS"
-    - "ACTIVE"
-    - "DEPRECATED"
-    - "ARCHIVED"
+## Exclusions
+exclude_patterns:
+  - "*.pyc"
+  - "__pycache__/"
+  - ".pytest_cache/"
+  - "htmlcov/"
+  - ".coverage"
+  - "dist/"
+  - "build/"
+  - "*.egg-info/"
+  - ".venv/"
+  - "venv/"
+
+## Phase Tracking
+current_phase: 1A
+phase_1a_status: COMPLETE
+phase_1a_tasks:
+  - task_1: Repository structure ✅
+  - task_2: CLI skeleton ✅
+  - task_3: ProjectManager ✅
+  - task_4: DeploymentManager ✅
+  - task_5: Tests suite ✅
+  - task_6: Executable wrapper ✅
+  - task_7: Documentation ✅
+  - task_8: CI/CD pipeline ✅
+
+phase_1b_planned:
+  - Multi-repo orchestration
+  - Template hot-reload
+  - Health monitoring
+  - Rollback history UI

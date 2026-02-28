@@ -23,12 +23,24 @@ share/python-wheels/
 *.egg
 PIPFILE.lock
 
+# Virtual environments
+venv/
+ENV/
+env/
+.venv
+
 # Testing
 .pytest_cache/
 .coverage
+.coverage.*
 htmlcov/
 .tox/
 .nox/
+nosetests.xml
+coverage.xml
+*.cover
+*.log
+.hypothesis/
 
 # IDEs
 .vscode/
@@ -36,23 +48,19 @@ htmlcov/
 *.swp
 *.swo
 *~
-
-# Environment
-.env
-.venv
-env/
-venv/
-ENV/
-env.bak/
-venv.bak/
-
-# OS
 .DS_Store
-Thumbs.db
+
+# Project specific
+.kiva/
+deployments/
+*.kiva.json.bak
 
 # Logs
-*.log
 logs/
+*.log
 
-# Documentation
-docs/_build/
+# Temporary files
+*.tmp
+*.temp
+tmp/
+temp/

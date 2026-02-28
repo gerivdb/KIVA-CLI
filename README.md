@@ -1,195 +1,171 @@
-# KIVA CLI ⚡
+# KIVA-CLI
+
+**Project & Application Orchestration CLI**
+
+Autonomous orchestrator for project initialization, deployment management, and cross-repo coordination with ECOS ecosystem integration.
 
 [![CI](https://github.com/gerivdb/KIVA-CLI/actions/workflows/ci.yml/badge.svg)](https://github.com/gerivdb/KIVA-CLI/actions/workflows/ci.yml)
-[![Lint](https://github.com/gerivdb/KIVA-CLI/actions/workflows/lint.yml/badge.svg)](https://github.com/gerivdb/KIVA-CLI/actions/workflows/lint.yml)
-[![codecov](https://codecov.io/gh/gerivdb/KIVA-CLI/branch/main/graph/badge.svg)](https://codecov.io/gh/gerivdb/KIVA-CLI)
-[![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Ecosystem-1](https://img.shields.io/badge/ecosystem-1-green.svg)](https://github.com/gerivdb/ECOYSTEM)
 
-**Projects & Applications Orchestrator for Ecosystem-1**
+## ✨ Features
 
-KIVA CLI est l'orchestrateur autonome de gestion des projets et applications dans l'écosystème ECOS. Il fournit des commandes pour scaffolding, déploiement, configuration et monitoring avec intégration native au Gateway ECOS CLI.
-
----
+- **Project Initialization**: Scaffold projects from templates (FastAPI, React, Go, Rust)
+- **Deployment Management**: Deploy, rollback, and manage environments
+- **Base-3 State Logic**: PENDING/SUCCESS/FAILED with fuzzy confidence
+- **φ-CPS Validation**: Global coherence tracking across operations
+- **ECOS Gateway Integration**: Delegates to specialized CLIs (ECOS, BRAIN, FLUENCE)
+- **IntentHash¹¹**: Cryptographic integrity for all operations
 
 ## 🚀 Quick Start
 
 ### Installation
 
 ```bash
-# Via pip (recommandé)
-pip install kiva-cli
-
-# Depuis les sources
+# Clone repository
 git clone https://github.com/gerivdb/KIVA-CLI.git
 cd KIVA-CLI
-pip install -e ".[dev]"
+
+# Install in editable mode
+pip install -e .
+
+# Verify installation
+kiva --version
 ```
 
-### Premières Commandes
+### Basic Usage
 
 ```bash
-# Initialiser un projet FastAPI
-kiva project init --template=fastapi --name=my-api
+# List available templates
+kiva project templates
 
-# Scaffolder un composant React
-kiva project scaffold --type=component --name=Button --typescript
+# Initialize new FastAPI project
+kiva project init --name my-api --template fastapi
 
-# Déployer en staging
-kiva deploy staging api --env=preprod
+# List projects in workspace
+kiva project list
 
-# Valider configuration
-kiva config validate kiva.yaml
+# Deploy to staging
+kiva deploy --project-path ./my-api --environment staging --target k8s-cluster-1
+
+# List deployments
+kiva deployment list --environment staging
+
+# Rollback deployment
+kiva rollback --deployment-id abc12345
 ```
 
----
+## 🏗️ Architecture
 
-## 🎯 Features
+### Base-3 State Machine
 
-### 📁 Project Management
+All operations return one of three states:
 
-- **Templates Support**: FastAPI, React, Go, Rust, Next.js
-- **Scaffolding**: Components, services, models, tests
-- **Dependency Management**: Automatic detection + updates
-- **Configuration**: YAML/JSON validation with schemas
+- **PENDING** (0): Operation queued or in progress
+- **SUCCESS** (1): Operation completed successfully
+- **FAILED** (2): Operation encountered error
 
-### 🚀 Deployment
+### φ-CPS Validation
 
-- **Multi-Environment**: dev, staging, production
-- **Strategies**: rolling, blue-green, canary
-- **Rollback**: One-command version rollback
-- **Health Checks**: Automated post-deployment validation
+Global coherence tracking ensures ecosystem consistency:
 
-### 🔗 Ecosystem Integration
+- **Baseline**: φ = 4.092
+- **Alert Threshold**: Δφ > 0.05 (5% drift)
+- **Auto-Rollback**: Triggered on threshold breach
+- **Formula**: φ_post = φ_pre + Σ(semantic_weight × confidence)
 
-- **ECOS CLI Gateway**: Seamless delegation from `ecos` command
-- **BRAIN CLI**: Pattern detection and ML suggestions
-- **FLUENCE CLI**: Workflow execution coordination
-- **Global WAL**: Event tracking with φ-CPS validation
+### Components
 
----
+- **ProjectManager**: Project lifecycle (init, list, validate)
+- **DeploymentManager**: Deployment operations (deploy, rollback, list)
+- **TemplateRegistry**: Manages project templates (FastAPI, React, Go, Rust)
+- **ConfigValidator**: Base-3 validation (UNKNOWN/VALID/INVALID)
+- **ECOS Gateway**: Delegates to specialized CLIs via subprocess
 
 ## 📚 Documentation
 
-- [Installation Guide](docs/installation.md)
-- [Command Reference](docs/commands.md)
-- [Templates](docs/templates.md)
-- [Configuration](docs/configuration.md)
-- [API Integration](docs/api.md)
-- [Contributing](CONTRIBUTING.md)
+- [Architecture Overview](docs/architecture.md)
+- [API Reference](docs/api.md)
+- [Contributing Guide](CONTRIBUTING.md)
+- [Changelog](CHANGELOG.md)
 
----
+## 🧪 Development
 
-## 🛠️ Architecture
-
-```
-KIVA CLI
-│
-├── Commands Layer
-│   ├── project (init, scaffold, list)
-│   ├── deploy (staging, production, rollback)
-│   └── config (validate, generate, migrate)
-│
-├── Core Managers
-│   ├── ProjectManager (lifecycle, templates)
-│   ├── DeploymentManager (strategies, health)
-│   └── ConfigManager (validation, schemas)
-│
-└── Integrations
-    ├── ECOS CLI (subprocess delegation)
-    ├── BRAIN CLI (pattern detection)
-    └── FLUENCE CLI (workflow execution)
-```
-
----
-
-## 🧪 Examples
-
-### Create FastAPI Project
+### Setup
 
 ```bash
-kiva project init --template=fastapi --name=my-api
-cd my-api
-kiva config validate pyproject.toml
-python -m uvicorn main:app --reload
-```
-
-### Deploy with Monitoring
-
-```bash
-# Deploy to staging
-kiva deploy staging api --strategy=rolling
-
-# Check health
-kiva deploy status api-staging
-
-# Rollback if needed
-kiva deploy rollback api-v1.2.0 --to-version=v1.1.0
-```
-
-### Integration with ECOS
-
-```bash
-# Via ECOS Gateway (deprecated but supported)
-ecos project init --template=react --name=my-app
-# ⚠️ Auto-delegates to: kiva project init ...
-
-# Direct KIVA usage (recommended)
-kiva project init --template=react --name=my-app
-```
-
----
-
-## 📊 Project Status
-
-**Version**: 0.1.0-alpha  
-**Phase**: 1A - Initial Extraction  
-**φ-CPS Impact**: +0.008 (4.299 → 4.307 target)  
-**Coverage**: Target 80%+  
-
-### Roadmap
-
-- [x] Repository setup + CI/CD
-- [ ] Extract project commands from ECOYSTEM
-- [ ] Implement core managers (Project, Deploy, Config)
-- [ ] Integration tests with ECOS CLI
-- [ ] Documentation complete
-- [ ] Beta release 0.1.0
-
----
-
-## 🤝 Contributing
-
-Contributions welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
-
-### Development Setup
-
-```bash
-git clone https://github.com/gerivdb/KIVA-CLI.git
-cd KIVA-CLI
+# Install development dependencies
 pip install -e ".[dev]"
-pytest  # Run tests
-ruff check kiva_cli  # Lint
-black kiva_cli  # Format
+
+# Run tests
+pytest
+
+# Run tests with coverage
+pytest --cov=kiva_cli --cov-report=html
+
+# Lint code
+ruff check .
+black --check .
+
+# Format code
+black .
+ruff check --fix .
 ```
 
----
+### Testing
 
-## 📝 License
+- **Unit Tests**: `tests/unit/` - Fast, no I/O
+- **Integration Tests**: `tests/integration/` - Filesystem, subprocess
+- **Coverage Target**: >80%
 
-MIT License - see [LICENSE](LICENSE) for details.
+## 🔧 Project Templates
 
----
+### FastAPI
+- Python 3.12 + FastAPI + SQLAlchemy
+- Alembic migrations + Pydantic validation
+- Docker + pytest + uvicorn
+
+### React
+- TypeScript + Vite + TailwindCSS
+- React 18 + Vitest + ESLint
+- Docker multi-stage build
+
+### Go Service
+- Go 1.21 + Gin + GORM
+- PostgreSQL driver + Docker
+- Alpine-based production image
+
+### Rust Service
+- Rust 1.75 + Actix-Web + SQLx
+- Tokio async runtime + Serde
+- Alpine-based production image
+
+## 🌐 ECOS Ecosystem Integration
+
+KIVA-CLI integrates with ECOS ecosystem via Gateway pattern:
+
+```bash
+# ECOS Gateway delegates operations
+ecos-cli gateway delegate --source kiva-cli --action project_init
+
+# Global WAL tracking
+ecos-cli wal append --source kiva-cli --event deployment_execute
+
+# φ-CPS validation
+ecos-cli validate phi-cps --delta 0.012
+```
+
+## 📄 License
+
+MIT License - see [LICENSE](LICENSE)
+
+## 👥 Authors
+
+ECOS Ecosystem - H0 Autonomous Mode
 
 ## 🔗 Links
 
-- [ECOYSTEM](https://github.com/gerivdb/ECOYSTEM) - Root infrastructure
-- [ECOS CLI](https://github.com/gerivdb/ECOS-CLI) - CLI Gateway
-- [BRAIN](https://github.com/gerivdb/BRAIN) - AI orchestration
-- [FLUENCE](https://github.com/gerivdb/FLUENCE) - Workflow engine
-- [PRD #421](https://github.com/gerivdb/ECOYSTEM/issues/421) - CLI Modular Distribution Strategy
-
----
-
-**Made with ♥️ for Ecosystem-1 | H0 Autonomous Mode | IntentHash¹¹ Validated**
+- [GitHub Repository](https://github.com/gerivdb/KIVA-CLI)
+- [ECOS-CLI](https://github.com/gerivdb/DevTools)
+- [ECOYSTEM](https://github.com/gerivdb/ECOYSTEM)
+- [BRAIN](https://github.com/gerivdb/BRAIN)
