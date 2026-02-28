@@ -1,1 +1,198 @@
-"""\nKIVA-CLI Configuration Manager\nHandles configuration validation with JSON Schema\n"""\nfrom pathlib import Path\nfrom typing import Dict, Optional\nimport json\nimport yaml\n\nclass ConfigManager:\n    """Manages project configuration validation"""\n    \n    def __init__(self, schema_path: Optional[Path] = None):\n        """\n        Initialize ConfigManager\n        \n        Args:\n            schema_path: Path to JSON schemas directory\n        """\n        self.schema_path = schema_path or self._discover_schemas()\n        self.schemas = self._load_schemas()\n    \n    def _discover_schemas(self) -> Path:\n        """Discover schemas directory"""\n        search_paths = [\n            Path.cwd() / "schemas",\n            Path.cwd().parent / "ECOYSTEM" / "schemas",\n            Path(__file__).parent.parent / "schemas"\n        ]\n        \n        for path in search_paths:\n            if path.exists():\n                return path\n        \n        # Fallback: create local schemas\n        local_schemas = Path.cwd() / "schemas"\n        local_schemas.mkdir(exist_ok=True)\n        return local_schemas\n    \n    def _load_schemas(self) -> Dict[str, Dict]:\n        """Load JSON schemas"""\n        schemas = {}\n        \n        if self.schema_path.exists():\n            for schema_file in self.schema_path.glob("*.json"):\n                with open(schema_file) as f:\n                    schema_name = schema_file.stem\n                    schemas[schema_name] = json.load(f)\n        \n        # Default schema for kiva.yaml\n        if "kiva-config" not in schemas:\n            schemas["kiva-config"] = {\n                "$schema": "http://json-schema.org/draft-07/schema#",\n                "type": "object",\n                "required": ["project"],\n                "properties": {\n                    "project": {\n                        "type": "object",\n                        "required": ["name", "version"],\n                        "properties": {\n                            "name": {"type": "string", "minLength": 1},\n                            "version": {"type": "string", "pattern": "^\\\\d+\\\\.\\\\d+\\\\.\\\\d+$"},\n                            "template": {"type": "string"}\n                        }\n                    }\n                }\n            }\n        \n        return schemas\n    \n    def validate(\n        self,\n        config_file: Path,\n        schema_name: str = "kiva-config"\n    ) -> Dict[str, any]:\n        """\n        Validate configuration file against schema\n        \n        Args:\n            config_file: Path to config file (kiva.yaml, kiva.json)\n            schema_name: Schema identifier to validate against\n        \n        Returns:\n            Dict with status and errors (if any)\n        """\n        if not config_file.exists():\n            return {\n                "status": "INVALID",\n                "valid": False,\n                "errors": [f"Configuration file not found: {config_file}"]\n            }\n        \n        # Load config\n        try:\n            if config_file.suffix in [".yaml", ".yml"]:\n                with open(config_file) as f:\n                    config = yaml.safe_load(f)\n            elif config_file.suffix == ".json":\n                with open(config_file) as f:\n                    config = json.load(f)\n            else:\n                return {\n                    "status": "INVALID",\n                    "valid": False,\n                    "errors": [f"Unsupported config format: {config_file.suffix}"]\n                }\n        except Exception as e:\n            return {\n                "status": "INVALID",\n                "valid": False,\n                "errors": [f"Failed to parse config: {str(e)}"]\n            }\n        \n        # Validate against schema\n        if schema_name not in self.schemas:\n            return {\n                "status": "UNKNOWN",\n                "valid": None,\n                "errors": [f"Schema not found: {schema_name}"]\n            }\n        \n        schema = self.schemas[schema_name]\n        \n        try:\n            import jsonschema\n            jsonschema.validate(instance=config, schema=schema)\n            \n            return {\n                "status": "VALID",\n                "valid": True,\n                "errors": [],\n                "config": config\n            }\n        \n        except jsonschema.ValidationError as e:\n            return {\n                "status": "INVALID",\n                "valid": False,\n                "errors": [str(e.message)],\n                "path": list(e.path)\n            }\n        \n        except ImportError:\n            # jsonschema not installed - basic validation\n            required = schema.get("required", [])\n            missing = [field for field in required if field not in config]\n            \n            if missing:\n                return {\n                    "status": "INVALID",\n                    "valid": False,\n                    "errors": [f"Missing required fields: {missing}"]\n                }\n            else:\n                return {\n                    "status": "VALID",\n                    "valid": True,\n                    "errors": [],\n                    "note": "Basic validation (jsonschema not installed)"\n                }\n    \n    def get_schema(self, schema_name: str) -> Optional[Dict]:\n        """Retrieve schema by name"""\n        return self.schemas.get(schema_name)\n    \n    def list_schemas(self) -> list:\n        """List available schemas"""\n        return list(self.schemas.keys())\n
+""" KIVA CLI - Config Manager
+Manages configuration validation and schema enforcement.
+"""
+
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Optional, Dict, Any, List
+import yaml
+import json
+import logging
+
+logger = logging.getLogger(__name__)
+
+
+@dataclass
+class ConfigResult:
+    """Result object for config operations."""
+    success: bool
+    config_data: Optional[Dict[str, Any]] = None
+    errors: Optional[List[str]] = None
+    warnings: Optional[List[str]] = None
+
+
+class ConfigManager:
+    """Manages configuration validation."""
+    
+    # Basic schema for KIVA config
+    KIVA_SCHEMA = {
+        "type": "object",
+        "required": ["name", "version"],
+        "properties": {
+            "name": {"type": "string"},
+            "version": {"type": "string"},
+            "environment": {"type": "string", "enum": ["development", "staging", "production"]},
+            "deployment": {
+                "type": "object",
+                "properties": {
+                    "strategy": {"type": "string"},
+                    "replicas": {"type": "integer", "minimum": 1}
+                }
+            }
+        }
+    }
+    
+    def validate_config(
+        self,
+        file: str,
+        strict: bool = True,
+        schema: Optional[str] = None
+    ) -> ConfigResult:
+        """Validate configuration file.
+        
+        Args:
+            file: Path to config file (YAML/JSON)
+            strict: Enforce strict validation
+            schema: Optional custom schema file
+            
+        Returns:
+            ConfigResult with validation status
+        """
+        try:
+            file_path = Path(file)
+            if not file_path.exists():
+                return ConfigResult(
+                    success=False,
+                    errors=[f"File not found: {file}"]
+                )
+            
+            # Load config
+            content = file_path.read_text(encoding='utf-8')
+            
+            if file.endswith('.yaml') or file.endswith('.yml'):
+                config_data = yaml.safe_load(content)
+            elif file.endswith('.json'):
+                config_data = json.loads(content)
+            else:
+                return ConfigResult(
+                    success=False,
+                    errors=["Unsupported file format (use .yaml or .json)"]
+                )
+            
+            errors = []
+            warnings = []
+            
+            # Basic validation
+            if not isinstance(config_data, dict):
+                errors.append("Config must be a dictionary")
+                return ConfigResult(success=False, errors=errors)
+            
+            # Validate required fields
+            required_fields = ["name", "version"]
+            for field in required_fields:
+                if field not in config_data:
+                    if strict:
+                        errors.append(f"Missing required field: {field}")
+                    else:
+                        warnings.append(f"Missing recommended field: {field}")
+            
+            # Environment validation
+            if "environment" in config_data:
+                valid_envs = ["development", "staging", "production"]
+                if config_data["environment"] not in valid_envs:
+                    warnings.append(f"Unknown environment: {config_data['environment']}")
+            
+            # Deployment config
+            if "deployment" in config_data:
+                if "replicas" in config_data["deployment"]:
+                    if config_data["deployment"]["replicas"] < 1:
+                        errors.append("Deployment replicas must be >= 1")
+            
+            if errors:
+                return ConfigResult(
+                    success=False,
+                    config_data=config_data,
+                    errors=errors,
+                    warnings=warnings if warnings else None
+                )
+            
+            return ConfigResult(
+                success=True,
+                config_data=config_data,
+                warnings=warnings if warnings else None
+            )
+        
+        except yaml.YAMLError as e:
+            return ConfigResult(
+                success=False,
+                errors=[f"YAML parsing error: {e}"]
+            )
+        except json.JSONDecodeError as e:
+            return ConfigResult(
+                success=False,
+                errors=[f"JSON parsing error: {e}"]
+            )
+        except Exception as e:
+            logger.error(f"Config validation failed: {e}", exc_info=True)
+            return ConfigResult(
+                success=False,
+                errors=[str(e)]
+            )
+    
+    def generate_config(
+        self,
+        name: str,
+        version: str = "0.1.0",
+        output_file: str = "kiva.yaml"
+    ) -> ConfigResult:
+        """Generate default config file.
+        
+        Args:
+            name: Project name
+            version: Project version
+            output_file: Output filename
+            
+        Returns:
+            ConfigResult with generation status
+        """
+        try:
+            config = {
+                "name": name,
+                "version": version,
+                "environment": "development",
+                "deployment": {
+                    "strategy": "rolling",
+                    "replicas": 1,
+                    "health_check": {
+                        "enabled": True,
+                        "path": "/health",
+                        "timeout_seconds": 5
+                    }
+                },
+                "monitoring": {
+                    "enabled": True,
+                    "metrics_port": 9090
+                }
+            }
+            
+            output_path = Path(output_file)
+            
+            if output_file.endswith('.yaml') or output_file.endswith('.yml'):
+                content = yaml.dump(config, default_flow_style=False, sort_keys=False)
+            else:
+                content = json.dumps(config, indent=2)
+            
+            output_path.write_text(content, encoding='utf-8')
+            logger.info(f"Generated config: {output_file}")
+            
+            return ConfigResult(
+                success=True,
+                config_data=config
+            )
+        
+        except Exception as e:
+            logger.error(f"Config generation failed: {e}", exc_info=True)
+            return ConfigResult(
+                success=False,
+                errors=[str(e)]
+            )
