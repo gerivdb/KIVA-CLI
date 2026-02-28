@@ -1,0 +1,40 @@
+name: Lint
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+        cache: 'pip'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install ruff black mypy
+    
+    - name: Run Ruff
+      run: ruff check kiva_cli tests
+    
+    - name: Run Black
+      run: black --check kiva_cli tests
+    
+    - name: Run MyPy
+      run: mypy kiva_cli
+      continue-on-error: true
