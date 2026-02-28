@@ -1,12 +1,12 @@
 {
-  "manifest_version": "1.0.6",
+  "manifest_version": "1.0.7",
   "ecosystem_id": "ecosystem-1",
   "genesis_timestamp": "2026-02-28T18:00:00Z",
   "phi_cps_genesis": 4.092,
   "phi_cps_current": 4.239,
   "phi_cps_frozen": true,
-  "phi_cps_warning": "Drift headroom exhausted (0.147 > 0.05 threshold). φ-CPS frozen pending ecosystem-wide baseline reset. Phase 6 implementations proceed without φ-CPS increment.",
-  "last_updated": "2026-02-28T21:54:58.838830Z",
+  "phi_cps_warning": "Drift headroom exhausted (0.147 > 0.05 threshold). φ-CPS frozen pending ecosystem-wide baseline reset. Phase 6 complete. Proceed to Phase 7 for baseline reset execution.",
+  "last_updated": "2026-02-28T22:05:00Z",
   "repositories": [
     {
       "name": "KIVA-CLI",
@@ -18,8 +18,8 @@
       "phi_delta_total": 0.147,
       "open_issues": 0,
       "closed_issues": 4,
-      "total_commits": 27,
-      "last_sync": "2026-02-28T21:54:58.838830Z",
+      "total_commits": 30,
+      "last_sync": "2026-02-28T22:05:00Z",
       "dependencies": [
         "ECOYSTEM",
         "DevTools",
@@ -53,7 +53,12 @@
         "Entity lifecycle transitions (GENESIS/ACTIVE/DEPRECATED/ARCHIVED)",
         "Lifecycle + ternary validation integration",
         "Lifecycle metrics calculation",
-        "Auto-transition management"
+        "Auto-transition management",
+        "CLI: ecos validate",
+        "CLI: ecos lifecycle [show|transition|check-auto-transitions]",
+        "CLI: ecos intenthash verify",
+        "CLI: ecos phi [check-drift|show-metrics|prepare-reset]",
+        "φ-CPS baseline reset preparation"
       ]
     },
     {
@@ -246,12 +251,12 @@
     "active_repositories": 11,
     "deprecated_repositories": 0,
     "archived_repositories": 0,
-    "total_commits": 27,
+    "total_commits": 30,
     "total_open_issues": 0,
     "total_closed_issues": 4,
     "cumulative_phi_delta": 0.147,
     "avg_phi_cps": 4.105,
-    "last_wal_sync": "2026-02-28T21:54:58.838830Z"
+    "last_wal_sync": "2026-02-28T22:05:00Z"
   },
   "validation_systems": {
     "base3_ternary": {
@@ -314,10 +319,58 @@
       "drift_threshold": 0.05,
       "auto_rollback": true,
       "frozen": true,
-      "implementation": "kiva_cli.core.metrics.phi_cps_auto_rollback"
+      "implementation": "kiva_cli.core.metrics.phi_cps_manager",
+      "baseline_reset_prepared": true,
+      "baseline_reset_preview": "ECOS_ROOT_v2.0.0_preview.json"
+    }
+  },
+  "cli_commands": {
+    "validate": {
+      "description": "Validate entity using ternary or lifecycle logic",
+      "usage": "ecos validate --mode [ternary|lifecycle] <entity_id>",
+      "implementation": "kiva_cli.cli.ecos_cli_main.EcosCLI.validate"
+    },
+    "lifecycle": {
+      "description": "Lifecycle management commands",
+      "subcommands": [
+        "show",
+        "transition",
+        "check-auto-transitions"
+      ],
+      "implementation": "kiva_cli.cli.ecos_cli_main.EcosCLI.lifecycle_*"
+    },
+    "intenthash": {
+      "description": "IntentHash verification",
+      "subcommands": [
+        "verify"
+      ],
+      "implementation": "kiva_cli.cli.ecos_cli_main.EcosCLI.intenthash_verify"
+    },
+    "phi": {
+      "description": "φ-CPS management",
+      "subcommands": [
+        "check-drift",
+        "show-metrics",
+        "prepare-reset"
+      ],
+      "implementation": "kiva_cli.cli.ecos_cli_main.EcosCLI.phi_*"
     }
   },
   "recent_events": [
+    {
+      "timestamp": "2026-02-28T22:05:00Z",
+      "repo": "KIVA-CLI",
+      "event_type": "implementation",
+      "entity_id": "PHASE6_CLI_INTEGRATION",
+      "action": "create",
+      "intent_hash": "0x69C0965C49825C93BDDF",
+      "phi_delta": 0.0,
+      "phi_pre": 4.239,
+      "phi_post": 4.239,
+      "description": "Phase 6 Batch 3/3: CLI Integration + Baseline Reset Preparation",
+      "validation_state": "VALID",
+      "phi_frozen": true
+    },
     {
       "timestamp": "2026-02-28T21:54:58.838830Z",
       "repo": "KIVA-CLI",
@@ -347,35 +400,74 @@
       "rollback_reason": "φ-CPS drift headroom exhausted"
     }
   ],
+  "phase6_status": {
+    "completion": "100%",
+    "batches": {
+      "batch_1_3": {
+        "status": "COMPLETE",
+        "modules": [
+          "base3_ternary_logic",
+          "intenthash_validator",
+          "phi_cps_auto_rollback"
+        ],
+        "intent_hash": "0x54A0B801BC0551EE0133"
+      },
+      "batch_2_3": {
+        "status": "COMPLETE",
+        "modules": [
+          "base4_lifecycle_manager",
+          "base4_base3_integration"
+        ],
+        "intent_hash": "0xC61F6274950CD20FB8EF"
+      },
+      "batch_3_3": {
+        "status": "COMPLETE",
+        "modules": [
+          "ecos_cli_main",
+          "phi_cps_manager",
+          "intenthash_validator_extended"
+        ],
+        "intent_hash": "0x69C0965C49825C93BDDF"
+      }
+    },
+    "total_modules": 10,
+    "total_tests": 38,
+    "total_capabilities": 8
+  },
   "next_steps": [
     {
       "priority": "CRITICAL",
-      "action": "Reset φ-CPS baseline (ecosystem-wide)",
+      "action": "Execute φ-CPS baseline reset (Phase 7)",
       "estimated_phi_delta": 0.0,
       "dependencies": [
         "ECOYSTEM",
         "DevTools",
         "BRAIN"
       ],
-      "status": "pending",
-      "phase": "Phase 6",
-      "rationale": "Current drift (0.147) exceeds threshold. Requires new genesis baseline."
+      "status": "ready",
+      "phase": "Phase 7",
+      "rationale": "Phase 6 complete. Baseline reset prepared. Ready for execution.",
+      "prerequisites": [
+        "Full ecosystem backup",
+        "Manual approval",
+        "All repos in clean state"
+      ]
     },
     {
       "priority": "HIGH",
-      "action": "Complete Phase 6 Batch 3/3: IntentHash L2-L3 + CLI Integration",
+      "action": "Deploy CLI commands to production",
       "estimated_phi_delta": 0.0,
       "dependencies": [],
-      "status": "pending",
-      "phase": "Phase 6"
+      "status": "ready",
+      "phase": "Phase 7"
     },
     {
       "priority": "MEDIUM",
-      "action": "Complete Phase 5 Batch 3/3: LXC Templates & Networking",
+      "action": "IntentHash L2-L3 implementation",
       "estimated_phi_delta": 0.0,
       "dependencies": [],
       "status": "deferred",
-      "phase": "Phase 5"
+      "phase": "Phase 8"
     }
   ]
 }
