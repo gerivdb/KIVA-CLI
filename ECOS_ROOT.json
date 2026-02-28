@@ -1,0 +1,48 @@
+{
+  "repository": "KIVA-CLI",
+  "status": "ACTIVE",
+  "lifecycle": "ACTIVE",
+  "version": "1.0.0",
+  "phi_cps_baseline": 4.413,
+  "phi_cps_current": 4.437,
+  "last_commit": "b89bda3763e13ede4d20cd937455707b8db65fdb",
+  "last_updated": "2026-02-28T07:29:00+01:00",
+  "open_issues": 0,
+  "validation": {
+    "tests": "PENDING",
+    "lint": "PENDING",
+    "build": "PENDING",
+    "phi_cps": "VALID"
+  },
+  "dependencies": [
+    "ECOYSTEM",
+    "FLUENCE",
+    "BRAIN",
+    "DevTools"
+  ],
+  "managers": {
+    "ProjectManager": "ACTIVE",
+    "DeploymentManager": "ACTIVE",
+    "ConfigManager": "ACTIVE"
+  },
+  "templates": [
+    "fastapi",
+    "react",
+    "go",
+    "rust",
+    "nextjs",
+    "django"
+  ],
+  "deployment_strategies": [
+    "rolling",
+    "blue-green",
+    "canary",
+    "recreate"
+  ],
+  "tests": {
+    "unit": 29,
+    "integration": 13,
+    "total": 42,
+    "coverage_target": 85
+  }
+}

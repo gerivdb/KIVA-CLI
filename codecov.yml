@@ -1,0 +1,18 @@
+coverage:
+  status:
+    project:
+      default:
+        target: 85%
+        threshold: 2%
+    patch:
+      default:
+        target: 80%
+
+comment:
+  layout: "header, diff, files"
+  behavior: default
+
+ignore:
+  - "tests/"
+  - "**/__init__.py"
+  - "setup.py"
