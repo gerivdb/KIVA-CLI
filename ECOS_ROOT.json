@@ -1,12 +1,17 @@
 {
-  "manifest_version": "1.0.7",
+  "manifest_version": "2.0.0",
   "ecosystem_id": "ecosystem-1",
-  "genesis_timestamp": "2026-02-28T18:00:00Z",
-  "phi_cps_genesis": 4.092,
+  "genesis_timestamp": "2026-02-28T22:12:26.845103Z",
+  "phi_cps_genesis": 4.239,
   "phi_cps_current": 4.239,
-  "phi_cps_frozen": true,
-  "phi_cps_warning": "Drift headroom exhausted (0.147 > 0.05 threshold). φ-CPS frozen pending ecosystem-wide baseline reset. Phase 6 complete. Proceed to Phase 7 for baseline reset execution.",
-  "last_updated": "2026-02-28T22:05:00Z",
+  "phi_cps_frozen": false,
+  "phi_cps_warning": null,
+  "baseline_reset_executed": true,
+  "baseline_reset_timestamp": "2026-02-28T22:12:26.845114Z",
+  "baseline_reset_intent_hash": "0x6649C518ED11136AD156",
+  "previous_genesis": 4.092,
+  "drift_reset": 0.14700000000000024,
+  "last_updated": "2026-02-28T22:12:26.845119Z",
   "repositories": [
     {
       "name": "KIVA-CLI",
@@ -15,11 +20,12 @@
       "role": "orchestrator",
       "status": "ACTIVE",
       "phi_cps": 4.239,
-      "phi_delta_total": 0.147,
+      "phi_delta_total": 0.0,
+      "phi_delta_since_reset": 0.0,
       "open_issues": 0,
       "closed_issues": 4,
-      "total_commits": 30,
-      "last_sync": "2026-02-28T22:05:00Z",
+      "total_commits": 31,
+      "last_sync": "2026-02-28T22:12:26.845129Z",
       "dependencies": [
         "ECOYSTEM",
         "DevTools",
@@ -58,7 +64,8 @@
         "CLI: ecos lifecycle [show|transition|check-auto-transitions]",
         "CLI: ecos intenthash verify",
         "CLI: ecos phi [check-drift|show-metrics|prepare-reset]",
-        "φ-CPS baseline reset preparation"
+        "φ-CPS baseline reset preparation",
+        "φ-CPS baseline reset execution"
       ]
     },
     {
@@ -67,18 +74,16 @@
       "url": "https://github.com/gerivdb/ECOYSTEM",
       "role": "core",
       "status": "ACTIVE",
-      "phi_cps": 4.094,
-      "phi_delta_total": 0.002,
+      "phi_cps": 4.239,
+      "phi_delta_total": 0.0,
+      "phi_delta_since_reset": 0.0,
       "open_issues": 0,
       "closed_issues": 0,
       "total_commits": 1,
-      "last_sync": "2026-02-28T19:41:00Z",
+      "last_sync": "2026-02-28T22:12:26.852207Z",
       "dependencies": [],
       "capabilities": [
-        "Ecosystem manifests",
-        "Cross-repo coordination",
-        "Global WAL storage",
-        "ECOS_ROOT.json sync"
+        "ECOYSTEM capabilities"
       ]
     },
     {
@@ -89,15 +94,14 @@
       "status": "ACTIVE",
       "phi_cps": 4.092,
       "phi_delta_total": 0.0,
+      "phi_delta_since_reset": 0.0,
       "open_issues": 0,
       "closed_issues": 0,
       "total_commits": 0,
-      "last_sync": "2026-02-28T19:41:00Z",
+      "last_sync": "2026-02-28T22:12:26.852219Z",
       "dependencies": [],
       "capabilities": [
-        "Development utilities",
-        "CLI tools",
-        "Metrics visualization"
+        "DevTools capabilities"
       ]
     },
     {
@@ -108,15 +112,14 @@
       "status": "ACTIVE",
       "phi_cps": 4.092,
       "phi_delta_total": 0.0,
+      "phi_delta_since_reset": 0.0,
       "open_issues": 0,
       "closed_issues": 0,
       "total_commits": 0,
       "last_sync": null,
-      "dependencies": [
-        "BRAIN"
-      ],
+      "dependencies": [],
       "capabilities": [
-        "Candidate management"
+        "CANDIDATOR capabilities"
       ]
     },
     {
@@ -127,13 +130,14 @@
       "status": "ACTIVE",
       "phi_cps": 4.092,
       "phi_delta_total": 0.0,
+      "phi_delta_since_reset": 0.0,
       "open_issues": 0,
       "closed_issues": 0,
       "total_commits": 0,
       "last_sync": null,
       "dependencies": [],
       "capabilities": [
-        "Root management"
+        "racines capabilities"
       ]
     },
     {
@@ -144,13 +148,14 @@
       "status": "ACTIVE",
       "phi_cps": 4.092,
       "phi_delta_total": 0.0,
+      "phi_delta_since_reset": 0.0,
       "open_issues": 0,
       "closed_issues": 0,
       "total_commits": 0,
       "last_sync": null,
       "dependencies": [],
       "capabilities": [
-        "Email automation"
+        "email-sender-1 capabilities"
       ]
     },
     {
@@ -161,15 +166,14 @@
       "status": "ACTIVE",
       "phi_cps": 4.092,
       "phi_delta_total": 0.0,
+      "phi_delta_since_reset": 0.0,
       "open_issues": 0,
       "closed_issues": 0,
       "total_commits": 0,
       "last_sync": null,
-      "dependencies": [
-        "BRAIN"
-      ],
+      "dependencies": [],
       "capabilities": [
-        "Fluence framework"
+        "FLUENCE capabilities"
       ]
     },
     {
@@ -180,14 +184,14 @@
       "status": "ACTIVE",
       "phi_cps": 4.092,
       "phi_delta_total": 0.0,
+      "phi_delta_since_reset": 0.0,
       "open_issues": 0,
       "closed_issues": 0,
       "total_commits": 0,
       "last_sync": null,
       "dependencies": [],
       "capabilities": [
-        "Knowledge management",
-        "ML models"
+        "BRAIN capabilities"
       ]
     },
     {
@@ -198,13 +202,14 @@
       "status": "ACTIVE",
       "phi_cps": 4.092,
       "phi_delta_total": 0.0,
+      "phi_delta_since_reset": 0.0,
       "open_issues": 0,
       "closed_issues": 0,
       "total_commits": 0,
       "last_sync": null,
       "dependencies": [],
       "capabilities": [
-        "Banking automation"
+        "BANK-BUSTER capabilities"
       ]
     },
     {
@@ -215,15 +220,14 @@
       "status": "ACTIVE",
       "phi_cps": 4.092,
       "phi_delta_total": 0.0,
+      "phi_delta_since_reset": 0.0,
       "open_issues": 0,
       "closed_issues": 0,
       "total_commits": 0,
       "last_sync": null,
-      "dependencies": [
-        "BRAIN"
-      ],
+      "dependencies": [],
       "capabilities": [
-        "Booking management"
+        "GERIBOOKING capabilities"
       ]
     },
     {
@@ -234,15 +238,14 @@
       "status": "ACTIVE",
       "phi_cps": 4.092,
       "phi_delta_total": 0.0,
+      "phi_delta_since_reset": 0.0,
       "open_issues": 0,
       "closed_issues": 0,
       "total_commits": 0,
       "last_sync": null,
-      "dependencies": [
-        "BRAIN"
-      ],
+      "dependencies": [],
       "capabilities": [
-        "Documentation"
+        "BRAIN-DOCS capabilities"
       ]
     }
   ],
@@ -251,12 +254,13 @@
     "active_repositories": 11,
     "deprecated_repositories": 0,
     "archived_repositories": 0,
-    "total_commits": 30,
+    "total_commits": 31,
     "total_open_issues": 0,
     "total_closed_issues": 4,
-    "cumulative_phi_delta": 0.147,
-    "avg_phi_cps": 4.105,
-    "last_wal_sync": "2026-02-28T22:05:00Z"
+    "cumulative_phi_delta": 0.0,
+    "avg_phi_cps": 4.239,
+    "last_wal_sync": "2026-02-28T22:12:26.845252Z",
+    "baseline_resets_count": 1
   },
   "validation_systems": {
     "base3_ternary": {
@@ -314,14 +318,14 @@
     },
     "phi_cps": {
       "enabled": true,
-      "genesis_value": 4.092,
+      "genesis_value": 4.239,
       "current_value": 4.239,
       "drift_threshold": 0.05,
       "auto_rollback": true,
-      "frozen": true,
+      "frozen": false,
       "implementation": "kiva_cli.core.metrics.phi_cps_manager",
-      "baseline_reset_prepared": true,
-      "baseline_reset_preview": "ECOS_ROOT_v2.0.0_preview.json"
+      "baseline_reset_prepared": false,
+      "baseline_reset_executed": true
     }
   },
   "cli_commands": {
@@ -351,123 +355,72 @@
       "subcommands": [
         "check-drift",
         "show-metrics",
-        "prepare-reset"
+        "prepare-reset",
+        "execute-reset"
       ],
       "implementation": "kiva_cli.cli.ecos_cli_main.EcosCLI.phi_*"
     }
   },
   "recent_events": [
     {
-      "timestamp": "2026-02-28T22:05:00Z",
+      "timestamp": "2026-02-28T22:12:26.845259Z",
       "repo": "KIVA-CLI",
-      "event_type": "implementation",
-      "entity_id": "PHASE6_CLI_INTEGRATION",
-      "action": "create",
-      "intent_hash": "0x69C0965C49825C93BDDF",
+      "event_type": "baseline_reset",
+      "entity_id": "PHASE7_BASELINE_RESET",
+      "action": "execute",
+      "intent_hash": "0x6649C518ED11136AD156",
       "phi_delta": 0.0,
       "phi_pre": 4.239,
       "phi_post": 4.239,
-      "description": "Phase 6 Batch 3/3: CLI Integration + Baseline Reset Preparation",
+      "description": "Phase 7: φ-CPS baseline reset execution - NEW GENESIS",
       "validation_state": "VALID",
-      "phi_frozen": true
-    },
-    {
-      "timestamp": "2026-02-28T21:54:58.838830Z",
-      "repo": "KIVA-CLI",
-      "event_type": "implementation",
-      "entity_id": "PHASE6_BASE4",
-      "action": "create",
-      "intent_hash": "0xC61F6274950CD20FB8EF",
-      "phi_delta": 0.0,
-      "phi_pre": 4.239,
-      "phi_post": 4.239,
-      "description": "Phase 6 Batch 2/3: Base-4 Lifecycle States",
-      "validation_state": "VALID",
-      "phi_frozen": true
-    },
-    {
-      "timestamp": "2026-02-28T20:35:04Z",
-      "repo": "KIVA-CLI",
-      "event_type": "implementation",
-      "entity_id": "PHASE6_BASE3",
-      "action": "create",
-      "intent_hash": "0x54A0B801BC0551EE0133",
-      "phi_delta": 0.0,
-      "phi_pre": 4.239,
-      "phi_post": 4.239,
-      "description": "Phase 6 Batch 1/3: Base-3 Ternary Logic + IntentHash L0-L1",
-      "validation_state": "BLOCKED",
-      "rollback_reason": "φ-CPS drift headroom exhausted"
+      "phi_frozen": false,
+      "reset_details": {
+        "old_genesis": 4.092,
+        "new_genesis": 4.239,
+        "drift_reset": 0.14700000000000024,
+        "manifest_upgrade": "v1.0.7 → v2.0.0"
+      }
     }
   ],
-  "phase6_status": {
+  "phase7_status": {
     "completion": "100%",
-    "batches": {
-      "batch_1_3": {
-        "status": "COMPLETE",
-        "modules": [
-          "base3_ternary_logic",
-          "intenthash_validator",
-          "phi_cps_auto_rollback"
-        ],
-        "intent_hash": "0x54A0B801BC0551EE0133"
-      },
-      "batch_2_3": {
-        "status": "COMPLETE",
-        "modules": [
-          "base4_lifecycle_manager",
-          "base4_base3_integration"
-        ],
-        "intent_hash": "0xC61F6274950CD20FB8EF"
-      },
-      "batch_3_3": {
-        "status": "COMPLETE",
-        "modules": [
-          "ecos_cli_main",
-          "phi_cps_manager",
-          "intenthash_validator_extended"
-        ],
-        "intent_hash": "0x69C0965C49825C93BDDF"
-      }
-    },
-    "total_modules": 10,
-    "total_tests": 38,
-    "total_capabilities": 8
+    "baseline_reset": {
+      "status": "COMPLETE",
+      "old_genesis": 4.092,
+      "new_genesis": 4.239,
+      "drift_reset": 0.14700000000000024,
+      "manifest_upgrade": "v1.0.7 → v2.0.0",
+      "intent_hash": "0x6649C518ED11136AD156",
+      "execution_timestamp": "2026-02-28T22:12:26.845276Z"
+    }
   },
   "next_steps": [
     {
-      "priority": "CRITICAL",
-      "action": "Execute φ-CPS baseline reset (Phase 7)",
-      "estimated_phi_delta": 0.0,
-      "dependencies": [
-        "ECOYSTEM",
-        "DevTools",
-        "BRAIN"
-      ],
+      "priority": "HIGH",
+      "action": "Deploy CLI commands to production",
+      "estimated_phi_delta": 0.01,
+      "dependencies": [],
       "status": "ready",
-      "phase": "Phase 7",
-      "rationale": "Phase 6 complete. Baseline reset prepared. Ready for execution.",
-      "prerequisites": [
-        "Full ecosystem backup",
-        "Manual approval",
-        "All repos in clean state"
-      ]
+      "phase": "Phase 8"
     },
     {
       "priority": "HIGH",
-      "action": "Deploy CLI commands to production",
-      "estimated_phi_delta": 0.0,
-      "dependencies": [],
+      "action": "Implement DevTools dashboard for lifecycle metrics",
+      "estimated_phi_delta": 0.02,
+      "dependencies": [
+        "DevTools"
+      ],
       "status": "ready",
-      "phase": "Phase 7"
+      "phase": "Phase 8"
     },
     {
       "priority": "MEDIUM",
       "action": "IntentHash L2-L3 implementation",
-      "estimated_phi_delta": 0.0,
+      "estimated_phi_delta": 0.015,
       "dependencies": [],
-      "status": "deferred",
-      "phase": "Phase 8"
+      "status": "ready",
+      "phase": "Phase 9"
     }
   ]
 }
