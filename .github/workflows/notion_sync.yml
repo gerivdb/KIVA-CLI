@@ -1,0 +1,231 @@
+name: Notion Sync Automation
+
+# Trigger on issue/PR events for real-time sync
+on:
+  issues:
+    types: [opened, edited, closed, reopened, labeled, unlabeled, assigned, unassigned]
+  pull_request:
+    types: [opened, edited, closed, reopened, labeled, unlabeled, assigned, unassigned, review_requested]
+  schedule:
+    # Run every 5 minutes for polling sync
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+    inputs:
+      sync_direction:
+        description: 'Sync direction'
+        required: true
+        type: choice
+        options:
+          - bidirectional
+          - github_to_notion
+          - notion_to_github
+      force_full_sync:
+        description: 'Force full sync (all issues)'
+        required: false
+        type: boolean
+        default: false
+
+env:
+  PYTHON_VERSION: '3.11'
+  NOTION_API_VERSION: '2022-06-28'
+
+jobs:
+  sync-github-to-notion:
+    name: Sync GitHub → Notion
+    runs-on: ubuntu-latest
+    if: |
+      github.event_name == 'issues' ||
+      github.event_name == 'pull_request' ||
+      github.event_name == 'schedule' ||
+      (github.event_name == 'workflow_dispatch' && 
+       (inputs.sync_direction == 'github_to_notion' || inputs.sync_direction == 'bidirectional'))
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+      
+      - name: Install dependencies
+        run: |
+          pip install -e .
+          pip install notion-client python-dotenv
+      
+      - name: Extract issue/PR data
+        id: extract
+        run: |
+          if [ "${{ github.event_name }}" = "issues" ]; then
+            echo "entity_type=issue" >> $GITHUB_OUTPUT
+            echo "entity_number=${{ github.event.issue.number }}" >> $GITHUB_OUTPUT
+            echo "entity_title=${{ github.event.issue.title }}" >> $GITHUB_OUTPUT
+            echo "entity_state=${{ github.event.issue.state }}" >> $GITHUB_OUTPUT
+            echo "entity_url=${{ github.event.issue.html_url }}" >> $GITHUB_OUTPUT
+          elif [ "${{ github.event_name }}" = "pull_request" ]; then
+            echo "entity_type=pr" >> $GITHUB_OUTPUT
+            echo "entity_number=${{ github.event.pull_request.number }}" >> $GITHUB_OUTPUT
+            echo "entity_title=${{ github.event.pull_request.title }}" >> $GITHUB_OUTPUT
+            echo "entity_state=${{ github.event.pull_request.state }}" >> $GITHUB_OUTPUT
+            echo "entity_url=${{ github.event.pull_request.html_url }}" >> $GITHUB_OUTPUT
+          else
+            echo "entity_type=scheduled" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Sync to Notion
+        env:
+          NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+          NOTION_DATABASE_ID: ${{ secrets.NOTION_DATABASE_ID }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python -c "
+          import os
+          import json
+          from datetime import datetime
+          from kiva_cli.managers.notion_sync_manager import NotionSyncManager, SyncConfig
+          
+          # Initialize config
+          config = SyncConfig(
+              github_repo='${{ github.repository }}',
+              notion_database_id=os.getenv('NOTION_DATABASE_ID'),
+              sync_interval_seconds=300,
+              bidirectional=True,
+              conflict_strategy='notion_wins'
+          )
+          
+          manager = NotionSyncManager(config)
+          
+          entity_type = '${{ steps.extract.outputs.entity_type }}'
+          
+          if entity_type in ['issue', 'pr']:
+              # Single entity sync
+              issue_data = {
+                  'number': ${{ steps.extract.outputs.entity_number }},
+                  'title': '''${{ steps.extract.outputs.entity_title }}''',
+                  'state': '${{ steps.extract.outputs.entity_state }}',
+                  'html_url': '${{ steps.extract.outputs.entity_url }}',
+                  'labels': [],
+                  'assignees': [],
+                  'created_at': datetime.now().isoformat(),
+                  'updated_at': datetime.now().isoformat()
+              }
+              
+              event = manager.sync_github_issue_to_notion(issue_data)
+              print(f'Sync event: {event.status}')
+              print(f'Δφ-CPS: +{event.delta_phi}')
+          else:
+              # Scheduled sync - batch operation
+              print('Scheduled batch sync would run here')
+              # In production: fetch all issues and sync
+          
+          # Export stats
+          stats = manager.get_sync_stats()
+          print(f'Sync stats: {json.dumps(stats, indent=2)}')
+          "
+      
+      - name: Comment on issue/PR (on failure)
+        if: failure() && (github.event_name == 'issues' || github.event_name == 'pull_request')
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issueNumber = ${{ steps.extract.outputs.entity_number }};
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issueNumber,
+              body: '⚠️ **Notion Sync Failed**\n\nFailed to sync this ${{ steps.extract.outputs.entity_type }} to Notion.\nCheck [workflow logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) for details.'
+            });
+  
+  sync-notion-to-github:
+    name: Sync Notion → GitHub
+    runs-on: ubuntu-latest
+    if: |
+      github.event_name == 'schedule' ||
+      (github.event_name == 'workflow_dispatch' && 
+       (inputs.sync_direction == 'notion_to_github' || inputs.sync_direction == 'bidirectional'))
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+      
+      - name: Install dependencies
+        run: |
+          pip install -e .
+          pip install notion-client python-dotenv PyGithub
+      
+      - name: Query Notion and sync changes
+        env:
+          NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+          NOTION_DATABASE_ID: ${{ secrets.NOTION_DATABASE_ID }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python -c "
+          import os
+          from notion_client import Client
+          from github import Github
+          from kiva_cli.managers.notion_sync_manager import NotionSyncManager, SyncConfig
+          
+          # Initialize Notion client
+          notion = Client(auth=os.getenv('NOTION_TOKEN'))
+          github = Github(os.getenv('GITHUB_TOKEN'))
+          
+          # Initialize sync manager
+          config = SyncConfig(
+              github_repo='${{ github.repository }}',
+              notion_database_id=os.getenv('NOTION_DATABASE_ID'),
+              sync_interval_seconds=300,
+              bidirectional=True,
+              conflict_strategy='notion_wins'
+          )
+          
+          manager = NotionSyncManager(config)
+          
+          # Query Notion database for recent changes
+          # Note: In production, implement proper filtering by last_edited_time
+          print('Querying Notion database for changes...')
+          
+          # Placeholder: Query and sync
+          # results = notion.databases.query(database_id=os.getenv('NOTION_DATABASE_ID'))
+          # for page in results['results']:
+          #     event = manager.sync_notion_page_to_github(page)
+          #     print(f'Synced page {page[\"id\"]} - Status: {event.status}')
+          
+          stats = manager.get_sync_stats()
+          print(f'Total Δφ-CPS: +{stats[\"total_delta_phi\"]}')
+          "
+  
+  report-sync-metrics:
+    name: Report Sync Metrics
+    runs-on: ubuntu-latest
+    needs: [sync-github-to-notion, sync-notion-to-github]
+    if: always() && github.event_name == 'schedule'
+    
+    steps:
+      - name: Generate sync report
+        run: |
+          echo "# Notion Sync Report" > sync_report.md
+          echo "" >> sync_report.md
+          echo "**Date**: $(date -u +"%Y-%m-%d %H:%M:%S UTC")" >> sync_report.md
+          echo "**Trigger**: Scheduled sync" >> sync_report.md
+          echo "" >> sync_report.md
+          echo "## Jobs Status" >> sync_report.md
+          echo "" >> sync_report.md
+          echo "- GitHub → Notion: ${{ needs.sync-github-to-notion.result }}" >> sync_report.md
+          echo "- Notion → GitHub: ${{ needs.sync-notion-to-github.result }}" >> sync_report.md
+          
+          cat sync_report.md
+      
+      - name: Upload report artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sync-report-${{ github.run_number }}
+          path: sync_report.md
+          retention-days: 30
