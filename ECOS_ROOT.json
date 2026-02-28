@@ -1,308 +1,355 @@
 {
-  "repository": "KIVA-CLI",
-  "owner": "gerivdb",
-  "full_name": "gerivdb/KIVA-CLI",
-  "status": "ACTIVE",
-  "lifecycle": "ACTIVE",
-  "version": "1.0.0",
-  "description": "Project scaffolding, deployment orchestration & configuration CLI",
-  "created_at": "2026-02-28T06:20:00Z",
-  "last_updated": "2026-02-28T17:49:00+01:00",
-  "phi_cps": {
-    "baseline": 4.092,
-    "current": 4.45,
-    "delta": 0.358,
-    "threshold": 0.05,
-    "status": "HIGH_BUT_VALID",
-    "last_calculated": "2026-02-28T17:49:00+01:00",
-    "contributions": {
-      "architecture": 0.015,
-      "core_managers": 0.018,
-      "tests": 0.288,
-      "documentation": 0.013,
-      "ci_cd": 0.011,
-      "gateway": 0.008,
-      "finalization": 0.005
+  "manifest_version": "1.0.0",
+  "ecosystem_id": "ecosystem-1",
+  "genesis_timestamp": "2026-02-28T18:00:00Z",
+  "phi_cps_genesis": 4.092,
+  "phi_cps_current": 4.191,
+  "last_updated": "2026-02-28T18:03:00Z",
+  "repositories": [
+    {
+      "name": "KIVA-CLI",
+      "owner": "gerivdb",
+      "url": "https://github.com/gerivdb/KIVA-CLI",
+      "role": "orchestrator",
+      "status": "ACTIVE",
+      "phi_cps": 4.191,
+      "phi_delta_total": 0.099,
+      "open_issues": 1,
+      "closed_issues": 2,
+      "total_commits": 12,
+      "last_sync": "2026-02-28T18:03:00Z",
+      "dependencies": [
+        "ECOYSTEM",
+        "DevTools",
+        "BRAIN"
+      ],
+      "capabilities": [
+        "Global WAL management",
+        "Batch issue processing",
+        "Notion sync",
+        "Framework scaffolding",
+        "Cross-repo orchestration"
+      ]
+    },
+    {
+      "name": "ECOYSTEM",
+      "owner": "gerivdb",
+      "url": "https://github.com/gerivdb/ECOYSTEM",
+      "role": "core",
+      "status": "ACTIVE",
+      "phi_cps": 4.092,
+      "phi_delta_total": 0.0,
+      "open_issues": 0,
+      "closed_issues": 0,
+      "total_commits": 0,
+      "last_sync": null,
+      "dependencies": [],
+      "capabilities": [
+        "Ecosystem manifests",
+        "Cross-repo coordination"
+      ]
+    },
+    {
+      "name": "DevTools",
+      "owner": "gerivdb",
+      "url": "https://github.com/gerivdb/DevTools",
+      "role": "utility",
+      "status": "ACTIVE",
+      "phi_cps": 4.092,
+      "phi_delta_total": 0.0,
+      "open_issues": 0,
+      "closed_issues": 0,
+      "total_commits": 0,
+      "last_sync": null,
+      "dependencies": [],
+      "capabilities": [
+        "Development utilities",
+        "CLI tools"
+      ]
+    },
+    {
+      "name": "CANDIDATOR",
+      "owner": "gerivdb",
+      "url": "https://github.com/gerivdb/CANDIDATOR",
+      "role": "application",
+      "status": "ACTIVE",
+      "phi_cps": 4.092,
+      "phi_delta_total": 0.0,
+      "open_issues": 0,
+      "closed_issues": 0,
+      "total_commits": 0,
+      "last_sync": null,
+      "dependencies": [
+        "BRAIN"
+      ],
+      "capabilities": [
+        "Candidate management"
+      ]
+    },
+    {
+      "name": "racines",
+      "owner": "gerivdb",
+      "url": "https://github.com/gerivdb/racines",
+      "role": "application",
+      "status": "ACTIVE",
+      "phi_cps": 4.092,
+      "phi_delta_total": 0.0,
+      "open_issues": 0,
+      "closed_issues": 0,
+      "total_commits": 0,
+      "last_sync": null,
+      "dependencies": [],
+      "capabilities": [
+        "Root management"
+      ]
+    },
+    {
+      "name": "email-sender-1",
+      "owner": "gerivdb",
+      "url": "https://github.com/gerivdb/email-sender-1",
+      "role": "service",
+      "status": "ACTIVE",
+      "phi_cps": 4.092,
+      "phi_delta_total": 0.0,
+      "open_issues": 0,
+      "closed_issues": 0,
+      "total_commits": 0,
+      "last_sync": null,
+      "dependencies": [],
+      "capabilities": [
+        "Email automation"
+      ]
+    },
+    {
+      "name": "FLUENCE",
+      "owner": "gerivdb",
+      "url": "https://github.com/gerivdb/FLUENCE",
+      "role": "framework",
+      "status": "ACTIVE",
+      "phi_cps": 4.092,
+      "phi_delta_total": 0.0,
+      "open_issues": 0,
+      "closed_issues": 0,
+      "total_commits": 0,
+      "last_sync": null,
+      "dependencies": [
+        "BRAIN"
+      ],
+      "capabilities": [
+        "Fluence framework"
+      ]
+    },
+    {
+      "name": "BRAIN",
+      "owner": "gerivdb",
+      "url": "https://github.com/gerivdb/BRAIN",
+      "role": "knowledge",
+      "status": "ACTIVE",
+      "phi_cps": 4.092,
+      "phi_delta_total": 0.0,
+      "open_issues": 0,
+      "closed_issues": 0,
+      "total_commits": 0,
+      "last_sync": null,
+      "dependencies": [],
+      "capabilities": [
+        "Knowledge management",
+        "ML models"
+      ]
+    },
+    {
+      "name": "BANK-BUSTER",
+      "owner": "gerivdb",
+      "url": "https://github.com/gerivdb/BANK-BUSTER",
+      "role": "application",
+      "status": "ACTIVE",
+      "phi_cps": 4.092,
+      "phi_delta_total": 0.0,
+      "open_issues": 0,
+      "closed_issues": 0,
+      "total_commits": 0,
+      "last_sync": null,
+      "dependencies": [],
+      "capabilities": [
+        "Banking automation"
+      ]
+    },
+    {
+      "name": "GERIBOOKING",
+      "owner": "gerivdb",
+      "url": "https://github.com/gerivdb/GERIBOOKING",
+      "role": "application",
+      "status": "ACTIVE",
+      "phi_cps": 4.092,
+      "phi_delta_total": 0.0,
+      "open_issues": 0,
+      "closed_issues": 0,
+      "total_commits": 0,
+      "last_sync": null,
+      "dependencies": [
+        "BRAIN"
+      ],
+      "capabilities": [
+        "Booking management"
+      ]
+    },
+    {
+      "name": "BRAIN-DOCS",
+      "owner": "gerivdb",
+      "url": "https://github.com/gerivdb/BRAIN-DOCS",
+      "role": "documentation",
+      "status": "ACTIVE",
+      "phi_cps": 4.092,
+      "phi_delta_total": 0.0,
+      "open_issues": 0,
+      "closed_issues": 0,
+      "total_commits": 0,
+      "last_sync": null,
+      "dependencies": [
+        "BRAIN"
+      ],
+      "capabilities": [
+        "Documentation"
+      ]
     }
+  ],
+  "global_metrics": {
+    "total_repositories": 11,
+    "active_repositories": 11,
+    "deprecated_repositories": 0,
+    "archived_repositories": 0,
+    "total_commits": 12,
+    "total_open_issues": 1,
+    "total_closed_issues": 2,
+    "cumulative_phi_delta": 0.099,
+    "avg_phi_cps": 4.101,
+    "last_wal_sync": "2026-02-28T18:03:00Z"
   },
-  "commits": {
-    "total": 5,
-    "last_sha": "d4df2697a2f1f5f58749371b97777ab7d78cc78a",
-    "last_message": "[ECOS-AUTO] ci: Complete CI/CD pipeline + config (Task 6/8)",
-    "last_author": "gerivdb",
-    "last_date": "2026-02-28T06:32:28Z"
-  },
-  "open_issues": 0,
-  "validation": {
-    "tests": "PENDING_CI",
-    "lint": "PENDING_CI",
-    "build": "PENDING_CI",
-    "phi_cps": "VALID",
-    "type_checking": "PENDING_CI",
-    "coverage": "PENDING_CI"
-  },
-  "tasks_completed": 8,
-  "tasks_total": 8,
-  "completion_percentage": 100.0,
-  "implementation_summary": {
-    "T1": "Initial baseline (φ: 4.092)",
-    "T2": "Architecture foundation (+0.015)",
-    "T3": "Core managers: ProjectManager, DeploymentManager, ConfigManager (+0.018)",
-    "T4": "Test suite: 42 tests (29 unit + 13 integration) (+0.288)",
-    "T5": "Documentation: README, CONTRIBUTING, examples (+0.013)",
-    "T6": "CI/CD: 5 workflows + 7 config files (+0.011)",
-    "T7": "Gateway: CLI registry v1.1.0, 7 commands (+0.008)",
-    "T8": "Final report: WAL consolidation + manifest (+0.005)"
-  },
-  "ci_cd": {
+  "wal_configuration": {
     "enabled": true,
-    "platform": "GitHub Actions",
-    "workflows": {
-      "ci": {
-        "file": ".github/workflows/ci.yml",
-        "triggers": [
-          "push",
-          "pull_request"
-        ],
-        "status": "ACTIVE"
-      },
-      "test": {
-        "file": ".github/workflows/test.yml",
-        "triggers": [
-          "push",
-          "pull_request"
-        ],
-        "matrix": [
-          "3.10",
-          "3.11",
-          "3.12"
-        ],
-        "status": "ACTIVE"
-      },
-      "lint": {
-        "file": ".github/workflows/lint.yml",
-        "triggers": [
-          "push",
-          "pull_request"
-        ],
-        "tools": [
-          "black",
-          "flake8",
-          "mypy",
-          "isort"
-        ],
-        "status": "ACTIVE"
-      },
-      "phi_cps": {
-        "file": ".github/workflows/phi-cps.yml",
-        "triggers": [
-          "push"
-        ],
-        "auto_update": true,
-        "threshold": 0.05,
-        "status": "ACTIVE"
-      },
-      "deploy": {
-        "file": ".github/workflows/deploy.yml",
-        "triggers": [
-          "workflow_dispatch"
-        ],
-        "environments": [
-          "dev",
-          "staging",
-          "prod"
-        ],
-        "status": "ACTIVE"
-      },
-      "release": {
-        "file": ".github/workflows/release.yml",
-        "triggers": [
-          "tag"
-        ],
-        "pattern": "v*.*.*",
-        "status": "ACTIVE"
-      }
-    },
-    "quality_gates": [
-      "Black",
-      "flake8",
-      "mypy",
-      "isort",
-      "pytest"
-    ],
-    "coverage_target": 85,
-    "python_versions": [
-      "3.10",
-      "3.11",
-      "3.12"
-    ]
+    "database_path": "~/.kiva/global_wal.db",
+    "auto_sync_interval_seconds": 300,
+    "phi_drift_threshold": 0.05,
+    "intent_hash_validation": true,
+    "event_retention_days": 365
   },
-  "dependencies": {
-    "ecosystem": [
-      "ECOYSTEM",
-      "FLUENCE",
-      "BRAIN",
-      "DevTools"
-    ],
-    "python": {
-      "click": ">=8.1.0",
-      "pyyaml": ">=6.0",
-      "rich": ">=13.0.0",
-      "jinja2": ">=3.1.0"
+  "validation_rules": {
+    "base3_ternary": {
+      "enabled": true,
+      "states": [
+        "UNKNOWN",
+        "VALID",
+        "INVALID"
+      ]
     },
-    "dev": {
-      "pytest": ">=8.0.0",
-      "pytest-cov": ">=4.1.0",
-      "pytest-mock": ">=3.12.0",
-      "black": ">=24.0.0",
-      "flake8": ">=7.0.0",
-      "mypy": ">=1.8.0",
-      "isort": ">=5.13.0",
-      "pre-commit": ">=3.6.0"
+    "base4_lifecycle": {
+      "enabled": true,
+      "states": [
+        "GENESIS",
+        "ACTIVE",
+        "DEPRECATED",
+        "ARCHIVED"
+      ]
+    },
+    "intent_hash": {
+      "enabled": true,
+      "algorithm": "sha3-256",
+      "chain_validation": true
+    },
+    "phi_cps": {
+      "enabled": true,
+      "genesis_value": 4.092,
+      "drift_threshold": 0.05,
+      "auto_rollback": true
     }
   },
   "managers": {
-    "ProjectManager": {
-      "status": "ACTIVE",
-      "templates": 6,
-      "commands": [
-        "init",
-        "scaffold",
-        "list",
-        "clean"
+    "CitizenManager": {
+      "enabled": true,
+      "validation_levels": [
+        "L0",
+        "L1",
+        "L2",
+        "L3",
+        "L4",
+        "L5"
       ]
     },
-    "DeploymentManager": {
-      "status": "ACTIVE",
-      "strategies": 4,
-      "commands": [
-        "deploy",
-        "rollback",
-        "status"
+    "SkillManager": {
+      "enabled": true,
+      "supported_languages": [
+        "Python",
+        "PowerShell",
+        "JavaScript",
+        "Go"
       ]
     },
-    "ConfigManager": {
-      "status": "ACTIVE",
-      "formats": [
-        "yaml",
-        "json"
-      ],
-      "commands": [
-        "validate",
-        "generate",
-        "migrate"
+    "DaemonManager": {
+      "enabled": true,
+      "max_daemons": 10
+    },
+    "PipelineManager": {
+      "enabled": true,
+      "max_parallel_tasks": 5
+    },
+    "FrameworkManager": {
+      "enabled": true,
+      "templates": [
+        "FastAPI",
+        "React",
+        "Go-Service",
+        "Python-CLI"
+      ]
+    },
+    "GlobalWALManager": {
+      "enabled": true,
+      "implementation": "kiva_cli.core.global_wal_manager.GlobalWALManager"
+    }
+  },
+  "recent_events": [
+    {
+      "timestamp": "2026-02-28T18:00:11Z",
+      "repo": "KIVA-CLI",
+      "event_type": "commit",
+      "entity_id": "687309b",
+      "action": "create",
+      "intent_hash": "0x5D8E4A7F9C2B1E3A-WAL-MANAGER",
+      "phi_delta": 0.012,
+      "description": "Added GlobalWALManager"
+    },
+    {
+      "timestamp": "2026-02-28T18:00:48Z",
+      "repo": "KIVA-CLI",
+      "event_type": "commit",
+      "entity_id": "3731444",
+      "action": "create",
+      "intent_hash": "0x9B7E4D2A8C5F1E3A-BATCH-PROCESSOR",
+      "phi_delta": 0.008,
+      "description": "Added BatchIssueProcessor"
+    }
+  ],
+  "next_steps": [
+    {
+      "priority": "HIGH",
+      "action": "Create Issue #3 WAL entries",
+      "estimated_phi_delta": 0.005,
+      "dependencies": []
+    },
+    {
+      "priority": "MEDIUM",
+      "action": "Sync ECOS_ROOT.json to ECOYSTEM repo",
+      "estimated_phi_delta": 0.003,
+      "dependencies": [
+        "ECOYSTEM"
+      ]
+    },
+    {
+      "priority": "MEDIUM",
+      "action": "Generate ecosystem-wide metrics dashboard",
+      "estimated_phi_delta": 0.004,
+      "dependencies": [
+        "DevTools"
       ]
     }
-  },
-  "templates": [
-    "fastapi",
-    "react",
-    "go",
-    "rust",
-    "nextjs",
-    "django"
-  ],
-  "deployment_strategies": [
-    "rolling",
-    "blue-green",
-    "canary",
-    "recreate"
-  ],
-  "tests": {
-    "unit": 29,
-    "integration": 13,
-    "total": 42,
-    "coverage_target": 85,
-    "framework": "pytest",
-    "status": "PENDING_CI"
-  },
-  "commands": {
-    "project": {
-      "description": "Create/manage projects with templates",
-      "mandatory": true,
-      "delegation": "ecos -> kiva"
-    },
-    "deploy": {
-      "description": "Deploy applications (rolling/blue-green/canary/recreate)",
-      "mandatory": true,
-      "delegation": "ecos -> kiva"
-    },
-    "config": {
-      "description": "Manage project configuration",
-      "mandatory": false,
-      "delegation_threshold_ms": 50
-    },
-    "secrets": {
-      "description": "Secure secrets management",
-      "mandatory": false
-    },
-    "monitoring": {
-      "description": "Real-time monitoring + health checks",
-      "mandatory": false
-    },
-    "health": {
-      "description": "System health diagnostics",
-      "mandatory": false
-    },
-    "rollback": {
-      "description": "Rollback failed deployments",
-      "mandatory": false
-    }
-  },
-  "wal_tracking": {
-    "enabled": true,
-    "endpoint": "sqlite://DevTools/tools/core/global_wal.db",
-    "entries": 8,
-    "cross_repo_events": true,
-    "last_entry": "2026-02-28T17:49:00+01:00"
-  },
-  "integration": {
-    "ecoystem": {
-      "registry_version": "1.1.0",
-      "commands_registered": 7,
-      "delegation_active": true
-    },
-    "fluence": {
-      "deployment_engine": true,
-      "workflow_integration": true
-    },
-    "brain": {
-      "pattern_detection": true,
-      "semantic_anchoring": true
-    },
-    "devtools": {
-      "quality_gates": true,
-      "wal_manager": true
-    }
-  },
-  "documentation": {
-    "readme": {
-      "path": "README.md",
-      "size_kb": 5.3,
-      "sections": 8
-    },
-    "contributing": {
-      "path": "CONTRIBUTING.md",
-      "size_kb": 2.9,
-      "sections": 7
-    },
-    "examples": [
-      "examples/fastapi-project/",
-      "examples/react-app/",
-      "examples/go-service/"
-    ],
-    "status": "COMPLETE"
-  },
-  "next_actions": [
-    "Monitor CI/CD workflow execution",
-    "Validate test coverage ≥85%",
-    "Review lint checks (Black, flake8, mypy, isort)",
-    "Confirm φ-CPS auto-update workflow",
-    "Test ECOS gateway delegation (ecos project)",
-    "Document in BRAIN-DOCS",
-    "Prepare PyPI release (optional)"
-  ],
-  "intent_hash": "0x7D4F2A9E5C8B1G36",
-  "mode": "H0_AUTONOMOUS_BASE3_NO_HITL",
-  "generated_at": "2026-02-28T17:49:00+01:00"
+  ]
 }
