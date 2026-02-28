@@ -1,7 +1,4 @@
-"""KIVA CLI command modules."""
-
-from . import project
-from . import deploy
-from . import config
+# Commands module
+from . import project, deploy, config
 
 __all__ = ['project', 'deploy', 'config']
