@@ -17,6 +17,7 @@ from kiva_cli.commands.secrets import secrets
 from kiva_cli.commands.monitoring import monitoring
 from kiva_cli.commands.rollback import rollback_group
 from kiva_cli.commands.health import health
+from kiva_cli.commands.project_commands import project_cli  # NEW: Advanced ProjectManager integration
 
 __version__ = "1.0.0"
 
@@ -24,17 +25,27 @@ __version__ = "1.0.0"
 @click.group()
 @click.version_option(__version__)
 def cli():
-    """KIVA CLI - Project & Deployment Orchestrator"""
+    """KIVA CLI - Project & Deployment Orchestrator
+    
+    Advanced capabilities:
+    - Multi-framework project scaffolding
+    - Base-3 ternary semantic validation
+    - Base-4 lifecycle state management
+    - φ-CPS drift tracking
+    - IntentHash L0-L1 verification
+    """
     pass
 
 
-@cli.command()
+# Legacy project command (deprecated, use project_cli group)
+@cli.command(name='project-legacy')
 @click.argument("name")
 @click.option("--template", "-t", default="fastapi", help="Project template (fastapi, react, go, rust)")
 @click.option("--path", "-p", type=click.Path(), help="Target directory")
 @click.option("--overwrite", is_flag=True, help="Overwrite existing directory")
-def project(name, template, path, overwrite):
-    """Initialize a new project from template"""
+def project_legacy(name, template, path, overwrite):
+    """[DEPRECATED] Use 'ecos project scaffold' instead"""
+    click.echo("⚠️  This command is deprecated. Use: ecos project scaffold")
     try:
         manager = ProjectManager()
         result = manager.init_project(
@@ -60,7 +71,7 @@ def project(name, template, path, overwrite):
 @click.option("--strategy", "-s", default="rolling", help="Deployment strategy")
 @click.option("--dry-run", is_flag=True, help="Simulate deployment")
 def deploy(project_path, env, strategy, dry_run):
-    """Deploy project to environment"""
+    """Deploy project to environment (legacy interface)"""
     try:
         manager = DeploymentManager()
         result = manager.deploy(
@@ -112,6 +123,7 @@ cli.add_command(secrets)
 cli.add_command(monitoring)
 cli.add_command(rollback_group)
 cli.add_command(health)
+cli.add_command(project_cli)  # NEW: Advanced ProjectManager CLI group
 
 
 if __name__ == "__main__":
