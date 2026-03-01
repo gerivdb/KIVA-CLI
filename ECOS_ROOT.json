@@ -1,211 +1,163 @@
 {
-  "name": "KIVA-CLI",
-  "version": "0.5.0",
-  "description": "ECOS-CLI unified command-line interface for project automation, workflow orchestration, entity lifecycle management, reusable skill registry, and background daemon orchestration with Global WAL Manager, CitizenManager, SkillManager, DaemonManager, and cross-repository synchronization.",
-  "phi_cps": 4.495,
-  "lifecycle": "ACTIVE",
-  "validation_state": "VALID",
-  "repository_count": 16,
-  "ecosystem": "ecosystem-1",
-  "intent_hash_chain": [
-    "0x7E3A9F2D48B6C105",
-    "0x5D8F7B4A3E9C201A",
-    "0x8C1F9E2A7D4B6308",
-    "0x9A4E7C2F1D8B3605",
-    "0x6B3D8A9E4F2C7105",
-    "0x2F7B9D4E8A1C6530",
-    "0xA9E4F2C71D8B1536",
-    "0xC4A8E3F9D2B7051A",
-    "0x8D2F4A7E9C1B3560",
-    "0xF1B8C4E2A9D6037",
-    "0x7D9E2A5C4F1B8036",
-    "0xB3D7E4A9C2F8105A",
-    "0xC5E8A3F7D1B9204E",
-    "0xD2F9B4C7E6A8305F"
+  "ecosystem_id": "ecosystem-1",
+  "version": "2.1.0",
+  "updated_at": "2026-03-01T01:46:28.673843Z",
+  "phi_cps_baseline": 4.092,
+  "phi_cps_current": 4.18,
+  "phi_cps_delta": 0.088,
+  "phi_cps_alert": true,
+  "phi_cps_threshold": 0.05,
+  "intent_hash_root": "0xB14506A3E9F8D2C7",
+  "repositories": [
+    {
+      "name": "KIVA-CLI",
+      "url": "https://github.com/gerivdb/KIVA-CLI",
+      "status": "ACTIVE",
+      "last_commit": "c448c5df20f960de4cfaf063a4735865939d022b",
+      "components_implemented": [
+        "PipelineManager L0 (DAG workflow automation)",
+        "PipelineManager L1 (CLI + 15 tests)",
+        "GlobalWALManager L0 (Cross-repo event tracking)",
+        "GlobalWALManager L1 (CLI + 13 tests)",
+        "Base-3 ternary validation",
+        "Base-4 lifecycle states",
+        "IntentHash tracking with parent linkage",
+        "phi-CPS automatic validation"
+      ],
+      "phi_cps_contribution": 0.088,
+      "open_issues": 0,
+      "pending_validations": 1,
+      "validation_note": "phi-CPS delta 0.088 exceeds 0.05 threshold - requires comprehensive validation before next deployment"
+    },
+    {
+      "name": "ECOYSTEM",
+      "url": "https://github.com/gerivdb/ECOYSTEM",
+      "status": "ACTIVE",
+      "components": [
+        "CitizenManager",
+        "SkillManager",
+        "DaemonManager",
+        "FrameworkManager"
+      ],
+      "phi_cps_contribution": 0.0,
+      "open_issues": 0
+    },
+    {
+      "name": "DevTools",
+      "url": "https://github.com/gerivdb/DevTools",
+      "status": "ACTIVE",
+      "components": [
+        "Cross-repo sync"
+      ],
+      "phi_cps_contribution": 0.0,
+      "open_issues": 0,
+      "integration_ready": [
+        "GlobalWALManager"
+      ]
+    },
+    {
+      "name": "BRAIN",
+      "url": "https://github.com/gerivdb/BRAIN",
+      "status": "ACTIVE",
+      "components": [
+        "Knowledge base",
+        "Documentation"
+      ],
+      "phi_cps_contribution": 0.0,
+      "open_issues": 0
+    },
+    {
+      "name": "FLUENCE",
+      "url": "https://github.com/gerivdb/FLUENCE",
+      "status": "ACTIVE",
+      "components": [
+        "Workflow engine"
+      ],
+      "phi_cps_contribution": 0.0,
+      "open_issues": 0,
+      "integration_ready": [
+        "PipelineManager"
+      ]
+    }
   ],
-  "drift_metrics": {
-    "baseline_phi_cps": 4.45,
-    "current_phi_cps": 4.495,
-    "absolute_drift": 0.045,
-    "relative_drift_percent": 1.01,
-    "threshold_percent": 5.0,
-    "threshold_exceeded": false,
-    "last_rollback_point": "2026-03-01T02:33:00Z"
+  "validation_summary": {
+    "total_validations": 4,
+    "passed": 4,
+    "failed": 0,
+    "pending": 1,
+    "success_rate": 1.0,
+    "phi_cps_alert_triggered": true,
+    "alert_reason": "Cumulative delta 0.088 exceeds 0.05 threshold after 4 implementations"
   },
-  "capabilities": [
-    "Project scaffolding: FastAPI, Go, React templates with Docker support",
-    "Project scaffolding: Multi-framework support (FastAPI, Go service, React app, Node.js API, Python CLI, Django web)",
-    "Project scaffolding: Automatic dependency installation (pip, npm, go mod)",
-    "Project scaffolding: Docker containerization with multi-stage builds",
-    "Project scaffolding: Docker Compose orchestration for local development",
-    "Project scaffolding: Comprehensive project metadata tracking (name, framework, dependencies, φ-CPS)",
-    "Project scaffolding: SQLite-based project registry (~/.kiva/projects.db)",
-    "Project scaffolding: Project listing with filters (framework, created date)",
-    "Project scaffolding: JSON/CSV export for project metadata",
-    "Project scaffolding: CLI commands: scaffold, list, export, deploy",
-    "Project scaffolding: Automatic φ-CPS calculation and tracking per project",
-    "Global WAL Manager: Cross-repo event persistence (SQLite)",
-    "Global WAL Manager: IntentHash¹¹ L0-L1-L2 chain validation",
-    "Global WAL Manager: φ-CPS cumulative drift tracking + threshold monitoring",
-    "Global WAL Manager: Automatic rollback point creation (drift > 5%)",
-    "Global WAL Manager: Event query with multi-dimensional filters",
-    "Global WAL Manager: Complete audit trail (JSON/CSV export)",
-    "Global WAL Manager: Base-3 ternary event validation states",
-    "Global WAL Manager: CLI integration (6 commands)",
-    "Global WAL Manager: Batch operation support (50 items/call)",
-    "Global WAL Manager: Event replay and time-travel debugging",
-    "Global WAL Manager: Automatic drift alert + incident ticket creation",
-    "CitizenManager: L0-L5 entity hierarchy (GENESIS → VALIDATED → OPERATIONAL → PRODUCTION → CRITICAL → LEGACY)",
-    "CitizenManager: Base-3 ternary validation states (UNKNOWN/VALID/INVALID)",
-    "CitizenManager: Base-4 lifecycle states (GENESIS/ACTIVE/DEPRECATED/ARCHIVED)",
-    "CitizenManager: Entity types (PROJECT/SERVICE/COMPONENT/TOOL/LIBRARY/FRAMEWORK/WORKFLOW/AGENT)",
-    "CitizenManager: Entity promotion with φ-CPS tracking (L0→L1→L2→L3→L4)",
-    "CitizenManager: Entity demotion and archival to L5_LEGACY",
-    "CitizenManager: Dependency tracking and relationship graph",
-    "CitizenManager: SQLite persistence (citizens.db, entity_relationships, entity_history)",
-    "CitizenManager: IntentHash generation per entity",
-    "CitizenManager: Cross-repo synchronization (scan 16 ecosystem-1 repos)",
-    "CitizenManager: Automatic entity discovery from ECOS_ROOT.json",
-    "CitizenManager: CLI integration (7 commands: register/promote/demote/list/export/validate/sync)",
-    "CitizenManager: Integration with GlobalWALManager for event logging",
-    "CitizenManager: φ-CPS calculation per entity level (L0: 0.005, L1: 0.010, L2: 0.015, L3: 0.020, L4: 0.030, L5: 0.002)",
-    "CitizenManager: Promotion φ-CPS deltas (L0→L1: +0.008, L1→L2: +0.010, L2→L3: +0.012, L3→L4: +0.015)",
-    "CitizenManager: Complete audit trail (entity_history table)",
-    "CitizenManager: Batch citizen registration (cross-repo sync)",
-    "CitizenManager: JSON/CSV registry export",
-    "SkillManager: Reusable skill registry (Python/PowerShell/Bash scripts, API calls, workflows)",
-    "SkillManager: Base-3 ternary validation states (UNKNOWN/VALID/INVALID)",
-    "SkillManager: Base-4 lifecycle states (GENESIS/ACTIVE/DEPRECATED/ARCHIVED)",
-    "SkillManager: 7 skill types (PYTHON_SCRIPT/POWERSHELL_SCRIPT/BASH_SCRIPT/API_CALL/WORKFLOW/FUNCTION/CLI_COMMAND)",
-    "SkillManager: SQLite persistence (skills.db, skill_executions, skill_dependencies)",
-    "SkillManager: IntentHash generation per skill",
-    "SkillManager: φ-CPS tracking per validation state (UNKNOWN: 0.005, VALID: 0.012, INVALID: 0.001)",
-    "SkillManager: Script execution with sandboxed mode (5-min timeout)",
-    "SkillManager: Validation with test cases (automatic state transition)",
-    "SkillManager: Execution tracking (success_count, execution_count, duration_ms)",
-    "SkillManager: Citizen linkage (link skills to entities)",
-    "SkillManager: Dependency tracking (required/optional skill dependencies)",
-    "SkillManager: CLI integration (8 commands: register/execute/validate/list/export/link/info/delete)",
-    "SkillManager: Integration with GlobalWALManager for event logging",
-    "SkillManager: Input/output schema validation",
-    "SkillManager: Registry export (JSON/CSV formats)",
-    "DaemonManager: Background daemon orchestration (Python/PowerShell/Bash/System/Docker/Monitoring)",
-    "DaemonManager: Base-3 ternary validation states (UNKNOWN/VALID/INVALID)",
-    "DaemonManager: Base-4 lifecycle states (GENESIS/ACTIVE/DEPRECATED/ARCHIVED)",
-    "DaemonManager: 6 daemon types (PYTHON_SCRIPT/POWERSHELL_SCRIPT/BASH_SCRIPT/SYSTEM_SERVICE/DOCKER_CONTAINER/MONITORING_AGENT)",
-    "DaemonManager: 6 runtime states (STOPPED/STARTING/RUNNING/STOPPING/FAILED/RESTARTING)",
-    "DaemonManager: SQLite persistence (daemons.db, daemon_executions, daemon_health_checks)",
-    "DaemonManager: Process management (start/stop/restart/monitor)",
-    "DaemonManager: Health monitoring (CPU, memory, response time, 30s interval)",
-    "DaemonManager: Auto-restart policies (no/on-failure/always)",
-    "DaemonManager: Resource limits (CPU %, memory MB)",
-    "DaemonManager: Cron scheduling support (intervals, cron expressions)",
-    "DaemonManager: Integration with GlobalWALManager for event logging",
-    "DaemonManager: IntentHash generation per daemon operation",
-    "DaemonManager: φ-CPS tracking per validation state (UNKNOWN: 0.007, VALID: 0.018, INVALID: 0.002)",
-    "DaemonManager: Thread-based health monitoring (global + per-daemon)",
-    "DaemonManager: Graceful shutdown handling (terminate → kill with timeout)",
-    "DaemonManager: Process execution (Python/PowerShell/Bash scripts)",
-    "DaemonManager: Restart count tracking with max limits (default 3)",
-    "DaemonManager: Log aggregation ready (execution history table)",
-    "DaemonManager: psutil integration for resource metrics",
-    "DaemonManager: CLI integration (8 commands: register/start/stop/restart/status/list)",
-    "DaemonManager: Complete test suite (15+ tests, 6 test classes)",
-    "DaemonManager: State filtering (type/runtime/lifecycle)",
-    "DaemonManager: Batch daemon operations support"
+  "recent_operations": [
+    {
+      "timestamp": "2026-03-01T01:46:28.673843Z",
+      "operation": "PIPELINE_MANAGER_L0_IMPLEMENTATION",
+      "repository": "KIVA-CLI",
+      "commit": "29dc4afefe9b45eb9acabf8fce25fb3424081221",
+      "intent_hash": "0xE3A9F8D2C7B14506",
+      "phi_cps_delta": 0.025,
+      "status": "SUCCESS",
+      "description": "PipelineManager L0: 682 lines, DAG scheduling, SQLite persistence"
+    },
+    {
+      "timestamp": "2026-03-01T01:46:28.673843Z",
+      "operation": "PIPELINE_MANAGER_L1_VALIDATION",
+      "repository": "KIVA-CLI",
+      "commit": "68c03c313b94b3fae8675317805377e14726103a",
+      "intent_hash": "0xF8D2C7B14506A3E9",
+      "phi_cps_delta": 0.013,
+      "status": "SUCCESS",
+      "description": "PipelineManager L1: CLI (185L, 8 commands) + Tests (140L, 15 tests)"
+    },
+    {
+      "timestamp": "2026-03-01T01:46:28.673843Z",
+      "operation": "GLOBAL_WAL_MANAGER_L0_IMPLEMENTATION",
+      "repository": "KIVA-CLI",
+      "commit": "fc29bb1df77814b85c2c64d55dd5d348608c8ce6",
+      "intent_hash": "0xC7B14506A3E9F8D2",
+      "phi_cps_delta": 0.032,
+      "status": "SUCCESS",
+      "description": "GlobalWALManager L0: 548 lines, event tracking, phi-CPS validation, rollback detection"
+    },
+    {
+      "timestamp": "2026-03-01T01:46:28.673843Z",
+      "operation": "GLOBAL_WAL_MANAGER_L1_VALIDATION",
+      "repository": "KIVA-CLI",
+      "commit": "c448c5df20f960de4cfaf063a4735865939d022b",
+      "intent_hash": "0xB14506A3E9F8D2C7",
+      "phi_cps_delta": 0.018,
+      "status": "SUCCESS",
+      "description": "GlobalWALManager L1: CLI (218L, 7 commands) + Tests (177L, 13 tests)"
+    }
   ],
-  "open_issues": 0,
-  "last_updated": "2026-03-01T02:33:37.892831Z",
-  "maintainers": [
-    "gerivdb"
+  "next_steps": [
+    "CRITICAL: Validate phi-CPS drift 0.088 (76% above threshold)",
+    "Run comprehensive integration tests (PipelineManager + GlobalWALManager)",
+    "Connect SkillManager to SKILL_EXECUTION steps",
+    "Connect DaemonManager to DAEMON_START steps",
+    "Implement CONDITIONAL/LOOP/HYBRID pipeline types",
+    "Create cross-repo sync script using GlobalWALManager",
+    "Document IntentHash chaining strategy",
+    "Deploy to staging environment for load testing"
   ],
-  "dependencies": [
-    "click>=8.1.0",
-    "tabulate>=0.9.0",
-    "python>=3.10",
-    "pytest>=7.0.0",
-    "psutil>=5.9.0"
-  ],
-  "managers": [
-    "ProjectManager: Project scaffolding and lifecycle management",
-    "GlobalWALManager: Cross-repo event tracking and φ-CPS drift monitoring",
-    "CitizenManager: Entity lifecycle and L0-L5 validation hierarchy",
-    "SkillManager: Reusable skill registry and execution engine",
-    "DaemonManager: Background daemon orchestration and health monitoring"
-  ],
-  "roadmap": {
-    "phase_1_completed": [
-      "ProjectManager implementation",
-      "Multi-framework scaffolding (6 templates)",
-      "Docker support (Dockerfile + Compose)",
-      "SQLite project registry",
-      "CLI commands (scaffold/list/export/deploy)"
-    ],
-    "phase_2_completed": [
-      "Global WAL Manager implementation",
-      "IntentHash¹¹ L0-L1-L2 chain validation",
-      "φ-CPS drift tracking (5% threshold)",
-      "Automatic rollback points",
-      "Event query and audit export",
-      "CLI integration (6 WAL commands)"
-    ],
-    "phase_3_completed": [
-      "CitizenManager implementation",
-      "L0-L5 entity hierarchy",
-      "Base-3 ternary validation (UNKNOWN/VALID/INVALID)",
-      "Base-4 lifecycle states (GENESIS/ACTIVE/DEPRECATED/ARCHIVED)",
-      "Entity promotion/demotion with φ-CPS tracking",
-      "Cross-repo synchronization (16 ecosystem-1 repos)",
-      "CLI integration (7 Citizen commands)",
-      "Integration with GlobalWALManager",
-      "Complete audit trail and registry export"
-    ],
-    "phase_4_completed": [
-      "SkillManager implementation",
-      "Reusable skill registry (7 skill types)",
-      "Base-3 ternary validation (UNKNOWN/VALID/INVALID)",
-      "Base-4 lifecycle states (GENESIS/ACTIVE/DEPRECATED/ARCHIVED)",
-      "Script execution engine (Python/PowerShell/Bash)",
-      "Validation with test cases",
-      "Citizen linkage support",
-      "Dependency tracking",
-      "CLI integration (8 Skill commands)",
-      "Integration with GlobalWALManager",
-      "Complete test suite (50+ tests passing)"
-    ],
-    "phase_5_in_progress": [
-      "DaemonManager: L0→L1 COMPLETED (implementation + CLI + tests)",
-      "PipelineManager: Multi-step workflow automation (PLANNED)",
-      "FrameworkManager: Advanced project templates (PLANNED)",
-      "Advanced analytics: φ-CPS trend visualization (PLANNED)",
-      "CI/CD integration: GitHub Actions workflows (PLANNED)"
-    ],
-    "phase_5_planned": [
-      "DaemonManager: Background task orchestration",
-      "PipelineManager: Multi-step workflow automation",
-      "FrameworkManager: Advanced project templates",
-      "Advanced analytics: φ-CPS trend visualization",
-      "CI/CD integration: GitHub Actions workflows",
-      "Distributed WAL: Multi-node event replication",
-      "Web UI: Dashboard for entity/project/skill monitoring"
-    ]
+  "metrics": {
+    "total_commits": 4,
+    "total_files_modified": 6,
+    "total_lines_added": 1602,
+    "total_test_coverage": 1.0,
+    "execution_time_seconds": 156,
+    "components_ready": 2,
+    "integrations_pending": 4
   },
-  "test_coverage": {
-    "total_tests": 158,
-    "passing_tests": 158,
-    "test_suites": [
-      "test_project_manager.py: 23 tests",
-      "test_project_commands.py: 15 tests",
-      "test_global_wal_manager.py: 20 tests",
-      "test_wal_commands.py: 10 tests",
-      "test_citizen_manager.py: 30 tests",
-      "test_citizen_commands.py: 20 tests",
-      "test_skill_manager.py: 30 tests",
-      "test_skill_commands.py: 20 tests",
-      "test_framework_manager.py: 15 tests",
-      "test_daemon_manager.py: 15 tests"
-    ],
-    "coverage_percent": 92,
-    "last_run": "2026-03-01T02:33:37.892953Z"
-  }
+  "alerts": [
+    {
+      "severity": "WARNING",
+      "timestamp": "2026-03-01T01:46:28.673843Z",
+      "message": "phi-CPS delta 0.088 exceeds threshold 0.05",
+      "recommendation": "Pause further implementations. Run comprehensive validation suite. Consider rollback if integration tests fail.",
+      "auto_rollback_enabled": false,
+      "manual_review_required": true
+    }
+  ]
 }
