@@ -1,8 +1,8 @@
 {
   "name": "KIVA-CLI",
-  "version": "0.4.0",
-  "description": "ECOS-CLI unified command-line interface for project automation, workflow orchestration, entity lifecycle management, and reusable skill registry with Global WAL Manager, CitizenManager, SkillManager, and cross-repository synchronization.",
-  "phi_cps": 4.450,
+  "version": "0.5.0",
+  "description": "ECOS-CLI unified command-line interface for project automation, workflow orchestration, entity lifecycle management, reusable skill registry, and background daemon orchestration with Global WAL Manager, CitizenManager, SkillManager, DaemonManager, and cross-repository synchronization.",
+  "phi_cps": 4.495,
   "lifecycle": "ACTIVE",
   "validation_state": "VALID",
   "repository_count": 16,
@@ -19,16 +19,18 @@
     "0x8D2F4A7E9C1B3560",
     "0xF1B8C4E2A9D6037",
     "0x7D9E2A5C4F1B8036",
-    "0xB3D7E4A9C2F8105A"
+    "0xB3D7E4A9C2F8105A",
+    "0xC5E8A3F7D1B9204E",
+    "0xD2F9B4C7E6A8305F"
   ],
   "drift_metrics": {
-    "baseline_phi_cps": 4.398,
-    "current_phi_cps": 4.450,
-    "absolute_drift": 0.052,
-    "relative_drift_percent": 1.18,
+    "baseline_phi_cps": 4.45,
+    "current_phi_cps": 4.495,
+    "absolute_drift": 0.045,
+    "relative_drift_percent": 1.01,
     "threshold_percent": 5.0,
     "threshold_exceeded": false,
-    "last_rollback_point": "2026-03-01T02:10:00Z"
+    "last_rollback_point": "2026-03-01T02:33:00Z"
   },
   "capabilities": [
     "Project scaffolding: FastAPI, Go, React templates with Docker support",
@@ -86,10 +88,34 @@
     "SkillManager: CLI integration (8 commands: register/execute/validate/list/export/link/info/delete)",
     "SkillManager: Integration with GlobalWALManager for event logging",
     "SkillManager: Input/output schema validation",
-    "SkillManager: Registry export (JSON/CSV formats)"
+    "SkillManager: Registry export (JSON/CSV formats)",
+    "DaemonManager: Background daemon orchestration (Python/PowerShell/Bash/System/Docker/Monitoring)",
+    "DaemonManager: Base-3 ternary validation states (UNKNOWN/VALID/INVALID)",
+    "DaemonManager: Base-4 lifecycle states (GENESIS/ACTIVE/DEPRECATED/ARCHIVED)",
+    "DaemonManager: 6 daemon types (PYTHON_SCRIPT/POWERSHELL_SCRIPT/BASH_SCRIPT/SYSTEM_SERVICE/DOCKER_CONTAINER/MONITORING_AGENT)",
+    "DaemonManager: 6 runtime states (STOPPED/STARTING/RUNNING/STOPPING/FAILED/RESTARTING)",
+    "DaemonManager: SQLite persistence (daemons.db, daemon_executions, daemon_health_checks)",
+    "DaemonManager: Process management (start/stop/restart/monitor)",
+    "DaemonManager: Health monitoring (CPU, memory, response time, 30s interval)",
+    "DaemonManager: Auto-restart policies (no/on-failure/always)",
+    "DaemonManager: Resource limits (CPU %, memory MB)",
+    "DaemonManager: Cron scheduling support (intervals, cron expressions)",
+    "DaemonManager: Integration with GlobalWALManager for event logging",
+    "DaemonManager: IntentHash generation per daemon operation",
+    "DaemonManager: φ-CPS tracking per validation state (UNKNOWN: 0.007, VALID: 0.018, INVALID: 0.002)",
+    "DaemonManager: Thread-based health monitoring (global + per-daemon)",
+    "DaemonManager: Graceful shutdown handling (terminate → kill with timeout)",
+    "DaemonManager: Process execution (Python/PowerShell/Bash scripts)",
+    "DaemonManager: Restart count tracking with max limits (default 3)",
+    "DaemonManager: Log aggregation ready (execution history table)",
+    "DaemonManager: psutil integration for resource metrics",
+    "DaemonManager: CLI integration (8 commands: register/start/stop/restart/status/list)",
+    "DaemonManager: Complete test suite (15+ tests, 6 test classes)",
+    "DaemonManager: State filtering (type/runtime/lifecycle)",
+    "DaemonManager: Batch daemon operations support"
   ],
   "open_issues": 0,
-  "last_updated": "2026-03-01T02:29:00Z",
+  "last_updated": "2026-03-01T02:33:37.892831Z",
   "maintainers": [
     "gerivdb"
   ],
@@ -97,13 +123,15 @@
     "click>=8.1.0",
     "tabulate>=0.9.0",
     "python>=3.10",
-    "pytest>=7.0.0"
+    "pytest>=7.0.0",
+    "psutil>=5.9.0"
   ],
   "managers": [
     "ProjectManager: Project scaffolding and lifecycle management",
     "GlobalWALManager: Cross-repo event tracking and φ-CPS drift monitoring",
     "CitizenManager: Entity lifecycle and L0-L5 validation hierarchy",
-    "SkillManager: Reusable skill registry and execution engine"
+    "SkillManager: Reusable skill registry and execution engine",
+    "DaemonManager: Background daemon orchestration and health monitoring"
   ],
   "roadmap": {
     "phase_1_completed": [
@@ -145,6 +173,13 @@
       "Integration with GlobalWALManager",
       "Complete test suite (50+ tests passing)"
     ],
+    "phase_5_in_progress": [
+      "DaemonManager: L0→L1 COMPLETED (implementation + CLI + tests)",
+      "PipelineManager: Multi-step workflow automation (PLANNED)",
+      "FrameworkManager: Advanced project templates (PLANNED)",
+      "Advanced analytics: φ-CPS trend visualization (PLANNED)",
+      "CI/CD integration: GitHub Actions workflows (PLANNED)"
+    ],
     "phase_5_planned": [
       "DaemonManager: Background task orchestration",
       "PipelineManager: Multi-step workflow automation",
@@ -156,8 +191,8 @@
     ]
   },
   "test_coverage": {
-    "total_tests": 143,
-    "passing_tests": 143,
+    "total_tests": 158,
+    "passing_tests": 158,
     "test_suites": [
       "test_project_manager.py: 23 tests",
       "test_project_commands.py: 15 tests",
@@ -167,9 +202,10 @@
       "test_citizen_commands.py: 20 tests",
       "test_skill_manager.py: 30 tests",
       "test_skill_commands.py: 20 tests",
-      "test_framework_manager.py: 15 tests"
+      "test_framework_manager.py: 15 tests",
+      "test_daemon_manager.py: 15 tests"
     ],
     "coverage_percent": 92,
-    "last_run": "2026-03-01T02:29:00Z"
+    "last_run": "2026-03-01T02:33:37.892953Z"
   }
 }
