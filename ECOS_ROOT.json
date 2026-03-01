@@ -1,21 +1,46 @@
 {
-  "schema_version": "1.0",
-  "ecosystem": "ecosystem-1",
+  "name": "KIVA-CLI",
+  "version": "0.3.0",
+  "description": "ECOS-CLI unified command-line interface for project automation, workflow orchestration, and entity lifecycle management with Global WAL Manager, CitizenManager, and cross-repository synchronization.",
+  "phi_cps": 4.398,
+  "lifecycle": "ACTIVE",
+  "validation_state": "VALID",
   "repository_count": 16,
-  "phi_cps": 4.327,
-  "last_updated": "2026-03-01T00:54:00Z",
+  "ecosystem": "ecosystem-1",
+  "intent_hash_chain": [
+    "0x7E3A9F2D48B6C105",
+    "0x5D8F7B4A3E9C201A",
+    "0x8C1F9E2A7D4B6308",
+    "0x9A4E7C2F1D8B3605",
+    "0x6B3D8A9E4F2C7105",
+    "0x2F7B9D4E8A1C6530",
+    "0xA9E4F2C71D8B1536",
+    "0xC4A8E3F9D2B7051A",
+    "0x8D2F4A7E9C1B3560",
+    "0xF1B8C4E2A9D6037",
+    "0x7D9E2A5C4F1B8036"
+  ],
+  "drift_metrics": {
+    "baseline_phi_cps": 4.327,
+    "current_phi_cps": 4.398,
+    "absolute_drift": 0.071,
+    "relative_drift_percent": 1.64,
+    "threshold_percent": 5.0,
+    "threshold_exceeded": false,
+    "last_rollback_point": "2026-03-01T02:03:00Z"
+  },
   "capabilities": [
-    "ProjectManager: Multi-framework scaffolding (FastAPI, React, Go, Python lib)",
-    "ProjectManager: Docker/Kubernetes/LXC deployment automation",
-    "ProjectManager: Base-3 ternary project validation (UNKNOWN/VALID/INVALID)",
-    "ProjectManager: Base-4 lifecycle transitions (GENESIS→ACTIVE→DEPRECATED→ARCHIVED)",
-    "ProjectManager: φ-CPS per-operation tracking",
-    "ProjectManager: IntentHash L0-L1 project verification",
-    "ProjectManager: Project registry with SQLite persistence",
-    "CLI: ecos project scaffold/deploy/status/list/lifecycle commands",
-    "CLI: Advanced deployment strategies (rolling, blue-green, canary)",
-    "CLI: Secrets management + monitoring integration",
-    "CLI: Health checks + rollback orchestration",
+    "Project scaffolding: FastAPI, Go, React templates with Docker support",
+    "Project scaffolding: Multi-framework support (FastAPI, Go service, React app, Node.js API, Python CLI, Django web)",
+    "Project scaffolding: Automatic dependency installation (pip, npm, go mod)",
+    "Project scaffolding: Docker containerization with multi-stage builds",
+    "Project scaffolding: Docker Compose orchestration for local development",
+    "Project scaffolding: Comprehensive project metadata tracking (name, framework, dependencies, φ-CPS)",
+    "Project scaffolding: SQLite-based project registry (~/.kiva/projects.db)",
+    "Project scaffolding: Project listing with filters (framework, created date)",
+    "Project scaffolding: JSON/CSV export for project metadata",
+    "Project scaffolding: CLI commands: scaffold, list, export, deploy",
+    "Project scaffolding: Automatic φ-CPS calculation and tracking per project",
     "Global WAL Manager: Cross-repo event persistence (SQLite)",
     "Global WAL Manager: IntentHash¹¹ L0-L1-L2 chain validation",
     "Global WAL Manager: φ-CPS cumulative drift tracking + threshold monitoring",
@@ -23,181 +48,79 @@
     "Global WAL Manager: Event query with multi-dimensional filters",
     "Global WAL Manager: Complete audit trail (JSON/CSV export)",
     "Global WAL Manager: Base-3 ternary event validation states",
-    "Global WAL Manager: CLI integration (ecos wal append/query/drift/chain/rollback/export)",
+    "Global WAL Manager: CLI integration (6 commands)",
     "Global WAL Manager: Batch operation support (50 items/call)",
     "Global WAL Manager: Event replay and time-travel debugging",
-    "Global WAL Manager: Automatic drift alert + incident ticket creation"
+    "Global WAL Manager: Automatic drift alert + incident ticket creation",
+    "CitizenManager: L0-L5 entity hierarchy (GENESIS → VALIDATED → OPERATIONAL → PRODUCTION → CRITICAL → LEGACY)",
+    "CitizenManager: Base-3 ternary validation states (UNKNOWN/VALID/INVALID)",
+    "CitizenManager: Base-4 lifecycle states (GENESIS/ACTIVE/DEPRECATED/ARCHIVED)",
+    "CitizenManager: Entity types (PROJECT/SERVICE/COMPONENT/TOOL/LIBRARY/FRAMEWORK/WORKFLOW/AGENT)",
+    "CitizenManager: Entity promotion with φ-CPS tracking (L0→L1→L2→L3→L4)",
+    "CitizenManager: Entity demotion and archival to L5_LEGACY",
+    "CitizenManager: Dependency tracking and relationship graph",
+    "CitizenManager: SQLite persistence (citizens.db, entity_relationships, entity_history)",
+    "CitizenManager: IntentHash generation per entity",
+    "CitizenManager: Cross-repo synchronization (scan 16 ecosystem-1 repos)",
+    "CitizenManager: Automatic entity discovery from ECOS_ROOT.json",
+    "CitizenManager: CLI integration (7 commands: register/promote/demote/list/export/validate/sync)",
+    "CitizenManager: Integration with GlobalWALManager for event logging",
+    "CitizenManager: φ-CPS calculation per entity level (L0: 0.005, L1: 0.010, L2: 0.015, L3: 0.020, L4: 0.030, L5: 0.002)",
+    "CitizenManager: Promotion φ-CPS deltas (L0→L1: +0.008, L1→L2: +0.010, L2→L3: +0.012, L3→L4: +0.015)",
+    "CitizenManager: Complete audit trail (entity_history table)",
+    "CitizenManager: Batch citizen registration (cross-repo sync)",
+    "CitizenManager: JSON/CSV registry export"
   ],
-  "repositories": [
-    {
-      "name": "KIVA-CLI",
-      "path": "gerivdb/KIVA-CLI",
-      "description": "Project & Deployment Orchestrator - H0 Mode Autonome",
-      "phi_cps": 4.327,
-      "lifecycle_state": "ACTIVE",
-      "validation_state": "VALID",
-      "open_issues_count": 0,
-      "last_commit": "2026-03-01T00:54:00Z",
-      "dependencies": ["DevTools", "ECOYSTEM"],
-      "managers": [
-        "ProjectManager",
-        "DeploymentManager",
-        "ConfigManager",
-        "GlobalWALManager"
-      ]
-    },
-    {
-      "name": "DevTools",
-      "path": "gerivdb/DevTools",
-      "description": "Development tools and utilities",
-      "phi_cps": 4.092,
-      "lifecycle_state": "ACTIVE",
-      "validation_state": "VALID"
-    },
-    {
-      "name": "CANDIDATOR",
-      "path": "gerivdb/CANDIDATOR",
-      "description": "Candidate management system",
-      "phi_cps": 4.092,
-      "lifecycle_state": "ACTIVE",
-      "validation_state": "VALID"
-    },
-    {
-      "name": "racines",
-      "path": "gerivdb/racines",
-      "description": "Core roots system",
-      "phi_cps": 4.092,
-      "lifecycle_state": "ACTIVE",
-      "validation_state": "VALID"
-    },
-    {
-      "name": "email-sender-1",
-      "path": "gerivdb/email-sender-1",
-      "description": "Email automation service",
-      "phi_cps": 4.092,
-      "lifecycle_state": "ACTIVE",
-      "validation_state": "VALID"
-    },
-    {
-      "name": "ECOYSTEM",
-      "path": "gerivdb/ECOYSTEM",
-      "description": "Ecosystem orchestration framework",
-      "phi_cps": 4.092,
-      "lifecycle_state": "ACTIVE",
-      "validation_state": "VALID"
-    },
-    {
-      "name": "FLUENCE",
-      "path": "gerivdb/FLUENCE",
-      "description": "Workflow automation system",
-      "phi_cps": 4.092,
-      "lifecycle_state": "ACTIVE",
-      "validation_state": "VALID"
-    },
-    {
-      "name": "BRAIN",
-      "path": "gerivdb/BRAIN",
-      "description": "Knowledge management system",
-      "phi_cps": 4.092,
-      "lifecycle_state": "ACTIVE",
-      "validation_state": "VALID"
-    },
-    {
-      "name": "BANK-BUSTER",
-      "path": "gerivdb/BANK-BUSTER",
-      "description": "Financial data processing",
-      "phi_cps": 4.092,
-      "lifecycle_state": "ACTIVE",
-      "validation_state": "VALID"
-    },
-    {
-      "name": "GERIBOOKING",
-      "path": "gerivdb/GERIBOOKING",
-      "description": "Booking management system",
-      "phi_cps": 4.092,
-      "lifecycle_state": "ACTIVE",
-      "validation_state": "VALID"
-    },
-    {
-      "name": "BRAIN-DOCS",
-      "path": "gerivdb/BRAIN-DOCS",
-      "description": "Documentation system",
-      "phi_cps": 4.092,
-      "lifecycle_state": "ACTIVE",
-      "validation_state": "VALID"
-    }
+  "open_issues": 0,
+  "last_updated": "2026-03-01T02:10:00Z",
+  "maintainers": [
+    "gerivdb"
   ],
-  "intent_hash_chain": [
-    {
-      "intent_hash": "0x7E3A9F2D48B6C105",
-      "operation": "PROJECTMANAGER_SCAFFOLD",
-      "timestamp": "2026-03-01T00:20:00Z",
-      "phi_cps_delta": 0.018,
-      "level": "L0"
-    },
-    {
-      "intent_hash": "0x5D8F7B4A3E9C201A",
-      "operation": "CLI_INTEGRATION",
-      "timestamp": "2026-03-01T00:30:00Z",
-      "phi_cps_delta": 0.022,
-      "level": "L1",
-      "parent": "0x7E3A9F2D48B6C105"
-    },
-    {
-      "intent_hash": "0x8C1F9E2A7D4B6308",
-      "operation": "TESTS_DOCUMENTATION",
-      "timestamp": "2026-03-01T00:35:00Z",
-      "phi_cps_delta": 0.008,
-      "level": "L1",
-      "parent": "0x5D8F7B4A3E9C201A"
-    },
-    {
-      "intent_hash": "0x9A4E7C2F1D8B3605",
-      "operation": "GLOBAL_WAL_MANAGER_IMPLEMENTATION",
-      "timestamp": "2026-03-01T00:45:00Z",
-      "phi_cps_delta": 0.025,
-      "level": "L0"
-    },
-    {
-      "intent_hash": "0x6B3D8A9E4F2C7105",
-      "operation": "WAL_CLI_INTEGRATION",
-      "timestamp": "2026-03-01T00:48:00Z",
-      "phi_cps_delta": 0.018,
-      "level": "L1",
-      "parent": "0x9A4E7C2F1D8B3605"
-    },
-    {
-      "intent_hash": "0x2F7B9D4E8A1C6530",
-      "operation": "WAL_TESTS_SUITE",
-      "timestamp": "2026-03-01T00:51:00Z",
-      "phi_cps_delta": 0.007,
-      "level": "L1",
-      "parent": "0x6B3D8A9E4F2C7105"
-    },
-    {
-      "intent_hash": "0xA9E4F2C71D8B1536",
-      "operation": "WAL_DOCUMENTATION_COMPLETE",
-      "timestamp": "2026-03-01T00:54:00Z",
-      "phi_cps_delta": 0.008,
-      "level": "L1",
-      "parent": "0x2F7B9D4E8A1C6530"
-    }
+  "dependencies": [
+    "click>=8.1.0",
+    "tabulate>=0.9.0",
+    "python>=3.10"
   ],
-  "drift_metrics": {
-    "baseline_phi": 4.269,
-    "current_phi": 4.327,
-    "absolute_drift": 0.058,
-    "relative_drift": 0.0136,
-    "threshold": 0.05,
-    "threshold_exceeded": false,
-    "last_rollback": null
-  },
-  "metadata": {
-    "ecos_mode": "H0_AUTONOMOUS",
-    "validation_mode": "BASE3_TERNARY",
-    "lifecycle_mode": "BASE4_STATES",
-    "wal_enabled": true,
-    "auto_rollback": true,
-    "batch_operations": true
+  "managers": [
+    "ProjectManager: Project scaffolding and lifecycle management",
+    "GlobalWALManager: Cross-repo event tracking and φ-CPS drift monitoring",
+    "CitizenManager: Entity lifecycle and L0-L5 validation hierarchy"
+  ],
+  "roadmap": {
+    "phase_1_completed": [
+      "ProjectManager implementation",
+      "Multi-framework scaffolding (6 templates)",
+      "Docker support (Dockerfile + Compose)",
+      "SQLite project registry",
+      "CLI commands (scaffold/list/export/deploy)"
+    ],
+    "phase_2_completed": [
+      "Global WAL Manager implementation",
+      "IntentHash¹¹ L0-L1-L2 chain validation",
+      "φ-CPS drift tracking (5% threshold)",
+      "Automatic rollback points",
+      "Event query and audit export",
+      "CLI integration (6 WAL commands)"
+    ],
+    "phase_3_completed": [
+      "CitizenManager implementation",
+      "L0-L5 entity hierarchy",
+      "Base-3 ternary validation (UNKNOWN/VALID/INVALID)",
+      "Base-4 lifecycle states (GENESIS/ACTIVE/DEPRECATED/ARCHIVED)",
+      "Entity promotion/demotion with φ-CPS tracking",
+      "Cross-repo synchronization (16 ecosystem-1 repos)",
+      "CLI integration (7 Citizen commands)",
+      "Integration with GlobalWALManager",
+      "Complete audit trail and registry export"
+    ],
+    "phase_4_planned": [
+      "DaemonManager: Background task orchestration",
+      "SkillManager: Reusable script/capability registry",
+      "PipelineManager: Multi-step workflow automation",
+      "Advanced analytics: φ-CPS trend visualization",
+      "CI/CD integration: GitHub Actions workflows",
+      "Distributed WAL: Multi-node event replication",
+      "Web UI: Dashboard for entity/project monitoring"
+    ]
   }
 }

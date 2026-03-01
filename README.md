@@ -1,392 +1,368 @@
-# KIVA-CLI 🚀
+# KIVA-CLI
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
-[![ECOS H0](https://img.shields.io/badge/ECOS-H0%20Autonomous-green.svg)](https://github.com/gerivdb/KIVA-CLI)
-[![φ-CPS](https://img.shields.io/badge/φ--CPS-4.327-brightgreen.svg)](./ECOS_ROOT.json)
+**ECOS-CLI Unified Command-Line Interface**  
+Project automation, workflow orchestration, and entity lifecycle management for the ECOS ecosystem.
 
-**Project & Deployment Orchestrator** with H0 Autonomous Mode, Base-3/4 validation, φ-CPS tracking, and Global WAL Manager.
+[![Version](https://img.shields.io/badge/version-0.3.0-blue.svg)](https://github.com/gerivdb/KIVA-CLI)  
+[![φ-CPS](https://img.shields.io/badge/φ--CPS-4.398-green.svg)](docs/global_wal_manager.md)  
+[![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/)  
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-## Overview
+---
 
-KIVA-CLI is an advanced orchestration tool for:
-- 🏗️ **Multi-framework project scaffolding** (FastAPI, React, Go, Python libraries)
-- 🚢 **Automated deployments** (Docker, Kubernetes, LXC)
-- ✅ **Base-3 ternary semantic validation** (UNKNOWN/VALID/INVALID)
-- 🔄 **Base-4 lifecycle management** (GENESIS→ACTIVE→DEPRECATED→ARCHIVED)
-- 📊 **φ-CPS drift tracking** with automatic rollback detection
-- 🔗 **IntentHash L0-L1-L2 chain** verification
-- 📝 **Global WAL (Write-Ahead Log)** event persistence
-- 🎯 **NO-HITL mode** (No Human In The Loop) for autonomous operations
-
-## Quick Start
-
-### Installation
+## 🚀 Quick Start
 
 ```bash
-# Clone repository
-git clone https://github.com/gerivdb/KIVA-CLI.git
-cd KIVA-CLI
-
 # Install dependencies
 pip install -r requirements.txt
 
-# Install CLI (development mode)
-pip install -e .
-
-# Verify installation
-ecos --version
-```
-
-### Basic Usage
-
-```bash
-# Scaffold new FastAPI project
+# Scaffold a new FastAPI project
 ecos project scaffold my-api --framework fastapi
+
+# Register an entity (citizen)
+ecos citizen register --name my-api --type SERVICE --repo KIVA-CLI
 
 # Deploy to Docker
 ecos project deploy my-api --target docker
 
-# Check project status
-ecos project status my-api
-
-# Transition lifecycle
-ecos project lifecycle my-api ACTIVE
-
-# Check φ-CPS drift
-ecos wal drift
-```
-
-## Core Features
-
-### 1. Project Scaffolding
-
-Create production-ready projects from templates:
-
-```bash
-# FastAPI microservice
-ecos project scaffold api-service --framework fastapi
-
-# React frontend
-ecos project scaffold web-app --framework react
-
-# Go service
-ecos project scaffold go-api --framework go
-
-# Python library
-ecos project scaffold my-lib --framework python-lib
-```
-
-**Supported Frameworks:**
-- FastAPI (REST API + async support)
-- React (TypeScript + Vite)
-- Go (Gin/Echo framework)
-- Python Library (setuptools + poetry)
-
-### 2. Deployment Automation
-
-Deploy to multiple targets:
-
-```bash
-# Docker container
-ecos project deploy my-api --target docker
-
-# Kubernetes cluster
-ecos project deploy my-api --target kubernetes
-
-# LXC container
-ecos project deploy my-api --target lxc
-```
-
-**Deployment Strategies:**
-- Rolling updates
-- Blue-green deployments
-- Canary releases
-
-### 3. Base-3 Ternary Validation
-
-Semantic validation with three states:
-
-| State | Symbol | Description |
-|-------|--------|-------------|
-| **UNKNOWN** | ⚠️ | Not yet validated |
-| **VALID** | ✅ | All checks passed |
-| **INVALID** | ❌ | Semantic errors detected |
-
-```bash
-# Check project validation
-ecos project status my-api
-```
-
-### 4. Base-4 Lifecycle Management
-
-Manage project lifecycle with four states:
-
-```
-GENESIS → ACTIVE → DEPRECATED → ARCHIVED
-   🌱        ✅          ⚠️          📦
-```
-
-```bash
-# Transition to ACTIVE (production-ready)
-ecos project lifecycle my-api ACTIVE
-
-# Mark as DEPRECATED (maintenance-only)
-ecos project lifecycle my-api DEPRECATED
-
-# Archive project (terminal state)
-ecos project lifecycle my-api ARCHIVED
-```
-
-**Valid Transitions:**
-- GENESIS → ACTIVE | ARCHIVED
-- ACTIVE → DEPRECATED | ARCHIVED
-- DEPRECATED → ACTIVE | ARCHIVED
-- ARCHIVED → (terminal, no transitions)
-
-### 5. Global WAL Manager
-
-Cross-repository event tracking with IntentHash chain:
-
-```bash
-# Append event manually
-ecos wal append --operation DEPLOY_SUCCESS \
-                --repo my-api \
-                --phi-delta 0.012
-
-# Query recent events
-ecos wal query --repo KIVA-CLI --limit 10
-
 # Check φ-CPS drift
 ecos wal drift
 
-# Verify IntentHash chain
-ecos wal chain 0x9A4E7C2F1D8B3605
-
-# Create rollback point
-ecos wal rollback --reason "Before major deployment"
-
-# Export audit trail
-ecos wal export audit.json
+# List all citizens
+ecos citizen list
 ```
 
-**WAL Features:**
-- ✅ Event persistence (SQLite)
-- ✅ IntentHash¹¹ L0-L1-L2 chain validation
-- ✅ φ-CPS cumulative drift tracking
-- ✅ Automatic rollback detection (drift > 5%)
-- ✅ Complete audit trail (JSON/CSV)
-- ✅ Multi-dimensional event filtering
+---
 
-### 6. φ-CPS Drift Tracking
+## 📋 Features
 
-Automatic semantic coherence monitoring:
+### ✅ **ProjectManager** - Project Scaffolding
 
-```bash
-# Current drift status
-ecos wal drift
+- **Multi-framework templates**: FastAPI, Go, React, Node.js, Django, Python CLI
+- **Docker support**: Dockerfile + Docker Compose auto-generation
+- **Dependency management**: Automatic `pip`, `npm`, `go mod` installation
+- **Project registry**: SQLite-based tracking with φ-CPS scoring
+- **CLI commands**: `scaffold`, `list`, `export`, `deploy`
 
-# Output:
-# 📈 φ-CPS DRIFT METRICS
-# Baseline: 4.269
-# Current: 4.327
-# Drift: 1.36% (✅ within 5% threshold)
+### ✅ **GlobalWALManager** - Event Tracking
+
+- **Cross-repo persistence**: SQLite database for all ecosystem-1 repos
+- **IntentHash¹¹ chain**: L0-L1-L2 cryptographic continuity validation
+- **φ-CPS drift monitoring**: Automatic threshold alerts (5% default)
+- **Rollback points**: Auto-create snapshots on drift exceeding threshold
+- **Audit trail**: Complete event history with JSON/CSV export
+- **CLI commands**: `append`, `query`, `drift`, `chain`, `rollback`, `export`
+
+### ✅ **CitizenManager** - Entity Lifecycle
+
+- **L0-L5 hierarchy**: Entity maturity from genesis to critical production or legacy
+- **Base-3 validation**: UNKNOWN / VALID / INVALID ternary states
+- **Base-4 lifecycle**: GENESIS / ACTIVE / DEPRECATED / ARCHIVED
+- **Entity types**: PROJECT, SERVICE, COMPONENT, TOOL, LIBRARY, FRAMEWORK, WORKFLOW, AGENT
+- **Promotion/demotion**: Automatic φ-CPS adjustments on level changes
+- **Cross-repo sync**: Scan 16 ecosystem-1 repos and auto-register entities
+- **CLI commands**: `register`, `promote`, `demote`, `list`, `export`, `validate`, `sync`
+
+---
+
+## 🏗️ Architecture
+
+```
+┌────────────────────────────────────────────────────────────┐
+│                       KIVA-CLI                             │
+├────────────────────────────────────────────────────────────┤
+│                                                            │
+│  ┌─────────────────┐   ┌───────────────────┐             │
+│  │ ProjectManager  │   │ CitizenManager    │             │
+│  │ (Scaffolding)   │   │ (L0-L5 Entities)  │             │
+│  └────────┬────────┘   └────────┬──────────┘             │
+│           │                     │                          │
+│           └──────────┬──────────┘                          │
+│                      ▼                                     │
+│           ┌──────────────────────┐                        │
+│           │  GlobalWALManager    │                        │
+│           │  (Event Tracking)    │                        │
+│           └──────────────────────┘                        │
+│                      │                                     │
+│           ┌──────────┴──────────┐                         │
+│           ▼                     ▼                         │
+│  ┌─────────────────┐   ┌──────────────────┐              │
+│  │  projects.db    │   │  citizens.db     │              │
+│  │  (SQLite)       │   │  (SQLite)        │              │
+│  └─────────────────┘   └──────────────────┘              │
+│           │                     │                          │
+│           └──────────┬──────────┘                          │
+│                      ▼                                     │
+│           ┌──────────────────────┐                        │
+│           │  global_wal.db       │                        │
+│           │  (SQLite)            │                        │
+│           └──────────────────────┘                        │
+│                                                            │
+└────────────────────────────────────────────────────────────┘
 ```
 
-**Drift Thresholds:**
-- ✅ < 3%: Healthy
-- ⚠️ 3-5%: Monitor
-- 🛑 > 5%: Auto-rollback triggered
+---
 
-## CLI Commands
+## 📚 CLI Commands
 
-### Project Management
+### **Project Commands**
 
 | Command | Description | Example |
 |---------|-------------|----------|
-| `ecos project scaffold` | Create new project | `ecos project scaffold my-api --framework fastapi` |
-| `ecos project deploy` | Deploy to target | `ecos project deploy my-api --target docker` |
-| `ecos project status` | Show project status | `ecos project status my-api` |
+| `ecos project scaffold` | Create new project from template | `ecos project scaffold my-api --framework fastapi` |
 | `ecos project list` | List all projects | `ecos project list --framework fastapi` |
-| `ecos project lifecycle` | Transition lifecycle | `ecos project lifecycle my-api ACTIVE` |
+| `ecos project export` | Export project registry | `ecos project export projects.json` |
+| `ecos project deploy` | Deploy project to Docker | `ecos project deploy my-api --target docker` |
 
-### Global WAL Management
+### **WAL Commands**
 
 | Command | Description | Example |
 |---------|-------------|----------|
-| `ecos wal append` | Append event | `ecos wal append -o DEPLOY -r my-api --phi-delta 0.012` |
-| `ecos wal query` | Query events | `ecos wal query --repo KIVA-CLI --limit 10` |
+| `ecos wal append` | Append event to WAL | `ecos wal append --operation DEPLOY --repo my-api --phi-delta 0.015` |
+| `ecos wal query` | Query WAL events | `ecos wal query --repo KIVA-CLI --limit 20` |
 | `ecos wal drift` | Check φ-CPS drift | `ecos wal drift` |
-| `ecos wal chain` | Verify IntentHash | `ecos wal chain 0x9A4E7C2F1D8B3605` |
-| `ecos wal rollback` | Create rollback | `ecos wal rollback --reason "Pre-deploy"` |
+| `ecos wal chain` | Verify IntentHash chain | `ecos wal chain 0x9A4E7C2F1D8B3605` |
+| `ecos wal rollback` | Create rollback point | `ecos wal rollback --reason "Pre-deploy snapshot"` |
 | `ecos wal export` | Export audit trail | `ecos wal export audit.json` |
 
-### Legacy Commands
+### **Citizen Commands**
 
-| Command | Description |
-|---------|-------------|
-| `ecos deploy` | Deploy project (legacy) |
-| `ecos config` | Validate config |
-| `ecos secrets` | Manage secrets |
-| `ecos health` | Health checks |
-| `ecos monitoring` | Monitoring dashboard |
+| Command | Description | Example |
+|---------|-------------|----------|
+| `ecos citizen register` | Register new entity | `ecos citizen register --name my-api --type SERVICE --repo KIVA-CLI` |
+| `ecos citizen promote` | Promote entity level | `ecos citizen promote ctz_abc123 --level L2_OPERATIONAL` |
+| `ecos citizen demote` | Demote or archive entity | `ecos citizen demote ctz_abc123 --level L5_LEGACY --reason "Deprecated"` |
+| `ecos citizen list` | List citizens with filters | `ecos citizen list --repo KIVA-CLI --level L3_PRODUCTION` |
+| `ecos citizen export` | Export citizen registry | `ecos citizen export citizens.json` |
+| `ecos citizen validate` | Update validation state | `ecos citizen validate ctz_abc123 --state VALID` |
+| `ecos citizen sync` | Cross-repo synchronization | `ecos citizen sync --repos KIVA-CLI,BRAIN,FLUENCE` |
 
-## Architecture
+---
+
+## 🔄 Workflows
+
+### **Complete Project Lifecycle**
+
+```bash
+# 1. Create rollback point
+ecos wal rollback --reason "PRE_PROJECT_CREATION"
+
+# 2. Scaffold project
+ecos project scaffold my-api --framework fastapi
+
+# 3. Register as citizen (entity)
+ecos citizen register --name my-api --type SERVICE --repo KIVA-CLI --level L0_GENESIS
+
+# 4. Deploy to Docker
+ecos project deploy my-api --target docker
+
+# 5. Promote after successful deployment
+ecos citizen promote <citizen_id> --level L2_OPERATIONAL
+
+# 6. Validate deployment
+ecos citizen validate <citizen_id> --state VALID
+
+# 7. Check drift
+ecos wal drift
+
+# 8. Export audit trail
+ecos wal export deploy-audit-$(date +%Y%m%d).json
+```
+
+### **Cross-Repo Synchronization**
+
+```bash
+# 1. Dry-run to preview changes
+ecos citizen sync --dry-run
+
+# 2. Execute sync across all 16 repos
+ecos citizen sync
+
+# 3. Review registered entities
+ecos citizen list --format json > registry_snapshot.json
+
+# 4. Export for backup
+ecos citizen export citizens_backup_$(date +%Y%m%d).json
+```
+
+### **Entity Promotion Path**
+
+```bash
+# Register new service at L0
+CITIZEN_ID=$(ecos citizen register --name prod-api --type SERVICE --repo FLUENCE | grep -oP 'ctz_[a-f0-9]+')
+
+# Promote L0 → L1 (validation passed)
+ecos citizen promote $CITIZEN_ID --level L1_VALIDATED
+
+# Deploy to staging
+ecos project deploy prod-api --target docker
+
+# Promote L1 → L2 (operational)
+ecos citizen promote $CITIZEN_ID --level L2_OPERATIONAL
+
+# After 30 days stable: Promote L2 → L3 (production)
+ecos citizen promote $CITIZEN_ID --level L3_PRODUCTION
+
+# Mark as mission-critical: Promote L3 → L4
+ecos citizen promote $CITIZEN_ID --level L4_CRITICAL
+```
+
+---
+
+## 📊 Entity Levels (L0-L5)
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                    KIVA CLI (Entry Point)                   │
-│  ┌──────────────────────────────────────────────────┐      │
-│  │  Command Groups                                   │      │
-│  │  - project (ProjectManager)                      │      │
-│  │  - wal (GlobalWALManager)                        │      │
-│  │  - deploy, health, secrets, monitoring           │      │
-│  └──────────────────────────────────────────────────┘      │
-└──────────────────────┬──────────────────────────────────────┘
-                       │
-         ┌─────────────┴─────────────┐
-         ▼                           ▼
-┌─────────────────────┐    ┌─────────────────────┐
-│  ProjectManager     │    │  GlobalWALManager   │
-│  ┌───────────────┐  │    │  ┌───────────────┐  │
-│  │ Scaffolding   │  │    │  │ Event Append  │  │
-│  │ Deployment    │  │    │  │ Chain Verify  │  │
-│  │ Validation    │  │    │  │ Drift Track   │  │
-│  │ Lifecycle     │  │    │  │ Rollback Mgmt │  │
-│  └───────────────┘  │    │  │ Audit Export  │  │
-└─────────────────────┘    │  └───────────────┘  │
-                           └─────────────────────┘
-                                     │
-                                     ▼
-                          ┌──────────────────────┐
-                          │  SQLite Database     │
-                          │  - wal_events        │
-                          │  - rollback_points   │
-                          └──────────────────────┘
+┌─────────────────────────────────────────────────────────┐
+│                 Entity Lifecycle                        │
+├─────────────────────────────────────────────────────────┤
+│                                                         │
+│  L0: GENESIS        → Unvalidated, just created        │
+│      (φ-CPS: 0.005)                                     │
+│           │                                             │
+│           ▼ +0.008                                      │
+│  L1: VALIDATED      → Basic validation passed           │
+│      (φ-CPS: 0.010)                                     │
+│           │                                             │
+│           ▼ +0.010                                      │
+│  L2: OPERATIONAL    → Deployed and functional           │
+│      (φ-CPS: 0.015)                                     │
+│           │                                             │
+│           ▼ +0.012                                      │
+│  L3: PRODUCTION     → Stable production use             │
+│      (φ-CPS: 0.020)                                     │
+│           │                                             │
+│           ▼ +0.015                                      │
+│  L4: CRITICAL       → Mission-critical entity           │
+│      (φ-CPS: 0.030)                                     │
+│           │                                             │
+│           ▼ (demote/archive)                            │
+│  L5: LEGACY         → Archived/deprecated               │
+│      (φ-CPS: 0.002)                                     │
+│                                                         │
+└─────────────────────────────────────────────────────────┘
 ```
 
-## Directory Structure
+---
+
+## 📁 Project Structure
 
 ```
 KIVA-CLI/
+├── docs/
+│   ├── global_wal_manager.md      # WAL Manager complete reference
+│   └── citizen_manager.md         # CitizenManager complete reference
 ├── kiva_cli/
-│   ├── commands/           # CLI command groups
-│   │   ├── project_commands.py  # Project management
-│   │   ├── wal_commands.py      # Global WAL CLI
-│   │   ├── scaffold.py
-│   │   ├── secrets.py
-│   │   └── ...
-│   ├── core/              # Core managers
-│   │   ├── project_manager.py
-│   │   ├── deployment_manager.py
-│   │   └── config_manager.py
-│   └── kiva.py            # Main CLI entry
+│   ├── commands/
+│   │   ├── project_commands.py    # Project CLI commands
+│   │   ├── wal_commands.py        # WAL CLI commands
+│   │   └── citizen_commands.py    # Citizen CLI commands
+│   └── kiva.py                    # Main CLI entry point
+├── scripts/
+│   ├── batch_issue_processor.py   # Batch issue processing
+│   └── cross_repo_sync.py         # Cross-repo citizen sync
+├── tests/
+│   ├── test_project_manager.py    # ProjectManager tests
+│   ├── test_global_wal_manager.py # WAL Manager tests
+│   ├── test_wal_commands.py       # WAL CLI tests
+│   ├── test_citizen_manager.py    # CitizenManager tests
+│   └── test_citizen_commands.py   # Citizen CLI tests
 ├── tools/
 │   └── core/
-│       ├── global_wal_manager.py  # Global WAL Manager
-│       └── ...
-├── tests/
-│   ├── test_project_manager.py
-│   ├── test_global_wal_manager.py
-│   ├── test_wal_commands.py
-│   └── ...
-├── docs/
-│   ├── project_manager_cli.md
-│   ├── global_wal_manager.md
-│   └── ...
-├── ECOS_ROOT.json         # Ecosystem manifest
-├── README.md
-├── requirements.txt
-└── setup.py
+│       ├── project_manager.py     # ProjectManager implementation
+│       ├── global_wal_manager.py  # GlobalWALManager implementation
+│       └── citizen_manager.py     # CitizenManager implementation
+├── ECOS_ROOT.json                 # Manifest (φ-CPS: 4.398)
+├── README.md                      # This file
+└── requirements.txt               # Python dependencies
 ```
 
-## Testing
+---
+
+## 🧪 Testing
 
 ```bash
 # Run all tests
 pytest tests/ -v
 
-# Specific test suites
-pytest tests/test_project_manager.py -v
+# Run specific test suite
+pytest tests/test_citizen_manager.py -v
 pytest tests/test_global_wal_manager.py -v
-pytest tests/test_wal_commands.py -v
 
-# With coverage
-pytest tests/ --cov=kiva_cli --cov-report=html
+# Run with coverage
+pytest tests/ --cov=tools --cov=kiva_cli --cov-report=html
+
+# View coverage report
+open htmlcov/index.html
 ```
-
-## Roadmap
-
-### Phase 1: Core Infrastructure ✅
-- [x] ProjectManager (scaffolding, deployment, lifecycle)
-- [x] Base-3 ternary validation
-- [x] Base-4 lifecycle states
-- [x] φ-CPS per-operation tracking
-- [x] IntentHash L0-L1 verification
-- [x] Project registry (SQLite)
-- [x] CLI integration
-- [x] Comprehensive tests
-
-### Phase 2: Global WAL Manager ✅
-- [x] Cross-repo event persistence
-- [x] IntentHash¹¹ L0-L1-L2 chain
-- [x] φ-CPS cumulative drift tracking
-- [x] Automatic rollback detection
-- [x] Audit trail export (JSON/CSV)
-- [x] WAL CLI commands
-- [x] Complete documentation
-
-### Phase 3: Advanced Features (Q2 2026)
-- [ ] Multi-repo orchestration
-- [ ] Distributed WAL synchronization
-- [ ] Real-time drift monitoring dashboard
-- [ ] AI-powered rollback suggestions
-- [ ] Cloud deployment targets (AWS, Azure, GCP)
-- [ ] CI/CD pipeline generation
-- [ ] Performance benchmarking suite
-
-### Phase 4: Ecosystem Integration (Q3 2026)
-- [ ] ECOYSTEM connector
-- [ ] FLUENCE workflow integration
-- [ ] BRAIN knowledge synchronization
-- [ ] DevTools automation bridge
-- [ ] Cross-ecosystem φ-CPS harmonization
-
-## Contributing
-
-Contributions welcome! See [CONTRIBUTING.md](./CONTRIBUTING.md) for guidelines.
-
-### Development Setup
-
-```bash
-# Install development dependencies
-pip install -r requirements-dev.txt
-
-# Run linter
-flake8 kiva_cli/ tools/
-
-# Run type checker
-mypy kiva_cli/ tools/
-
-# Format code
-black kiva_cli/ tools/ tests/
-```
-
-## License
-
-MIT License - see [LICENSE](./LICENSE) for details.
-
-## Links
-
-- **Repository**: [github.com/gerivdb/KIVA-CLI](https://github.com/gerivdb/KIVA-CLI)
-- **Documentation**: [docs/](./docs/)
-- **ECOS Manifest**: [ECOS_ROOT.json](./ECOS_ROOT.json)
-- **Issues**: [github.com/gerivdb/KIVA-CLI/issues](https://github.com/gerivdb/KIVA-CLI/issues)
-
-## Acknowledgments
-
-Part of the **ECOS H0 Autonomous Mode** ecosystem with Base-3/4 validation and φ-CPS tracking.
 
 ---
 
-**φ-CPS Current**: 4.327 | **Drift**: 1.36% ✅ | **Status**: ACTIVE | **Validation**: VALID
+## 📖 Documentation
+
+- **[Global WAL Manager Reference](docs/global_wal_manager.md)** - Complete WAL Manager guide
+- **[Citizen Manager Reference](docs/citizen_manager.md)** - Complete CitizenManager guide
+- **[ECOS_ROOT.json](ECOS_ROOT.json)** - Project manifest with φ-CPS metrics
+
+---
+
+## 🗺️ Roadmap
+
+### ✅ Phase 1 - ProjectManager (Completed)
+- Multi-framework scaffolding (6 templates)
+- Docker support (Dockerfile + Compose)
+- SQLite project registry
+- CLI commands (scaffold/list/export/deploy)
+
+### ✅ Phase 2 - GlobalWALManager (Completed)
+- Cross-repo event persistence
+- IntentHash¹¹ L0-L1-L2 chain validation
+- φ-CPS drift tracking (5% threshold)
+- Automatic rollback points
+- CLI integration (6 WAL commands)
+
+### ✅ Phase 3 - CitizenManager (Completed)
+- L0-L5 entity hierarchy
+- Base-3 ternary validation (UNKNOWN/VALID/INVALID)
+- Base-4 lifecycle states (GENESIS/ACTIVE/DEPRECATED/ARCHIVED)
+- Entity promotion/demotion with φ-CPS tracking
+- Cross-repo synchronization (16 ecosystem-1 repos)
+- CLI integration (7 Citizen commands)
+
+### 🔄 Phase 4 - Advanced Managers (In Progress)
+- **DaemonManager**: Background task orchestration
+- **SkillManager**: Reusable script/capability registry
+- **PipelineManager**: Multi-step workflow automation
+- **Advanced analytics**: φ-CPS trend visualization (Plotly)
+- **CI/CD integration**: GitHub Actions workflows
+- **Distributed WAL**: Multi-node event replication
+- **Web UI**: Dashboard for entity/project monitoring
+
+---
+
+## 🤝 Contributing
+
+Contributions welcome! Please:
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/my-feature`)
+3. Commit with `[ECOS-AUTO]` prefix (`git commit -m "[ECOS-AUTO] Add feature"`)
+4. Push to branch (`git push origin feature/my-feature`)
+5. Open a Pull Request
+
+---
+
+## 📄 License
+
+MIT License - see [LICENSE](LICENSE) for details.
+
+---
+
+## 📞 Support
+
+- **Issues**: [GitHub Issues](https://github.com/gerivdb/KIVA-CLI/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/gerivdb/KIVA-CLI/discussions)
+- **Maintainer**: [@gerivdb](https://github.com/gerivdb)
+
+---
+
+**KIVA-CLI** | **φ-CPS: 4.398** | **Version: 0.3.0** | **ECOS Ecosystem-1**
