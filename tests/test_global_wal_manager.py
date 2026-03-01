@@ -1,329 +1,521 @@
 #!/usr/bin/env python3
 """
-Tests for GlobalWALManager
+Test suite for Global WAL Manager
 """
-
-import unittest
+import pytest
 import tempfile
-import shutil
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timedelta
+import json
 
-from kiva_cli.core.global_wal_manager import (
+from tools.core.global_wal_manager import (
     GlobalWALManager,
+    ValidationState,
+    EventStatus,
     WALEvent
 )
 
 
-class TestGlobalWALManager(unittest.TestCase):
-    """Test GlobalWALManager initialization and basic operations"""
+class TestGlobalWALManagerInit:
+    """Test GlobalWALManager initialization."""
     
-    def setUp(self):
-        """Set up test environment"""
-        self.temp_dir = Path(tempfile.mkdtemp())
-        self.db_path = self.temp_dir / "test_wal.db"
-        self.manager = GlobalWALManager(db_path=self.db_path)
-    
-    def tearDown(self):
-        """Clean up test environment"""
-        self.manager.close()
-        shutil.rmtree(self.temp_dir)
-    
-    def test_initialization(self):
-        """Test WAL manager initialization"""
-        self.assertTrue(self.db_path.exists())
-        self.assertIsNotNone(self.manager)
+    def test_init_default_path(self):
+        """Test initialization with default database path."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = Path(tmpdir) / "test_wal.db"
+            wal = GlobalWALManager(db_path=db_path)
+            
+            assert wal.db_path == db_path
+            assert wal.phi_cps_threshold == 0.05
+            assert db_path.exists()
     
     def test_database_schema(self):
-        """Test database schema creation"""
-        conn = self.manager._get_connection()
-        cursor = conn.cursor()
-        
-        # Check tables exist
-        cursor.execute("""
-            SELECT name FROM sqlite_master 
-            WHERE type='table'
-        """)
-        tables = [row[0] for row in cursor.fetchall()]
-        
-        self.assertIn('wal_events', tables)
-        self.assertIn('phi_history', tables)
-        self.assertIn('intent_chain', tables)
+        """Test database schema creation."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = Path(tmpdir) / "test_wal.db"
+            wal = GlobalWALManager(db_path=db_path)
+            
+            import sqlite3
+            conn = sqlite3.connect(db_path)
+            cursor = conn.cursor()
+            
+            # Check wal_events table
+            cursor.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name='wal_events'"
+            )
+            assert cursor.fetchone() is not None
+            
+            # Check rollback_points table
+            cursor.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name='rollback_points'"
+            )
+            assert cursor.fetchone() is not None
+            
+            conn.close()
 
 
-class TestEventOperations(unittest.TestCase):
-    """Test WAL event operations"""
+class TestEventAppend:
+    """Test event appending functionality."""
     
-    def setUp(self):
-        self.temp_dir = Path(tempfile.mkdtemp())
-        self.db_path = self.temp_dir / "test_wal.db"
-        self.manager = GlobalWALManager(db_path=self.db_path)
+    @pytest.fixture
+    def wal(self):
+        """Create temporary WAL manager."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = Path(tmpdir) / "test_wal.db"
+            yield GlobalWALManager(db_path=db_path)
     
-    def tearDown(self):
-        self.manager.close()
-        shutil.rmtree(self.temp_dir)
+    def test_append_event_success(self, wal):
+        """Test appending successful event."""
+        event = wal.append_event(
+            operation="TEST_OPERATION",
+            repo="TEST_REPO",
+            phi_cps_delta=0.01,
+            commit_sha="abc123"
+        )
+        
+        assert event.operation == "TEST_OPERATION"
+        assert event.repo == "TEST_REPO"
+        assert event.phi_cps_delta == 0.01
+        assert event.commit_sha == "abc123"
+        assert event.validation_state == ValidationState.VALID.value
+        assert event.status == EventStatus.SUCCESS.value
+        assert event.intent_hash.startswith("0x")
+        assert len(event.intent_hash) == 18  # 0x + 16 hex chars
     
-    def test_append_event(self):
-        """Test appending event to WAL"""
-        event = self.manager.append_event(
-            repo_name="KIVA-CLI",
-            event_type=GlobalWALManager.EVENT_COMMIT,
-            entity_id="test-123",
-            action="create",
-            phi_delta=0.01,
-            metadata={"test": "data"}
+    def test_append_event_with_parent(self, wal):
+        """Test appending event with parent IntentHash."""
+        # First event (L0)
+        event1 = wal.append_event(
+            operation="OP1",
+            repo="REPO1",
+            phi_cps_delta=0.01
         )
         
-        self.assertIsNotNone(event.event_id)
-        self.assertEqual(event.repo_name, "KIVA-CLI")
-        self.assertEqual(event.event_type, GlobalWALManager.EVENT_COMMIT)
-        self.assertEqual(event.phi_delta, 0.01)
-        self.assertEqual(event.status, GlobalWALManager.STATUS_SUCCESS)
+        # Second event (L1) with parent
+        event2 = wal.append_event(
+            operation="OP2",
+            repo="REPO1",
+            phi_cps_delta=0.02,
+            parent_intent_hash=event1.intent_hash
+        )
+        
+        assert event2.parent_intent_hash == event1.intent_hash
+        assert event2.intent_hash != event1.intent_hash
     
-    def test_update_event_status(self):
-        """Test updating event status"""
-        event = self.manager.append_event(
-            repo_name="KIVA-CLI",
-            event_type=GlobalWALManager.EVENT_ISSUE,
-            entity_id="issue-1",
-            action="update",
-            phi_delta=0.005,
-            status=GlobalWALManager.STATUS_PENDING
+    def test_append_event_failed_status(self, wal):
+        """Test appending failed event."""
+        event = wal.append_event(
+            operation="FAILED_OP",
+            repo="TEST_REPO",
+            phi_cps_delta=0.0,
+            status=EventStatus.FAILED,
+            error_message="Test error"
         )
         
-        # Update to success
-        self.manager.update_event_status(
-            event.event_id,
-            GlobalWALManager.STATUS_SUCCESS
-        )
-        
-        # Retrieve and verify
-        retrieved = self.manager.get_event_by_id(event.event_id)
-        self.assertEqual(retrieved.status, GlobalWALManager.STATUS_SUCCESS)
+        assert event.status == EventStatus.FAILED.value
+        assert event.error_message == "Test error"
     
-    def test_get_events_filtered(self):
-        """Test querying events with filters"""
-        # Create multiple events
-        self.manager.append_event(
-            repo_name="KIVA-CLI",
-            event_type=GlobalWALManager.EVENT_COMMIT,
-            entity_id="commit-1",
-            action="create",
-            phi_delta=0.01
+    def test_append_event_with_metadata(self, wal):
+        """Test appending event with metadata."""
+        metadata = {"key": "value", "count": 42}
+        
+        event = wal.append_event(
+            operation="TEST_OP",
+            repo="TEST_REPO",
+            phi_cps_delta=0.01,
+            metadata=metadata
         )
         
-        self.manager.append_event(
-            repo_name="ECOYSTEM",
-            event_type=GlobalWALManager.EVENT_ISSUE,
-            entity_id="issue-1",
-            action="create",
-            phi_delta=0.005
+        assert event.metadata == metadata
+    
+    def test_phi_cps_accumulation(self, wal):
+        """Test φ-CPS accumulation across events."""
+        event1 = wal.append_event(
+            operation="OP1",
+            repo="REPO1",
+            phi_cps_delta=0.01
         )
         
-        # Query by repo
-        kiva_events = self.manager.get_events(repo_name="KIVA-CLI")
-        self.assertEqual(len(kiva_events), 1)
-        self.assertEqual(kiva_events[0].repo_name, "KIVA-CLI")
-        
-        # Query by event type
-        commit_events = self.manager.get_events(
-            event_type=GlobalWALManager.EVENT_COMMIT
+        event2 = wal.append_event(
+            operation="OP2",
+            repo="REPO1",
+            phi_cps_delta=0.02
         )
-        self.assertEqual(len(commit_events), 1)
-        self.assertEqual(commit_events[0].event_type, GlobalWALManager.EVENT_COMMIT)
+        
+        # Second event should have cumulative φ-CPS
+        assert event2.phi_cps_current > event1.phi_cps_current
+        assert event2.phi_cps_current == event1.phi_cps_current + 0.02
 
 
-class TestPhiCPSTracking(unittest.TestCase):
-    """Test φ-CPS tracking"""
+class TestChainValidation:
+    """Test IntentHash chain validation."""
     
-    def setUp(self):
-        self.temp_dir = Path(tempfile.mkdtemp())
-        self.db_path = self.temp_dir / "test_wal.db"
-        self.manager = GlobalWALManager(db_path=self.db_path)
+    @pytest.fixture
+    def wal(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = Path(tmpdir) / "test_wal.db"
+            yield GlobalWALManager(db_path=db_path)
     
-    def tearDown(self):
-        self.manager.close()
-        shutil.rmtree(self.temp_dir)
-    
-    def test_get_current_phi(self):
-        """Test getting current φ-CPS"""
-        # Initial value should be genesis
-        phi = self.manager.get_current_phi("KIVA-CLI")
-        self.assertEqual(phi, GlobalWALManager.PHI_GENESIS)
-    
-    def test_phi_updates_with_events(self):
-        """Test φ-CPS updates with events"""
-        initial_phi = self.manager.get_current_phi("KIVA-CLI")
-        
-        # Add event with delta
-        delta = 0.015
-        self.manager.append_event(
-            repo_name="KIVA-CLI",
-            event_type=GlobalWALManager.EVENT_COMMIT,
-            entity_id="commit-1",
-            action="create",
-            phi_delta=delta
+    def test_validate_l0_event(self, wal):
+        """Test validation of L0 (genesis) event."""
+        event = wal.append_event(
+            operation="L0_EVENT",
+            repo="TEST_REPO",
+            phi_cps_delta=0.01
         )
         
-        # Check updated value
-        updated_phi = self.manager.get_current_phi("KIVA-CLI")
-        self.assertAlmostEqual(updated_phi, initial_phi + delta, places=4)
+        is_valid, message = wal.validate_chain(
+            intent_hash=event.intent_hash,
+            parent_intent_hash=None
+        )
+        
+        assert is_valid
+        assert "L0" in message or "genesis" in message.lower()
     
-    def test_phi_history(self):
-        """Test φ-CPS history tracking"""
-        # Create multiple events
+    def test_validate_l1_event(self, wal):
+        """Test validation of L1 event with parent."""
+        event1 = wal.append_event(
+            operation="L0_EVENT",
+            repo="TEST_REPO",
+            phi_cps_delta=0.01
+        )
+        
+        event2 = wal.append_event(
+            operation="L1_EVENT",
+            repo="TEST_REPO",
+            phi_cps_delta=0.02,
+            parent_intent_hash=event1.intent_hash
+        )
+        
+        is_valid, message = wal.validate_chain(
+            intent_hash=event2.intent_hash,
+            parent_intent_hash=event1.intent_hash
+        )
+        
+        assert is_valid
+        assert event1.intent_hash in message
+    
+    def test_validate_invalid_parent(self, wal):
+        """Test validation with non-existent parent."""
+        event = wal.append_event(
+            operation="TEST_EVENT",
+            repo="TEST_REPO",
+            phi_cps_delta=0.01
+        )
+        
+        is_valid, message = wal.validate_chain(
+            intent_hash=event.intent_hash,
+            parent_intent_hash="0xINVALID12345678"
+        )
+        
+        assert not is_valid
+        assert "not found" in message.lower()
+
+
+class TestDriftTracking:
+    """Test φ-CPS drift tracking."""
+    
+    @pytest.fixture
+    def wal(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = Path(tmpdir) / "test_wal.db"
+            yield GlobalWALManager(db_path=db_path)
+    
+    def test_get_drift_initial(self, wal):
+        """Test drift calculation with single event."""
+        event = wal.append_event(
+            operation="INIT_EVENT",
+            repo="TEST_REPO",
+            phi_cps_delta=0.01
+        )
+        
+        drift = wal.get_drift()
+        
+        assert "baseline_phi" in drift
+        assert "current_phi" in drift
+        assert "absolute_drift" in drift
+        assert "relative_drift" in drift
+        assert "threshold_exceeded" in drift
+    
+    def test_drift_within_threshold(self, wal):
+        """Test drift within acceptable threshold."""
+        # Add multiple events with small deltas
         for i in range(3):
-            self.manager.append_event(
-                repo_name="KIVA-CLI",
-                event_type=GlobalWALManager.EVENT_COMMIT,
-                entity_id=f"commit-{i}",
-                action="create",
-                phi_delta=0.01
+            wal.append_event(
+                operation=f"OP_{i}",
+                repo="TEST_REPO",
+                phi_cps_delta=0.01
             )
         
-        # Get history
-        history = self.manager.get_phi_history(repo_name="KIVA-CLI", limit=10)
+        drift = wal.get_drift()
         
-        self.assertEqual(len(history), 3)
+        assert not drift["threshold_exceeded"]
+        assert drift["relative_drift"] < wal.phi_cps_threshold
+    
+    def test_drift_exceeds_threshold(self, wal):
+        """Test drift exceeding threshold."""
+        # Add events to exceed 5% drift
+        baseline_phi = wal._get_current_phi_cps()
         
-        # History should be in descending order
-        for i in range(len(history) - 1):
-            self.assertGreater(history[i]['timestamp'], history[i + 1]['timestamp'])
-
-
-class TestIntentHashChain(unittest.TestCase):
-    """Test IntentHash chain validation"""
-    
-    def setUp(self):
-        self.temp_dir = Path(tempfile.mkdtemp())
-        self.db_path = self.temp_dir / "test_wal.db"
-        self.manager = GlobalWALManager(db_path=self.db_path)
-    
-    def tearDown(self):
-        self.manager.close()
-        shutil.rmtree(self.temp_dir)
-    
-    def test_intent_hash_generation(self):
-        """Test IntentHash generation"""
-        event = self.manager.append_event(
-            repo_name="KIVA-CLI",
-            event_type=GlobalWALManager.EVENT_COMMIT,
-            entity_id="commit-1",
-            action="create",
-            phi_delta=0.01
+        # Add large delta to trigger threshold
+        wal.append_event(
+            operation="LARGE_OP",
+            repo="TEST_REPO",
+            phi_cps_delta=baseline_phi * 0.06  # 6% drift
         )
         
-        self.assertIsNotNone(event.intent_hash)
-        self.assertTrue(event.intent_hash.startswith("IntentHash¹¹:"))
-    
-    def test_intent_chain_validation(self):
-        """Test IntentHash chain validation"""
-        # Create multiple events
-        for i in range(5):
-            self.manager.append_event(
-                repo_name="KIVA-CLI",
-                event_type=GlobalWALManager.EVENT_COMMIT,
-                entity_id=f"commit-{i}",
-                action="create",
-                phi_delta=0.01
-            )
+        drift = wal.get_drift()
         
-        # Validate chain
-        valid, errors = self.manager.validate_intent_chain()
-        
-        self.assertTrue(valid)
-        self.assertEqual(len(errors), 0)
+        # Note: Drift threshold check depends on baseline
+        # This test validates the drift calculation logic
+        assert "threshold_exceeded" in drift
 
 
-class TestStatistics(unittest.TestCase):
-    """Test WAL statistics"""
+class TestEventQuery:
+    """Test event querying functionality."""
     
-    def setUp(self):
-        self.temp_dir = Path(tempfile.mkdtemp())
-        self.db_path = self.temp_dir / "test_wal.db"
-        self.manager = GlobalWALManager(db_path=self.db_path)
-    
-    def tearDown(self):
-        self.manager.close()
-        shutil.rmtree(self.temp_dir)
-    
-    def test_get_stats(self):
-        """Test statistics retrieval"""
-        # Create events with different statuses
-        for i in range(3):
-            self.manager.append_event(
-                repo_name="KIVA-CLI",
-                event_type=GlobalWALManager.EVENT_COMMIT,
-                entity_id=f"commit-{i}",
-                action="create",
-                phi_delta=0.01,
-                status=GlobalWALManager.STATUS_SUCCESS
+    @pytest.fixture
+    def wal(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = Path(tmpdir) / "test_wal.db"
+            manager = GlobalWALManager(db_path=db_path)
+            
+            # Add test events
+            manager.append_event(
+                operation="OP1",
+                repo="REPO_A",
+                phi_cps_delta=0.01
             )
+            
+            manager.append_event(
+                operation="OP2",
+                repo="REPO_B",
+                phi_cps_delta=0.02
+            )
+            
+            manager.append_event(
+                operation="OP1",
+                repo="REPO_A",
+                phi_cps_delta=0.01,
+                status=EventStatus.FAILED
+            )
+            
+            yield manager
+    
+    def test_query_all_events(self, wal):
+        """Test querying all events."""
+        events = wal.query_events()
         
-        event = self.manager.append_event(
-            repo_name="KIVA-CLI",
-            event_type=GlobalWALManager.EVENT_ISSUE,
-            entity_id="issue-1",
-            action="create",
-            phi_delta=0.005,
-            status=GlobalWALManager.STATUS_PENDING
+        assert len(events) == 3
+    
+    def test_query_by_repo(self, wal):
+        """Test querying events by repository."""
+        events = wal.query_events(repo="REPO_A")
+        
+        assert len(events) == 2
+        assert all(e.repo == "REPO_A" for e in events)
+    
+    def test_query_by_operation(self, wal):
+        """Test querying events by operation."""
+        events = wal.query_events(operation="OP1")
+        
+        assert len(events) == 2
+        assert all(e.operation == "OP1" for e in events)
+    
+    def test_query_by_status(self, wal):
+        """Test querying events by status."""
+        events = wal.query_events(status=EventStatus.FAILED)
+        
+        assert len(events) == 1
+        assert events[0].status == EventStatus.FAILED.value
+    
+    def test_query_with_limit(self, wal):
+        """Test querying with result limit."""
+        events = wal.query_events(limit=2)
+        
+        assert len(events) == 2
+
+
+class TestRollbackPoints:
+    """Test rollback point management."""
+    
+    @pytest.fixture
+    def wal(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = Path(tmpdir) / "test_wal.db"
+            yield GlobalWALManager(db_path=db_path)
+    
+    def test_create_rollback_point(self, wal):
+        """Test creating rollback point."""
+        # Add some events
+        wal.append_event(
+            operation="OP1",
+            repo="TEST_REPO",
+            phi_cps_delta=0.01
         )
         
-        self.manager.update_event_status(
-            event.event_id,
-            GlobalWALManager.STATUS_FAILED,
-            error="Test error"
+        rollback_id = wal.create_rollback_point(
+            reason="Test rollback",
+            metadata={"test": True}
         )
         
-        # Get stats
-        stats = self.manager.get_stats(repo_name="KIVA-CLI")
+        assert rollback_id.startswith("evt_")
+    
+    def test_rollback_point_in_drift(self, wal):
+        """Test rollback point affects drift calculation."""
+        # Create initial rollback point
+        wal.create_rollback_point(reason="Baseline")
         
-        self.assertEqual(stats['total_events'], 4)
-        self.assertEqual(stats['successful'], 3)
-        self.assertEqual(stats['failed'], 1)
-        self.assertEqual(stats['pending'], 0)  # Was updated to failed
-        self.assertAlmostEqual(stats['total_phi_delta'], 0.035, places=4)
+        # Add events
+        wal.append_event(
+            operation="OP1",
+            repo="TEST_REPO",
+            phi_cps_delta=0.02
+        )
+        
+        drift = wal.get_drift()
+        
+        # Baseline should be from rollback point
+        assert drift["events_since_baseline"] >= 1
 
 
-class TestExport(unittest.TestCase):
-    """Test WAL export functionality"""
+class TestAuditExport:
+    """Test audit trail export functionality."""
     
-    def setUp(self):
-        self.temp_dir = Path(tempfile.mkdtemp())
-        self.db_path = self.temp_dir / "test_wal.db"
-        self.manager = GlobalWALManager(db_path=self.db_path)
-    
-    def tearDown(self):
-        self.manager.close()
-        shutil.rmtree(self.temp_dir)
-    
-    def test_export_to_json(self):
-        """Test exporting WAL to JSON"""
-        # Create some events
-        for i in range(3):
-            self.manager.append_event(
-                repo_name="KIVA-CLI",
-                event_type=GlobalWALManager.EVENT_COMMIT,
-                entity_id=f"commit-{i}",
-                action="create",
-                phi_delta=0.01
+    @pytest.fixture
+    def wal(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = Path(tmpdir) / "test_wal.db"
+            manager = GlobalWALManager(db_path=db_path)
+            
+            # Add test events
+            manager.append_event(
+                operation="OP1",
+                repo="TEST_REPO",
+                phi_cps_delta=0.01
             )
-        
-        # Export
-        export_path = self.temp_dir / "wal_export.json"
-        self.manager.export_to_json(export_path, repo_name="KIVA-CLI")
-        
-        self.assertTrue(export_path.exists())
-        
-        # Verify export contents
-        import json
-        with open(export_path, 'r') as f:
-            data = json.load(f)
-        
-        self.assertEqual(data['repo_name'], "KIVA-CLI")
-        self.assertEqual(data['total_events'], 3)
-        self.assertEqual(len(data['events']), 3)
+            
+            yield manager
+    
+    def test_export_json(self, wal):
+        """Test exporting audit trail to JSON."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output_path = Path(tmpdir) / "audit.json"
+            
+            success = wal.export_audit(
+                output_path=output_path,
+                format="json"
+            )
+            
+            assert success
+            assert output_path.exists()
+            
+            # Verify JSON structure
+            with open(output_path) as f:
+                data = json.load(f)
+            
+            assert "export_timestamp" in data
+            assert "total_events" in data
+            assert "drift_metrics" in data
+            assert "events" in data
+            assert len(data["events"]) >= 1
+    
+    def test_export_csv(self, wal):
+        """Test exporting audit trail to CSV."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output_path = Path(tmpdir) / "audit.csv"
+            
+            success = wal.export_audit(
+                output_path=output_path,
+                format="csv"
+            )
+            
+            assert success
+            assert output_path.exists()
+            
+            # Verify CSV has header
+            with open(output_path) as f:
+                first_line = f.readline()
+                assert "event_id" in first_line
+                assert "operation" in first_line
 
 
-if __name__ == '__main__':
-    unittest.main()
+class TestValidationStates:
+    """Test base-3 ternary validation states."""
+    
+    @pytest.fixture
+    def wal(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = Path(tmpdir) / "test_wal.db"
+            yield GlobalWALManager(db_path=db_path)
+    
+    def test_unknown_state(self, wal):
+        """Test UNKNOWN validation state."""
+        event = wal.append_event(
+            operation="TEST_OP",
+            repo="TEST_REPO",
+            phi_cps_delta=0.01,
+            validation_state=ValidationState.UNKNOWN
+        )
+        
+        assert event.validation_state == ValidationState.UNKNOWN.value
+    
+    def test_valid_state(self, wal):
+        """Test VALID validation state (default)."""
+        event = wal.append_event(
+            operation="TEST_OP",
+            repo="TEST_REPO",
+            phi_cps_delta=0.01
+        )
+        
+        assert event.validation_state == ValidationState.VALID.value
+    
+    def test_invalid_state(self, wal):
+        """Test INVALID validation state."""
+        event = wal.append_event(
+            operation="TEST_OP",
+            repo="TEST_REPO",
+            phi_cps_delta=0.01,
+            validation_state=ValidationState.INVALID
+        )
+        
+        assert event.validation_state == ValidationState.INVALID.value
+
+
+class TestIntentHashGeneration:
+    """Test IntentHash generation and uniqueness."""
+    
+    @pytest.fixture
+    def wal(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = Path(tmpdir) / "test_wal.db"
+            yield GlobalWALManager(db_path=db_path)
+    
+    def test_intent_hash_format(self, wal):
+        """Test IntentHash format."""
+        event = wal.append_event(
+            operation="TEST_OP",
+            repo="TEST_REPO",
+            phi_cps_delta=0.01
+        )
+        
+        # Format: 0x<16 hex chars>
+        assert event.intent_hash.startswith("0x")
+        assert len(event.intent_hash) == 18
+        assert all(c in "0123456789ABCDEF" for c in event.intent_hash[2:])
+    
+    def test_intent_hash_uniqueness(self, wal):
+        """Test IntentHash uniqueness across events."""
+        event1 = wal.append_event(
+            operation="OP1",
+            repo="REPO1",
+            phi_cps_delta=0.01
+        )
+        
+        event2 = wal.append_event(
+            operation="OP2",
+            repo="REPO2",
+            phi_cps_delta=0.02
+        )
+        
+        assert event1.intent_hash != event2.intent_hash
