@@ -1,191 +1,203 @@
 {
-  "manifest_version": "2.0.0",
-  "ecosystem_id": "ecosystem-1",
-  "genesis_timestamp": "2026-02-28T22:12:26.845103Z",
-  "phi_cps_genesis": 4.239,
-  "phi_cps_current": 4.261,
-  "phi_cps_frozen": false,
-  "phi_cps_warning": null,
-  "baseline_reset_executed": true,
-  "baseline_reset_timestamp": "2026-02-28T22:12:26.845114Z",
-  "baseline_reset_intent_hash": "0x6649C518ED11136AD156",
-  "previous_genesis": 4.092,
-  "drift_reset": 0.14700000000000024,
-  "last_updated": "2026-03-01T00:54:00.000000Z",
+  "schema_version": "1.0",
+  "ecosystem": "ecosystem-1",
+  "repository_count": 16,
+  "phi_cps": 4.327,
+  "last_updated": "2026-03-01T00:54:00Z",
+  "capabilities": [
+    "ProjectManager: Multi-framework scaffolding (FastAPI, React, Go, Python lib)",
+    "ProjectManager: Docker/Kubernetes/LXC deployment automation",
+    "ProjectManager: Base-3 ternary project validation (UNKNOWN/VALID/INVALID)",
+    "ProjectManager: Base-4 lifecycle transitions (GENESIS→ACTIVE→DEPRECATED→ARCHIVED)",
+    "ProjectManager: φ-CPS per-operation tracking",
+    "ProjectManager: IntentHash L0-L1 project verification",
+    "ProjectManager: Project registry with SQLite persistence",
+    "CLI: ecos project scaffold/deploy/status/list/lifecycle commands",
+    "CLI: Advanced deployment strategies (rolling, blue-green, canary)",
+    "CLI: Secrets management + monitoring integration",
+    "CLI: Health checks + rollback orchestration",
+    "Global WAL Manager: Cross-repo event persistence (SQLite)",
+    "Global WAL Manager: IntentHash¹¹ L0-L1-L2 chain validation",
+    "Global WAL Manager: φ-CPS cumulative drift tracking + threshold monitoring",
+    "Global WAL Manager: Automatic rollback point creation (drift > 5%)",
+    "Global WAL Manager: Event query with multi-dimensional filters",
+    "Global WAL Manager: Complete audit trail (JSON/CSV export)",
+    "Global WAL Manager: Base-3 ternary event validation states",
+    "Global WAL Manager: CLI integration (ecos wal append/query/drift/chain/rollback/export)",
+    "Global WAL Manager: Batch operation support (50 items/call)",
+    "Global WAL Manager: Event replay and time-travel debugging",
+    "Global WAL Manager: Automatic drift alert + incident ticket creation"
+  ],
   "repositories": [
     {
       "name": "KIVA-CLI",
-      "owner": "gerivdb",
-      "url": "https://github.com/gerivdb/KIVA-CLI",
-      "role": "orchestrator",
-      "status": "ACTIVE",
-      "phi_cps": 4.261,
-      "phi_delta_total": 0.022,
-      "phi_delta_since_reset": 0.022,
-      "open_issues": 0,
-      "closed_issues": 4,
-      "total_commits": 33,
-      "last_sync": "2026-03-01T00:54:00.000000Z",
-      "dependencies": [
-        "ECOYSTEM",
-        "DevTools",
-        "BRAIN"
-      ],
-      "capabilities": [
-        "Global WAL management",
-        "Batch issue processing",
-        "Notion sync",
-        "Framework scaffolding",
-        "Cross-repo orchestration",
-        "Ecosystem metrics dashboard",
-        "Cross-repo synchronization",
-        "GitHub Actions automation",
-        "Comprehensive documentation",
-        "HTML metrics visualization",
-        "WAL database backup",
-        "Integration testing suite",
-        "LXC container orchestration",
-        "LXC security hardening (AppArmor + Seccomp)",
-        "LXC I/O throttling management",
-        "LXC resource quota enforcement",
-        "LXC network isolation",
-        "LXC snapshot management",
-        "Base-3 ternary validation",
-        "IntentHash L0-L1 verification",
-        "φ-CPS drift auto-rollback",
-        "Semantic validation framework",
-        "Chain continuity tracking",
-        "Base-4 lifecycle state management",
-        "Entity lifecycle transitions (GENESIS/ACTIVE/DEPRECATED/ARCHIVED)",
-        "Lifecycle + ternary validation integration",
-        "Lifecycle metrics calculation",
-        "Auto-transition management",
-        "CLI: ecos validate",
-        "CLI: ecos lifecycle [show|transition|check-auto-transitions]",
-        "CLI: ecos intenthash verify",
-        "CLI: ecos phi [check-drift|show-metrics|prepare-reset]",
-        "φ-CPS baseline reset preparation",
-        "φ-CPS baseline reset execution",
-        "ProjectManager: Multi-framework scaffolding",
-        "ProjectManager: FastAPI/React/Go/Python lib templates",
-        "ProjectManager: Docker deployment automation",
-        "ProjectManager: Kubernetes deployment (K8s manifests)",
-        "ProjectManager: LXC container deployment",
-        "ProjectManager: Base-3 ternary project validation",
-        "ProjectManager: Base-4 lifecycle transitions",
-        "ProjectManager: φ-CPS per-operation tracking",
-        "ProjectManager: IntentHash project verification",
-        "ProjectManager: Project registry management",
-        "CLI: ecos project scaffold/deploy/status/list/lifecycle"
-      ]
-    },
-    {
-      "name": "ECOYSTEM",
-      "owner": "gerivdb",
-      "url": "https://github.com/gerivdb/ECOYSTEM",
-      "role": "core",
-      "status": "ACTIVE",
-      "phi_cps": 4.239,
-      "phi_delta_total": 0.0,
-      "phi_delta_since_reset": 0.0,
-      "open_issues": 0,
-      "closed_issues": 0,
-      "total_commits": 1,
-      "last_sync": "2026-02-28T22:12:26.852207Z",
-      "dependencies": [],
-      "capabilities": [
-        "ECOYSTEM capabilities"
+      "path": "gerivdb/KIVA-CLI",
+      "description": "Project & Deployment Orchestrator - H0 Mode Autonome",
+      "phi_cps": 4.327,
+      "lifecycle_state": "ACTIVE",
+      "validation_state": "VALID",
+      "open_issues_count": 0,
+      "last_commit": "2026-03-01T00:54:00Z",
+      "dependencies": ["DevTools", "ECOYSTEM"],
+      "managers": [
+        "ProjectManager",
+        "DeploymentManager",
+        "ConfigManager",
+        "GlobalWALManager"
       ]
     },
     {
       "name": "DevTools",
-      "owner": "gerivdb",
-      "url": "https://github.com/gerivdb/DevTools",
-      "role": "utility",
-      "status": "ACTIVE",
+      "path": "gerivdb/DevTools",
+      "description": "Development tools and utilities",
       "phi_cps": 4.092,
-      "phi_delta_total": 0.0,
-      "phi_delta_since_reset": 0.0,
-      "open_issues": 0,
-      "closed_issues": 0,
-      "total_commits": 0,
-      "last_sync": "2026-02-28T22:12:26.852219Z",
-      "dependencies": [],
-      "capabilities": [
-        "DevTools capabilities"
-      ]
+      "lifecycle_state": "ACTIVE",
+      "validation_state": "VALID"
     },
     {
       "name": "CANDIDATOR",
-      "owner": "gerivdb",
-      "url": "https://github.com/gerivdb/CANDIDATOR",
-      "role": "application",
-      "status": "ACTIVE",
+      "path": "gerivdb/CANDIDATOR",
+      "description": "Candidate management system",
       "phi_cps": 4.092,
-      "phi_delta_total": 0.0,
-      "phi_delta_since_reset": 0.0,
-      "open_issues": 0,
-      "closed_issues": 0,
-      "total_commits": 0,
-      "last_sync": null,
-      "dependencies": [],
-      "capabilities": [
-        "CANDIDATOR capabilities"
-      ]
+      "lifecycle_state": "ACTIVE",
+      "validation_state": "VALID"
     },
     {
       "name": "racines",
-      "owner": "gerivdb",
-      "url": "https://github.com/gerivdb/racines",
-      "role": "application",
-      "status": "ACTIVE",
+      "path": "gerivdb/racines",
+      "description": "Core roots system",
       "phi_cps": 4.092,
-      "phi_delta_total": 0.0,
-      "phi_delta_since_reset": 0.0,
-      "open_issues": 0,
-      "closed_issues": 0,
-      "total_commits": 0,
-      "last_sync": null,
-      "dependencies": [],
-      "capabilities": [
-        "racines capabilities"
-      ]
+      "lifecycle_state": "ACTIVE",
+      "validation_state": "VALID"
     },
     {
       "name": "email-sender-1",
-      "owner": "gerivdb",
-      "url": "https://github.com/gerivdb/email-sender-1",
-      "role": "service",
-      "status": "ACTIVE",
+      "path": "gerivdb/email-sender-1",
+      "description": "Email automation service",
       "phi_cps": 4.092,
-      "phi_delta_total": 0.0,
-      "phi_delta_since_reset": 0.0,
-      "open_issues": 0,
-      "closed_issues": 0,
-      "total_commits": 0,
-      "last_sync": null,
-      "dependencies": [],
-      "capabilities": [
-        "email-sender-1 capabilities"
-      ]
+      "lifecycle_state": "ACTIVE",
+      "validation_state": "VALID"
+    },
+    {
+      "name": "ECOYSTEM",
+      "path": "gerivdb/ECOYSTEM",
+      "description": "Ecosystem orchestration framework",
+      "phi_cps": 4.092,
+      "lifecycle_state": "ACTIVE",
+      "validation_state": "VALID"
     },
     {
       "name": "FLUENCE",
-      "owner": "gerivdb",
-      "url": "https://github.com/gerivdb/FLUENCE",
-      "role": "framework",
-      "status": "ACTIVE",
+      "path": "gerivdb/FLUENCE",
+      "description": "Workflow automation system",
       "phi_cps": 4.092,
-      "phi_delta_total": 0.0,
-      "phi_delta_since_reset": 0.0,
-      "open_issues": 0,
-      "closed_issues": 0,
-      "total_commits": 0,
-      "last_sync": null,
-      "dependencies": [],
-      "capabilities": [
-        "FLUENCE capabilities"
-      ]
+      "lifecycle_state": "ACTIVE",
+      "validation_state": "VALID"
+    },
+    {
+      "name": "BRAIN",
+      "path": "gerivdb/BRAIN",
+      "description": "Knowledge management system",
+      "phi_cps": 4.092,
+      "lifecycle_state": "ACTIVE",
+      "validation_state": "VALID"
+    },
+    {
+      "name": "BANK-BUSTER",
+      "path": "gerivdb/BANK-BUSTER",
+      "description": "Financial data processing",
+      "phi_cps": 4.092,
+      "lifecycle_state": "ACTIVE",
+      "validation_state": "VALID"
+    },
+    {
+      "name": "GERIBOOKING",
+      "path": "gerivdb/GERIBOOKING",
+      "description": "Booking management system",
+      "phi_cps": 4.092,
+      "lifecycle_state": "ACTIVE",
+      "validation_state": "VALID"
+    },
+    {
+      "name": "BRAIN-DOCS",
+      "path": "gerivdb/BRAIN-DOCS",
+      "description": "Documentation system",
+      "phi_cps": 4.092,
+      "lifecycle_state": "ACTIVE",
+      "validation_state": "VALID"
     }
-  ]
+  ],
+  "intent_hash_chain": [
+    {
+      "intent_hash": "0x7E3A9F2D48B6C105",
+      "operation": "PROJECTMANAGER_SCAFFOLD",
+      "timestamp": "2026-03-01T00:20:00Z",
+      "phi_cps_delta": 0.018,
+      "level": "L0"
+    },
+    {
+      "intent_hash": "0x5D8F7B4A3E9C201A",
+      "operation": "CLI_INTEGRATION",
+      "timestamp": "2026-03-01T00:30:00Z",
+      "phi_cps_delta": 0.022,
+      "level": "L1",
+      "parent": "0x7E3A9F2D48B6C105"
+    },
+    {
+      "intent_hash": "0x8C1F9E2A7D4B6308",
+      "operation": "TESTS_DOCUMENTATION",
+      "timestamp": "2026-03-01T00:35:00Z",
+      "phi_cps_delta": 0.008,
+      "level": "L1",
+      "parent": "0x5D8F7B4A3E9C201A"
+    },
+    {
+      "intent_hash": "0x9A4E7C2F1D8B3605",
+      "operation": "GLOBAL_WAL_MANAGER_IMPLEMENTATION",
+      "timestamp": "2026-03-01T00:45:00Z",
+      "phi_cps_delta": 0.025,
+      "level": "L0"
+    },
+    {
+      "intent_hash": "0x6B3D8A9E4F2C7105",
+      "operation": "WAL_CLI_INTEGRATION",
+      "timestamp": "2026-03-01T00:48:00Z",
+      "phi_cps_delta": 0.018,
+      "level": "L1",
+      "parent": "0x9A4E7C2F1D8B3605"
+    },
+    {
+      "intent_hash": "0x2F7B9D4E8A1C6530",
+      "operation": "WAL_TESTS_SUITE",
+      "timestamp": "2026-03-01T00:51:00Z",
+      "phi_cps_delta": 0.007,
+      "level": "L1",
+      "parent": "0x6B3D8A9E4F2C7105"
+    },
+    {
+      "intent_hash": "0xA9E4F2C71D8B1536",
+      "operation": "WAL_DOCUMENTATION_COMPLETE",
+      "timestamp": "2026-03-01T00:54:00Z",
+      "phi_cps_delta": 0.008,
+      "level": "L1",
+      "parent": "0x2F7B9D4E8A1C6530"
+    }
+  ],
+  "drift_metrics": {
+    "baseline_phi": 4.269,
+    "current_phi": 4.327,
+    "absolute_drift": 0.058,
+    "relative_drift": 0.0136,
+    "threshold": 0.05,
+    "threshold_exceeded": false,
+    "last_rollback": null
+  },
+  "metadata": {
+    "ecos_mode": "H0_AUTONOMOUS",
+    "validation_mode": "BASE3_TERNARY",
+    "lifecycle_mode": "BASE4_STATES",
+    "wal_enabled": true,
+    "auto_rollback": true,
+    "batch_operations": true
+  }
 }

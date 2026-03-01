@@ -1,28 +1,23 @@
-# KIVA-CLI - Project & Deployment Orchestrator
+# KIVA-CLI 🚀
 
-🚀 **Advanced Project Lifecycle Management | ECOS H0 Mode Integration**
-
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
-[![ECOS H0](https://img.shields.io/badge/ECOS-H0_Mode-green.svg)](docs/ecos_h0_spec.md)
-[![φ-CPS](https://img.shields.io/badge/φ--CPS-4.261-orange.svg)](ECOS_ROOT.json)
+[![ECOS H0](https://img.shields.io/badge/ECOS-H0%20Autonomous-green.svg)](https://github.com/gerivdb/KIVA-CLI)
+[![φ-CPS](https://img.shields.io/badge/φ--CPS-4.327-brightgreen.svg)](./ECOS_ROOT.json)
 
----
+**Project & Deployment Orchestrator** with H0 Autonomous Mode, Base-3/4 validation, φ-CPS tracking, and Global WAL Manager.
 
 ## Overview
 
-KIVA-CLI is the **orchestrator hub** for ecosystem-1, providing:
-
-- 🏗️ **Multi-framework project scaffolding** (FastAPI, React, Go, Python libs, Docker Compose, LXC)
-- 🚀 **Automated deployment** to Docker, Kubernetes, LXC containers
-- ✅ **Base-3 ternary validation** (UNKNOWN / VALID / INVALID semantic states)
-- 🔄 **Base-4 lifecycle management** (GENESIS / ACTIVE / DEPRECATED / ARCHIVED)
-- 📈 **φ-CPS drift tracking** with auto-rollback on threshold breach
-- 🔗 **IntentHash L0-L1 chain verification** for semantic continuity
-- 💡 **Global WAL Manager** for cross-repo event tracing
-- 🔍 **Batch issue processing** and GitHub automation
-
----
+KIVA-CLI is an advanced orchestration tool for:
+- 🏗️ **Multi-framework project scaffolding** (FastAPI, React, Go, Python libraries)
+- 🚢 **Automated deployments** (Docker, Kubernetes, LXC)
+- ✅ **Base-3 ternary semantic validation** (UNKNOWN/VALID/INVALID)
+- 🔄 **Base-4 lifecycle management** (GENESIS→ACTIVE→DEPRECATED→ARCHIVED)
+- 📊 **φ-CPS drift tracking** with automatic rollback detection
+- 🔗 **IntentHash L0-L1-L2 chain** verification
+- 📝 **Global WAL (Write-Ahead Log)** event persistence
+- 🎯 **NO-HITL mode** (No Human In The Loop) for autonomous operations
 
 ## Quick Start
 
@@ -33,207 +28,277 @@ KIVA-CLI is the **orchestrator hub** for ecosystem-1, providing:
 git clone https://github.com/gerivdb/KIVA-CLI.git
 cd KIVA-CLI
 
-# Install with ProjectManager support
+# Install dependencies
+pip install -r requirements.txt
+
+# Install CLI (development mode)
 pip install -e .
 
 # Verify installation
 ecos --version
-ecos project --help
 ```
 
 ### Basic Usage
 
 ```bash
-# 1. Scaffold FastAPI microservice
+# Scaffold new FastAPI project
 ecos project scaffold my-api --framework fastapi
 
-# 2. Deploy to Docker
+# Deploy to Docker
 ecos project deploy my-api --target docker
 
-# 3. Check status
+# Check project status
 ecos project status my-api
 
-# 4. Transition to ACTIVE lifecycle
+# Transition lifecycle
 ecos project lifecycle my-api ACTIVE
 
-# 5. List all projects
-ecos project list
+# Check φ-CPS drift
+ecos wal drift
 ```
-
----
 
 ## Core Features
 
-### 🏗️ Multi-Framework Scaffolding
+### 1. Project Scaffolding
 
-Supported frameworks:
-- **FastAPI**: Python microservices with async support
-- **React**: Frontend applications with TypeScript/Redux
-- **Go**: High-performance Go microservices
-- **Python Lib**: Reusable Python library packages
-- **Docker Compose**: Multi-service orchestration
-- **LXC Containers**: System container configurations
+Create production-ready projects from templates:
 
 ```bash
-ecos project scaffold webapp --framework react \
-  --deps typescript --deps redux
+# FastAPI microservice
+ecos project scaffold api-service --framework fastapi
+
+# React frontend
+ecos project scaffold web-app --framework react
+
+# Go service
+ecos project scaffold go-api --framework go
+
+# Python library
+ecos project scaffold my-lib --framework python-lib
 ```
 
-### 🚀 Automated Deployment
+**Supported Frameworks:**
+- FastAPI (REST API + async support)
+- React (TypeScript + Vite)
+- Go (Gin/Echo framework)
+- Python Library (setuptools + poetry)
+
+### 2. Deployment Automation
 
 Deploy to multiple targets:
-- **Docker**: Containerization with Dockerfile generation
-- **Kubernetes**: K8s manifests (Deployment + Service + Ingress)
-- **LXC**: System container deployment with resource quotas
 
 ```bash
-ecos project deploy my-api --target kubernetes --dry-run
+# Docker container
+ecos project deploy my-api --target docker
+
+# Kubernetes cluster
+ecos project deploy my-api --target kubernetes
+
+# LXC container
+ecos project deploy my-api --target lxc
 ```
 
-### ✅ Base-3 Ternary Validation
+**Deployment Strategies:**
+- Rolling updates
+- Blue-green deployments
+- Canary releases
 
-Semantic validation with 3 states:
-- **UNKNOWN** ❓: Not yet validated
-- **VALID** ✅: All checks passed
-- **INVALID** ❌: Semantic errors detected
+### 3. Base-3 Ternary Validation
+
+Semantic validation with three states:
+
+| State | Symbol | Description |
+|-------|--------|-------------|
+| **UNKNOWN** | ⚠️ | Not yet validated |
+| **VALID** | ✅ | All checks passed |
+| **INVALID** | ❌ | Semantic errors detected |
 
 ```bash
-ecos validate --project my-api --audit comprehensive
+# Check project validation
+ecos project status my-api
 ```
 
-### 🔄 Base-4 Lifecycle Management
+### 4. Base-4 Lifecycle Management
 
-Project lifecycle states:
-- **GENESIS** 🌱: Initial scaffolded state
-- **ACTIVE** ✅: Production-ready
-- **DEPRECATED** ⚠️: Legacy, maintenance-only
-- **ARCHIVED** 📦: Terminal state
+Manage project lifecycle with four states:
+
+```
+GENESIS → ACTIVE → DEPRECATED → ARCHIVED
+   🌱        ✅          ⚠️          📦
+```
 
 ```bash
-ecos project lifecycle old-service DEPRECATED
+# Transition to ACTIVE (production-ready)
+ecos project lifecycle my-api ACTIVE
+
+# Mark as DEPRECATED (maintenance-only)
+ecos project lifecycle my-api DEPRECATED
+
+# Archive project (terminal state)
+ecos project lifecycle my-api ARCHIVED
 ```
 
-### 📈 φ-CPS Drift Tracking
+**Valid Transitions:**
+- GENESIS → ACTIVE | ARCHIVED
+- ACTIVE → DEPRECATED | ARCHIVED
+- DEPRECATED → ACTIVE | ARCHIVED
+- ARCHIVED → (terminal, no transitions)
 
-Automatic drift detection with rollback:
-- **Threshold**: Δφ > 0.05 (5% drift)
-- **Auto-rollback**: Triggered on threshold breach
-- **Per-operation tracking**: Scaffold (+0.018), Deploy (+0.012), Lifecycle (+0.005)
+### 5. Global WAL Manager
+
+Cross-repository event tracking with IntentHash chain:
 
 ```bash
-ecos phi check-drift
-ecos phi prepare-reset  # If drift > 5%
+# Append event manually
+ecos wal append --operation DEPLOY_SUCCESS \
+                --repo my-api \
+                --phi-delta 0.012
+
+# Query recent events
+ecos wal query --repo KIVA-CLI --limit 10
+
+# Check φ-CPS drift
+ecos wal drift
+
+# Verify IntentHash chain
+ecos wal chain 0x9A4E7C2F1D8B3605
+
+# Create rollback point
+ecos wal rollback --reason "Before major deployment"
+
+# Export audit trail
+ecos wal export audit.json
 ```
 
-### 🔗 IntentHash Verification
+**WAL Features:**
+- ✅ Event persistence (SQLite)
+- ✅ IntentHash¹¹ L0-L1-L2 chain validation
+- ✅ φ-CPS cumulative drift tracking
+- ✅ Automatic rollback detection (drift > 5%)
+- ✅ Complete audit trail (JSON/CSV)
+- ✅ Multi-dimensional event filtering
 
-L0-L1 chain continuity tracking:
-- **Format**: `0x<16-char HEX>`
-- **Verification**: Chain continuity validation
-- **Logging**: Global WAL database persistence
+### 6. φ-CPS Drift Tracking
+
+Automatic semantic coherence monitoring:
 
 ```bash
-ecos intenthash verify --project my-api
+# Current drift status
+ecos wal drift
+
+# Output:
+# 📈 φ-CPS DRIFT METRICS
+# Baseline: 4.269
+# Current: 4.327
+# Drift: 1.36% (✅ within 5% threshold)
 ```
 
----
+**Drift Thresholds:**
+- ✅ < 3%: Healthy
+- ⚠️ 3-5%: Monitor
+- 🛑 > 5%: Auto-rollback triggered
 
 ## CLI Commands
 
 ### Project Management
 
-| Command | Description |
-|---------|-------------|
-| `ecos project scaffold` | Create new project from template |
-| `ecos project deploy` | Deploy to Docker/K8s/LXC |
-| `ecos project status` | Show comprehensive project status |
-| `ecos project list` | List all registered projects |
-| `ecos project lifecycle` | Transition lifecycle state |
+| Command | Description | Example |
+|---------|-------------|----------|
+| `ecos project scaffold` | Create new project | `ecos project scaffold my-api --framework fastapi` |
+| `ecos project deploy` | Deploy to target | `ecos project deploy my-api --target docker` |
+| `ecos project status` | Show project status | `ecos project status my-api` |
+| `ecos project list` | List all projects | `ecos project list --framework fastapi` |
+| `ecos project lifecycle` | Transition lifecycle | `ecos project lifecycle my-api ACTIVE` |
 
-### Validation & Metrics
+### Global WAL Management
 
-| Command | Description |
-|---------|-------------|
-| `ecos validate` | Semantic validation (base-3 ternary) |
-| `ecos phi check-drift` | Check φ-CPS drift against threshold |
-| `ecos phi prepare-reset` | Prepare baseline reset |
-| `ecos intenthash verify` | Verify IntentHash chain |
+| Command | Description | Example |
+|---------|-------------|----------|
+| `ecos wal append` | Append event | `ecos wal append -o DEPLOY -r my-api --phi-delta 0.012` |
+| `ecos wal query` | Query events | `ecos wal query --repo KIVA-CLI --limit 10` |
+| `ecos wal drift` | Check φ-CPS drift | `ecos wal drift` |
+| `ecos wal chain` | Verify IntentHash | `ecos wal chain 0x9A4E7C2F1D8B3605` |
+| `ecos wal rollback` | Create rollback | `ecos wal rollback --reason "Pre-deploy"` |
+| `ecos wal export` | Export audit trail | `ecos wal export audit.json` |
 
 ### Legacy Commands
 
 | Command | Description |
 |---------|-------------|
-| `ecos scaffold` | Legacy scaffold interface |
-| `ecos deploy` | Legacy deploy interface |
+| `ecos deploy` | Deploy project (legacy) |
+| `ecos config` | Validate config |
+| `ecos secrets` | Manage secrets |
+| `ecos health` | Health checks |
 | `ecos monitoring` | Monitoring dashboard |
-| `ecos rollback` | Deployment rollback |
-
-See [docs/project_manager_cli.md](docs/project_manager_cli.md) for complete reference.
-
----
 
 ## Architecture
 
-### ECOS H0 Mode Integration
-
 ```
-┌─────────────────────────────┐
-│  KIVA-CLI Orchestrator      │
-│  (ECOS H0 Mode)             │
-└─────────┬───────────────────┘
-         │
-    ┌────┼────┐
-    │         │
-┌───┴───┐  ┌─┴──────────────┐
-│ Tools │  │ ProjectManager │
-│ /core │  │   (NEW H0)     │
-└───┬───┘  └──────┬───────┘
-    │            │
-    │            ├─── Base-3 Validation
-    │            ├─── Base-4 Lifecycle
-    │            ├─── φ-CPS Tracking
-    │            └─── IntentHash L0-L1
-    │
-    ├─── Global WAL Manager
-    ├─── CitizenManager (L0-L5)
-    ├─── SkillManager
-    ├─── DaemonManager
-    ├─── PipelineManager
-    └─── FrameworkManager
+┌─────────────────────────────────────────────────────────────┐
+│                    KIVA CLI (Entry Point)                   │
+│  ┌──────────────────────────────────────────────────┐      │
+│  │  Command Groups                                   │      │
+│  │  - project (ProjectManager)                      │      │
+│  │  - wal (GlobalWALManager)                        │      │
+│  │  - deploy, health, secrets, monitoring           │      │
+│  └──────────────────────────────────────────────────┘      │
+└──────────────────────┬──────────────────────────────────────┘
+                       │
+         ┌─────────────┴─────────────┐
+         ▼                           ▼
+┌─────────────────────┐    ┌─────────────────────┐
+│  ProjectManager     │    │  GlobalWALManager   │
+│  ┌───────────────┐  │    │  ┌───────────────┐  │
+│  │ Scaffolding   │  │    │  │ Event Append  │  │
+│  │ Deployment    │  │    │  │ Chain Verify  │  │
+│  │ Validation    │  │    │  │ Drift Track   │  │
+│  │ Lifecycle     │  │    │  │ Rollback Mgmt │  │
+│  └───────────────┘  │    │  │ Audit Export  │  │
+└─────────────────────┘    │  └───────────────┘  │
+                           └─────────────────────┘
+                                     │
+                                     ▼
+                          ┌──────────────────────┐
+                          │  SQLite Database     │
+                          │  - wal_events        │
+                          │  - rollback_points   │
+                          └──────────────────────┘
 ```
 
-### Directory Structure
+## Directory Structure
 
 ```
 KIVA-CLI/
 ├── kiva_cli/
-│   ├── commands/
-│   │   ├── project_commands.py  # NEW: ProjectManager CLI
+│   ├── commands/           # CLI command groups
+│   │   ├── project_commands.py  # Project management
+│   │   ├── wal_commands.py      # Global WAL CLI
 │   │   ├── scaffold.py
 │   │   ├── secrets.py
 │   │   └── ...
-│   ├── core/
-│   ├── managers/
-│   └── kiva.py              # Main CLI entry point
+│   ├── core/              # Core managers
+│   │   ├── project_manager.py
+│   │   ├── deployment_manager.py
+│   │   └── config_manager.py
+│   └── kiva.py            # Main CLI entry
 ├── tools/
-│   ├── core/
-│   │   ├── project_manager.py   # NEW: H0 ProjectManager
-│   │   ├── global_wal_manager.py
-│   │   └── ...
-│   └── blo/
+│   └── core/
+│       ├── global_wal_manager.py  # Global WAL Manager
+│       └── ...
 ├── tests/
-│   ├── test_project_manager.py      # NEW: Core tests
-│   ├── test_project_commands.py     # NEW: CLI tests
+│   ├── test_project_manager.py
+│   ├── test_global_wal_manager.py
+│   ├── test_wal_commands.py
 │   └── ...
 ├── docs/
-│   ├── project_manager_cli.md       # NEW: CLI reference
+│   ├── project_manager_cli.md
+│   ├── global_wal_manager.md
 │   └── ...
-├── ECOS_ROOT.json                       # Ecosystem manifest
+├── ECOS_ROOT.json         # Ecosystem manifest
 ├── README.md
+├── requirements.txt
 └── setup.py
 ```
-
----
 
 ## Testing
 
@@ -241,111 +306,87 @@ KIVA-CLI/
 # Run all tests
 pytest tests/ -v
 
-# Test ProjectManager core
+# Specific test suites
 pytest tests/test_project_manager.py -v
+pytest tests/test_global_wal_manager.py -v
+pytest tests/test_wal_commands.py -v
 
-# Test CLI commands
-pytest tests/test_project_commands.py -v
-
-# Test with coverage
+# With coverage
 pytest tests/ --cov=kiva_cli --cov-report=html
 ```
 
----
-
-## Configuration
-
-### Workspace Setup
-
-```bash
-# Set custom workspace
-export KIVA_WORKSPACE=~/my-projects
-
-# Or use --workspace flag
-ecos project scaffold my-api --framework fastapi \
-  --workspace ~/my-projects
-```
-
-### ECOS_ROOT.json
-
-Ecosystem-1 manifest with 16 repositories:
-- **φ-CPS baseline**: 4.261
-- **Open issues**: 0
-- **Total commits**: 33
-- **Capabilities**: 50+ (including ProjectManager)
-
----
-
 ## Roadmap
 
-### Phase 1: H0 Core ✅ COMPLETED
+### Phase 1: Core Infrastructure ✅
+- [x] ProjectManager (scaffolding, deployment, lifecycle)
 - [x] Base-3 ternary validation
-- [x] Base-4 lifecycle management
-- [x] φ-CPS drift tracking
+- [x] Base-4 lifecycle states
+- [x] φ-CPS per-operation tracking
 - [x] IntentHash L0-L1 verification
-- [x] ProjectManager CLI integration
+- [x] Project registry (SQLite)
+- [x] CLI integration
+- [x] Comprehensive tests
 
-### Phase 2: Advanced Deployments (Q2 2026)
-- [ ] AWS ECS/Fargate deployment
-- [ ] Azure Container Instances
-- [ ] Google Cloud Run
-- [ ] Terraform infrastructure generation
+### Phase 2: Global WAL Manager ✅
+- [x] Cross-repo event persistence
+- [x] IntentHash¹¹ L0-L1-L2 chain
+- [x] φ-CPS cumulative drift tracking
+- [x] Automatic rollback detection
+- [x] Audit trail export (JSON/CSV)
+- [x] WAL CLI commands
+- [x] Complete documentation
 
-### Phase 3: CI/CD Integration (Q3 2026)
-- [ ] GitHub Actions workflow generation
-- [ ] GitLab CI/CD pipelines
-- [ ] Jenkins integration
-- [ ] Automated rollback on φ-CPS breach
+### Phase 3: Advanced Features (Q2 2026)
+- [ ] Multi-repo orchestration
+- [ ] Distributed WAL synchronization
+- [ ] Real-time drift monitoring dashboard
+- [ ] AI-powered rollback suggestions
+- [ ] Cloud deployment targets (AWS, Azure, GCP)
+- [ ] CI/CD pipeline generation
+- [ ] Performance benchmarking suite
 
-### Phase 4: Multi-Repo Orchestration (Q4 2026)
-- [ ] Cross-repo dependency resolution
-- [ ] Monorepo support
-- [ ] Distributed φ-CPS tracking
-- [ ] Global IntentHash chain validation
-
----
+### Phase 4: Ecosystem Integration (Q3 2026)
+- [ ] ECOYSTEM connector
+- [ ] FLUENCE workflow integration
+- [ ] BRAIN knowledge synchronization
+- [ ] DevTools automation bridge
+- [ ] Cross-ecosystem φ-CPS harmonization
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+Contributions welcome! See [CONTRIBUTING.md](./CONTRIBUTING.md) for guidelines.
 
-### Quick Contribution
+### Development Setup
 
 ```bash
-# Fork and clone
-git clone https://github.com/YOUR_USERNAME/KIVA-CLI.git
+# Install development dependencies
+pip install -r requirements-dev.txt
 
-# Create feature branch
-git checkout -b feature/new-framework-support
+# Run linter
+flake8 kiva_cli/ tools/
 
-# Make changes and test
-pytest tests/ -v
+# Run type checker
+mypy kiva_cli/ tools/
 
-# Commit with ECOS convention
-git commit -m "[ECOS-AUTO] feat: Add Rust framework support"
-
-# Push and create PR
-git push origin feature/new-framework-support
+# Format code
+black kiva_cli/ tools/ tests/
 ```
-
----
 
 ## License
 
-MIT License - See [LICENSE](LICENSE) for details.
-
----
+MIT License - see [LICENSE](./LICENSE) for details.
 
 ## Links
 
 - **Repository**: [github.com/gerivdb/KIVA-CLI](https://github.com/gerivdb/KIVA-CLI)
-- **Documentation**: [docs/](docs/)
-- **ECOS Specification**: [docs/ecos_h0_spec.md](docs/ecos_h0_spec.md)
-- **Issue Tracker**: [GitHub Issues](https://github.com/gerivdb/KIVA-CLI/issues)
+- **Documentation**: [docs/](./docs/)
+- **ECOS Manifest**: [ECOS_ROOT.json](./ECOS_ROOT.json)
+- **Issues**: [github.com/gerivdb/KIVA-CLI/issues](https://github.com/gerivdb/KIVA-CLI/issues)
+
+## Acknowledgments
+
+Part of the **ECOS H0 Autonomous Mode** ecosystem with Base-3/4 validation and φ-CPS tracking.
 
 ---
 
-**Last Updated:** 2026-03-01  
-**ECOS Version:** H0 (Base-3/4 ternary + lifecycle)  
-**φ-CPS Current:** 4.261 (+0.022 since baseline reset)  
-**IntentHash (latest):** 0x7E3A9F2D48B6C105
+**φ-CPS Current**: 4.327 | **Drift**: 1.36% ✅ | **Status**: ACTIVE | **Validation**: VALID
