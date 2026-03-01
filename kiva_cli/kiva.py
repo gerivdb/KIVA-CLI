@@ -17,7 +17,8 @@ from kiva_cli.commands.secrets import secrets
 from kiva_cli.commands.monitoring import monitoring
 from kiva_cli.commands.rollback import rollback_group
 from kiva_cli.commands.health import health
-from kiva_cli.commands.project_commands import project_cli  # NEW: Advanced ProjectManager integration
+from kiva_cli.commands.project_commands import project_cli  # ProjectManager integration
+from kiva_cli.commands.wal_commands import wal_cli  # NEW: Global WAL Manager CLI
 
 __version__ = "1.0.0"
 
@@ -31,8 +32,9 @@ def cli():
     - Multi-framework project scaffolding
     - Base-3 ternary semantic validation
     - Base-4 lifecycle state management
-    - φ-CPS drift tracking
-    - IntentHash L0-L1 verification
+    - φ-CPS drift tracking with auto-rollback
+    - IntentHash L0-L1-L2 chain verification
+    - Global WAL event persistence
     """
     pass
 
@@ -123,7 +125,8 @@ cli.add_command(secrets)
 cli.add_command(monitoring)
 cli.add_command(rollback_group)
 cli.add_command(health)
-cli.add_command(project_cli)  # NEW: Advanced ProjectManager CLI group
+cli.add_command(project_cli)  # Advanced ProjectManager CLI group
+cli.add_command(wal_cli)  # NEW: Global WAL Manager CLI group
 
 
 if __name__ == "__main__":
