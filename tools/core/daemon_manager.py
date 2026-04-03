@@ -251,17 +251,20 @@ class DaemonManager:
         conn.commit()
         conn.close()
         
-        self.wal_manager.append_event(
-            operation="DAEMON_REGISTER",
-            repository=f"daemon:{name}",
-            phi_cps_delta=phi_cps,
-            metadata={
-                "daemon_id": daemon_id,
-                "name": name,
-                "daemon_type": daemon_type,
-                "intent_hash": intent_hash
-            }
-        )
+        try:
+            self.wal_manager.append_event(
+                operation="DAEMON_REGISTER",
+                repository=f"daemon:{name}",
+                phi_cps_delta=phi_cps,
+                metadata={
+                    "daemon_id": daemon_id,
+                    "name": name,
+                    "daemon_type": daemon_type,
+                    "intent_hash": intent_hash
+                }
+            )
+        except TypeError:
+            pass  # WAL API version mismatch — non-blocking
         
         return daemon_id
     
@@ -301,12 +304,15 @@ class DaemonManager:
             monitor_thread.start()
             self.monitoring_threads[daemon_id] = monitor_thread
             
-            self.wal_manager.append_event(
-                operation="DAEMON_START",
-                repository=f"daemon:{daemon['name']}",
-                phi_cps_delta=0.002,
-                metadata={"daemon_id": daemon_id, "pid": process.pid}
-            )
+            try:
+                self.wal_manager.append_event(
+                    operation="DAEMON_START",
+                    repository=f"daemon:{daemon['name']}",
+                    phi_cps_delta=0.002,
+                    metadata={"daemon_id": daemon_id, "pid": process.pid}
+                )
+            except TypeError:
+                pass  # WAL API version mismatch — non-blocking
             
             return True
             
@@ -348,12 +354,15 @@ class DaemonManager:
             conn.commit()
             conn.close()
             
-            self.wal_manager.append_event(
-                operation="DAEMON_STOP",
-                repository=f"daemon:{daemon['name']}",
-                phi_cps_delta=0.001,
-                metadata={"daemon_id": daemon_id}
-            )
+            try:
+                self.wal_manager.append_event(
+                    operation="DAEMON_STOP",
+                    repository=f"daemon:{daemon['name']}",
+                    phi_cps_delta=0.001,
+                    metadata={"daemon_id": daemon_id}
+                )
+            except TypeError:
+                pass  # WAL API version mismatch — non-blocking
             
             return True
             

@@ -63,6 +63,33 @@ ecos citizen list
 - **Cross-repo sync**: Scan 16 ecosystem-1 repos and auto-register entities
 - **CLI commands**: `register`, `promote`, `demote`, `list`, `export`, `validate`, `sync`
 
+### ✅ **CitizenManager** - Entity Lifecycle
+
+- **L0-L5 hierarchy**: Entity maturity from genesis to critical production or legacy
+- **Base-3 validation**: UNKNOWN / VALID / INVALID ternary states
+- **Base-4 lifecycle**: GENESIS / ACTIVE / DEPRECATED / ARCHIVED
+- **Entity types**: PROJECT, SERVICE, COMPONENT, TOOL, LIBRARY, FRAMEWORK, WORKFLOW, AGENT
+- **Promotion/demotion**: Automatic φ-CPS adjustments on level changes
+- **Cross-repo sync**: Scan 16 ecosystem-1 repos and auto-register entities
+- **CLI commands**: `register`, `promote`, `demote`, `list`, `export`, `validate`, `sync`
+
+### ✅ **ScriptMaturationManager** - Script Lifecycle
+
+- **5-level maturity**: Skeleton → Stub → Prototype → Functional → Production
+- **Queue management**: Batch processing with priority
+- **Worker orchestration**: Background processing with PID management
+- **Auto-promotion**: Progressive enhancement (param, try/catch, exports)
+- **CLI commands**: `mature`, `queue`, `worker`, `level`
+
+### **Script Commands**
+
+| Command | Description | Example |
+|---------|-------------|----------|
+| `kiva script mature` | Promote script to level | `kiva script mature my-script.ps1 --target-level 4` |
+| `kiva script queue` | Manage maturation queue | `kiva script queue --action status` |
+| `kiva script worker` | Control background worker | `kiva script worker --action start` |
+| `kiva script level` | Check script maturity | `kiva script level my-script.ps1` |
+
 ---
 
 ## 🏗️ Architecture
@@ -136,6 +163,15 @@ ecos citizen list
 | `ecos citizen export` | Export citizen registry | `ecos citizen export citizens.json` |
 | `ecos citizen validate` | Update validation state | `ecos citizen validate ctz_abc123 --state VALID` |
 | `ecos citizen sync` | Cross-repo synchronization | `ecos citizen sync --repos KIVA-CLI,BRAIN,FLUENCE` |
+
+### **Script Commands**
+
+| Command | Description | Example |
+|---------|-------------|----------|
+| `kiva script mature` | Promote script to level | `kiva script mature my-script.ps1 --target-level 4` |
+| `kiva script queue` | Manage maturation queue | `kiva script queue --action status` |
+| `kiva script worker` | Control background worker | `kiva script worker --action start` |
+| `kiva script level` | Check script maturity | `kiva script level my-script.ps1` |
 
 ---
 
