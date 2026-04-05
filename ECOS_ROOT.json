@@ -1,18 +1,40 @@
 {
-  "name": "repo-name",
-  "version": "0.1.0",
+  "$schema": "https://raw.githubusercontent.com/gerivdb/NEXUS/main/schemas/ecos-root.schema.json",
+  "name": "KIVA-CLI",
+  "version": "0.14.0",
   "layer": "L3",
-  "category": "citoyen",
-  "intent": "Description de l'intent du dépôt",
-  "dependencies": [],
+  "category": "orchestrator",
+  "intent": "Orchestrateur local écosystème — Planificateur Windows, 100% ENV2 FinOps",
+  "dependencies": ["NEXUS", "WAZAA", "BRAIN-DOCS"],
   "packageManager": "npm",
   "health": {
-    "lastAudit": "2026-04-03",
-    "status": "pending"
+    "lastAudit": "2026-04-05",
+    "status": "healthy"
   },
   "metadata": {
     "created": "2026-04-03",
     "ecosVersion": "2.0.0",
-    "owner": "gerivdb"
+    "owner": "gerivdb",
+    "lastCommit": "96a8adb",
+    "intentHash": "0xITAD_ECOS_ENV2_GERICODE_20260405"
+  },
+  "itad": {
+    "env_id": "ENV2",
+    "wazaa_registered": true,
+    "nexus_declared": true,
+    "env_guard_enabled": true,
+    "topology_path": "../BRAIN-DOCS/architecture/ecos_topology.json"
+  },
+  "installation_registry": {
+    "KIVA-CLI": {
+      "env_id": "ENV2",
+      "physical_path": "D:\\DO\\WEB\\TOOLS\\KIVA-CLI",
+      "entry_points": ["kiva_cli/kiva.py"],
+      "wazaa_registered": true,
+      "nexus_declared": true,
+      "declared_at": "2026-04-05T06:00:00Z",
+      "deployed_at": "2026-04-05T06:23:42Z",
+      "intent_hash": "0xITAD_ECOS_ENV2_GERICODE_20260405"
+    }
   }
 }
