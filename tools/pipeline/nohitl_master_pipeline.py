@@ -51,6 +51,7 @@ class LifecycleState(Enum):
 class WorkflowStage(Enum):
     """Workflow stages"""
     CLARIFY = "CLARIFY"
+    BASE5_GENERATE = "BASE5_GENERATE"
     IMPLEMENT = "IMPLEMENT"
     VALIDATE = "VALIDATE"
     ROLLBACK = "ROLLBACK"
@@ -127,6 +128,15 @@ class NoHitlMasterPipeline:
         if clarify_result.state != ValidationState.SUCCESS:
             return self._failed_pipeline("Clarify stage failed", start_time)
         
+        # Stage 1.5: Base-5 Fire-and-Forget Generation
+        base5_result = await self._execute_base5_generate(params, clarify_result.data)
+        self.stages_completed.append(base5_result)
+        self.intent_hash_chain.append(base5_result.intent_hash)
+        
+        if base5_result.state != ValidationState.SUCCESS:
+            # Base-5 est fire-and-forget, on continue même si ça échoue
+            pass
+            
         # Stage 2: Implement
         implement_result = await self._execute_implement(params, clarify_result.data)
         self.stages_completed.append(implement_result)
@@ -261,6 +271,61 @@ class NoHitlMasterPipeline:
             intent_hash=self._generate_intent_hash(),
         )
     
+    async def _execute_base5_generate(self, params: Dict[str, Any], specs: Dict[str, Any]) -> StageResult:
+        """
+        Execute Base-5 L27 Fire-and-Forget generation
+        
+        Purely fire-and-forget: no debug, no validation, no post-generation.
+        Génère automatiquement les composants thermodynamiques depuis CLARIFY.
+        """
+        self.logger.info("Executing BASE5_GENERATE stage")
+        
+        try:
+            # Intégration Base-5 FLUENCE
+            import sys
+            sys.path.insert(0, r"D:\DO\WEB\TOOLS\FLUENCE")
+            from tools.base5_generator import base5
+            
+            if 'component_name' in specs and 'issue' in specs and 'description' in specs:
+                result = await base5.generate(
+                    prompt="pipeline_generation",
+                    pattern="thermodynamic_component",
+                    component_name=specs['component_name'],
+                    issue=specs['issue'],
+                    description=specs['description']
+                )
+                
+                generation_data = {
+                    'generated': True,
+                    'output_length': len(result),
+                    'fire_and_forget': True
+                }
+                
+                return StageResult(
+                    stage=WorkflowStage.BASE5_GENERATE,
+                    state=ValidationState.SUCCESS,
+                    data=generation_data,
+                    error=None,
+                    confidence=0.999,
+                    timestamp=datetime.utcnow().isoformat(),
+                    intent_hash=self._generate_intent_hash(),
+                )
+                    
+        except Exception as e:
+            # Base-5 est fire-and-forget: on ne fail jamais
+            self.logger.warning(f"Base-5 generation warning: {e}")
+            
+        # Base-5 ne retourne jamais FAIL. C'est fire-and-forget.
+        return StageResult(
+            stage=WorkflowStage.BASE5_GENERATE,
+            state=ValidationState.SUCCESS,
+            data={'generated': False, 'skipped': True},
+            error=None,
+            confidence=1.0,
+            timestamp=datetime.utcnow().isoformat(),
+            intent_hash=self._generate_intent_hash(),
+        )
+
     async def _execute_rollback(self, params: Dict[str, Any]) -> StageResult:
         """
         Execute rollback stage - automatic recovery

@@ -19,6 +19,9 @@ try:
 except ImportError:
     pass
 
+# EnvGuard Integration - ITAD Pattern
+from tools.core.env_guard import env_guard
+
 
 class RepoInfo:
     """Information about a repository."""
@@ -31,6 +34,8 @@ class RepoInfo:
 
 class PathResolver:
     """Resolves paths between local filesystem and remote repository URLs."""
+    
+    DEFAULT_REPOS = {}
 
     def __init__(self, config_path: Optional[str] = None):
         self.repos: Dict[str, RepoInfo] = dict(self.DEFAULT_REPOS)
@@ -42,6 +47,9 @@ class PathResolver:
             except Exception:
                 pass
         self._load_config()
+        
+        # EnvGuard Auto-Configuration
+        env_guard.adapt("path_resolver")
 
     def _default_config_path(self) -> str:
         """Get default config path."""
