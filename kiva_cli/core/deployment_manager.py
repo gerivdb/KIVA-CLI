@@ -1,5 +1,9 @@
-""" KIVA CLI - Deployment Manager
-Manages deployment operations with strategies and health checks.
+"""KIVA CLI - Deployment Manager
+Manages deployment operations with strategies, health checks, and ITAD EnvGuard.
+
+Integrates Infrastructure Topology-Aware Design (ITAD) for environment-aware
+deployments. All deployments are validated against environment constraints
+before execution via EnvGuard.
 """
 
 from dataclasses import dataclass
@@ -10,6 +14,9 @@ import time
 import logging
 
 logger = logging.getLogger(__name__)
+
+# ITAD EnvGuard import for environment constraint validation
+from kiva_cli.core.env_guard import EnvGuard, EnvGuardResult, quick_check
 
 
 class DeploymentStrategy(Enum):
@@ -34,10 +41,97 @@ class DeploymentResult:
 
 
 class DeploymentManager:
-    """Manages deployment operations."""
+    """Manages deployment operations with ITAD EnvGuard integration.
     
-    def __init__(self):
+    All deployments are validated against environment constraints before
+    execution. If EnvGuard returns DEPLOY_BLOCKED, the deployment is
+    rejected with a clear error message.
+    """
+    
+    def __init__(self, topology_path: Optional[str] = None):
         self.deployments: Dict[str, Any] = {}
+        self.env_guard = EnvGuard(topology_path=topology_path)
+    
+    def validate_env_compatibility(
+        self,
+        citizen: Any,
+        target_env: str
+    ) -> EnvGuardResult:
+        """
+        Validate citizen compatibility with target environment.
+        
+        This method implements the ITAD β-CONSTRAIN axiom:
+        "Tout composant hérite contraintes ENV"
+        
+        Args:
+            citizen: The citizen/component to validate
+            target_env: Target environment ID (ENV1, ENV2, etc.)
+        
+        Returns:
+            EnvGuardResult with compatibility status
+        
+        Raises:
+            ValueError: If deployment is blocked by EnvGuard
+        """
+        result = self.env_guard.check(citizen, target_env)
+        
+        if not result.can_deploy:
+            violation_msgs = [v.message for v in result.violations]
+            raise ValueError(
+                f"ITAD EnvGuard blocked deployment to {target_env}: "
+                f"{'; '.join(violation_msgs)}"
+            )
+        
+        if result.warnings:
+            for warning in result.warnings:
+                logger.warning(f"ITAD EnvGuard warning: {warning}")
+        
+        logger.info(f"ITAD EnvGuard validation passed for {target_env}: {result.verdict}")
+        return result
+    
+    def deploy_with_itad(
+        self,
+        target: str,
+        citizen: Any,
+        target_env: str,
+        strategy: str = "rolling",
+        dry_run: bool = False,
+        health_check: bool = True
+    ) -> DeploymentResult:
+        """
+        Deploy with ITAD EnvGuard validation.
+        
+        This is the primary deployment method for ITAD-compliant deployments.
+        It validates the citizen against the target environment before
+        proceeding with the deployment.
+        
+        Args:
+            target: Deployment target
+            citizen: Citizen/component to deploy (must have env_requirements)
+            target_env: Target environment ID (ENV1, ENV2, etc.)
+            strategy: Deployment strategy
+            dry_run: Simulate deployment
+            health_check: Run health checks
+        
+        Returns:
+            DeploymentResult with operation status
+        
+        Raises:
+            ValueError: If EnvGuard blocks the deployment
+        """
+        # Step 1: ITAD EnvGuard validation (β-CONSTRAIN axiom)
+        logger.info(f"ITAD: Validating {target} for {target_env}...")
+        self.validate_env_compatibility(citizen, target_env)
+        
+        # Step 2: Proceed with deployment
+        logger.info(f"ITAD: Validation passed, proceeding with deployment...")
+        return self.deploy(
+            target=target,
+            env=target_env,
+            strategy=strategy,
+            dry_run=dry_run,
+            health_check=health_check
+        )
     
     def deploy(
         self, 
