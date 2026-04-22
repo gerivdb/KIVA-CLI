@@ -172,3 +172,54 @@ def container_status(name: str):
         click.echo(f"Running: {s['running_containers']}")
         click.echo(f"Stopped: {s['stopped_containers']}")
         click.echo("")
+
+@lxc_cli.command(name='exec')
+@click.argument('name')
+@click.argument('command')
+@click.option('--user', '-u', default='root', help='User to run command as')
+def exec_container(name: str, command: str, user: str):
+    """
+    Execute a command in an LXC container.
+
+    NAME: Container name
+    COMMAND: Command to execute
+
+    Example:
+        kiva lxc exec my-container "echo hello"
+        kiva lxc exec my-container "bash /path/to/script.sh" --user ubuntu
+    """
+    mgr = LXCManager()
+    c = mgr.get_container_status(name)
+
+    if not c:
+        click.echo(click.style(f"Container '{name}' not found.", fg="red"))
+        return
+
+    if c.status != "running":
+        click.echo(click.style(f"Container '{name}' is not running.", fg="red"))
+        return
+
+    # For now, map to WSL if container name matches known WSL distros
+    if name == "atomic-container":
+        # Use WSL Ubuntu for atomic-container
+        try:
+            import subprocess
+            wsl_command = ["wsl", "-d", "Ubuntu", "-u", user] + command.split()
+            result = subprocess.run(wsl_command, capture_output=True, text=True, timeout=60)
+
+            if result.stdout:
+                click.echo(result.stdout)
+            if result.stderr:
+                click.echo(click.style(result.stderr, fg="yellow"), err=True)
+
+            if result.returncode == 0:
+                click.echo(click.style(f"Command executed successfully in {name}", fg="green"))
+            else:
+                click.echo(click.style(f"Command failed with exit code {result.returncode}", fg="red"))
+
+        except subprocess.TimeoutExpired:
+            click.echo(click.style("Command timed out", fg="red"))
+        except Exception as e:
+            click.echo(click.style(f"Error executing command: {e}", fg="red"))
+    else:
+        click.echo(click.style(f"Exec not implemented for container type: {name}", fg="yellow"))

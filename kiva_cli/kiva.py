@@ -42,7 +42,7 @@ from kiva_cli.commands.zvec_commands import zvec_cli
 @click.version_option(version="0.22.0", prog_name="KIVA-CLI")
 def cli():
     """KIVA-CLI - ECOS unified command-line interface.
-    
+
     Provides:
     - Project scaffolding and management
     - Cross-repo event tracking with phi-CPS
@@ -97,5 +97,10 @@ cli.add_command(kvcache_cli, name="kvcache")
 cli.add_command(zvec_cli, name="zvec")
 
 
-if __name__ == "__main__":
+def main():
+    """Main entry point for KIVA-CLI"""
     cli()
+
+
+if __name__ == "__main__":
+    main()
