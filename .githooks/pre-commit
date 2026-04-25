@@ -1,54 +1,26 @@
 #!/bin/bash
-# ECOS Pre-commit Hook - Validation
-# Version: 1.0.0 | IntentHash: 0xECOS_HOOK_PRE_20260403
+# ECOS Test Hook - Runs test daemon on every commit
+# Ensures all scripts pass before allowing commit
 
-echo "=== ECOS Pre-commit Validation ==="
+echo "=== ECOS Test Hook ==="
 
-ERRORS=0
+TEST_DAEMON="C:/DevTools/bin/ecos-test-daemon.ps1"
 
-# Check for ECOS_ROOT.json
-if [ -f "ECOS_ROOT.json" ]; then
-    echo "[OK] ECOS_ROOT.json found"
+if [ -f "$TEST_DAEMON" ]; then
+    powershell -Command "& '$TEST_DAEMON'"
+    EXIT_CODE=$?
     
-    # Validate JSON
-    if command -v python3 &> /dev/null; then
-        python3 -c "import json; json.load(open('ECOS_ROOT.json'))" 2>/dev/null
-        if [ $? -eq 0 ]; then
-            echo "[OK] ECOS_ROOT.json is valid JSON"
-        else
-            echo "[ERROR] ECOS_ROOT.json is invalid JSON"
-            ERRORS=$((ERRORS + 1))
-        fi
-    fi
-else
-    echo "[WARNING] ECOS_ROOT.json not found"
-fi
-
-# Check naming conventions (kebab-case)
-for file in $(git diff --cached --name-only); do
-    if [[ "$file" =~ [A-Z] ]]; then
-        echo "[WARNING] File contains uppercase: $file"
+    if [ $EXIT_CODE -ne 0 ]; then
+        echo ""
+        echo "[FAILED] Tests failed. Commit aborted."
+        echo "Fix the errors and try again."
+        exit 1
     fi
     
-    if [[ "$file" =~ [[:space:]] ]]; then
-        echo "[ERROR] File contains spaces: $file"
-        ERRORS=$((ERRORS + 1))
-    fi
-done
-
-# Check for secrets (basic)
-for file in $(git diff --cached --name-only); do
-    if [[ "$file" == *".env"* ]] || [[ "$file" == *"secrets"* ]]; then
-        echo "[ERROR] Attempting to commit secrets: $file"
-        ERRORS=$((ERRORS + 1))
-    fi
-done
-
-if [ $ERRORS -gt 0 ]; then
     echo ""
-    echo "[FAILED] $ERRORS error(s) found. Commit aborted."
-    exit 1
+    echo "[OK] All tests passed"
+else
+    echo "[WARNING] Test daemon not found: $TEST_DAEMON"
 fi
 
-echo "[OK] Pre-commit validation passed"
 exit 0
