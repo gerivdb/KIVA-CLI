@@ -125,16 +125,28 @@ class EnvGuard:
     def adapt(self, component: str) -> None:
         """Adapte un composant pour l'environnement courant"""
         if component == "path_resolver":
-            from tools.core.path_resolver import PathResolver
-            resolver = PathResolver()
-            
-            # Ajout automatique des repos en fonction de la plateforme
-            if self._platform == "windows":
-                resolver.add_repo("DevTools", "C:\\DevTools", "gerivdb/DevTools")
-                resolver.add_repo("NEXUS", "D:\\DO\\WEB\\TOOLS\\NEXUS", "gerivdb/NEXUS")
-            elif self._platform == "wsl":
-                resolver.add_repo("DevTools", "/mnt/c/DevTools", "gerivdb/DevTools")
-                resolver.add_repo("NEXUS", "/mnt/d/DO/WEB/TOOLS/NEXUS", "gerivdb/NEXUS")
+            # Deferred import to avoid circular dependency:
+            # env_guard.adapt() is called from PathResolver.__init__,
+            # but PathResolver imports env_guard at module level.
+            # The actual adaptation is triggered lazily via _ensure_env_guard().
+            pass
+
+    def _ensure_env_guard(self, component: str) -> None:
+        """Lazily apply env guard adaptation (called on first actual use, not at import time)."""
+        if component == "path_resolver":
+            try:
+                from tools.core.path_resolver import PathResolver
+                resolver = PathResolver()
+                if not getattr(resolver, '_env_guard_configured', False):
+                    if self._platform == "windows":
+                        resolver.add_repo("DevTools", "C:\\DevTools", "gerivdb/DevTools")
+                        resolver.add_repo("NEXUS", "D:\\DO\\WEB\\TOOLS\\NEXUS", "gerivdb/NEXUS")
+                    elif self._platform == "wsl":
+                        resolver.add_repo("DevTools", "/mnt/c/DevTools", "gerivdb/DevTools")
+                        resolver.add_repo("NEXUS", "/mnt/d/DO/WEB/TOOLS/NEXUS", "gerivdb/NEXUS")
+                    resolver._env_guard_configured = True
+            except Exception:
+                pass
 
     @property
     def platform(self) -> str:

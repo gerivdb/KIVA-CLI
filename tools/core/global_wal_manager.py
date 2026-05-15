@@ -657,6 +657,146 @@ class GlobalWALManager:
 
         return content
 
+    def get_drift(self) -> Dict[str, Any]:
+        """Calculate φ-CPS drift across all events"""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+
+        # Get baseline (oldest event)
+        cursor.execute(
+            "SELECT phi_cps_baseline FROM events ORDER BY timestamp ASC LIMIT 1"
+        )
+        row = cursor.fetchone()
+        baseline_phi = row[0] if row else 1.0
+
+        # Get current (newest event)
+        cursor.execute(
+            "SELECT phi_cps_current FROM events ORDER BY timestamp DESC LIMIT 1"
+        )
+        row = cursor.fetchone()
+        current_phi = row[0] if row else baseline_phi
+
+        # Count events since baseline
+        cursor.execute("SELECT COUNT(*) FROM events")
+        total_events = cursor.fetchone()[0]
+
+        # Count alerts
+        cursor.execute("SELECT COUNT(*) FROM events WHERE phi_cps_alert = 1")
+        alert_count = cursor.fetchone()[0]
+
+        conn.close()
+
+        absolute_drift = current_phi - baseline_phi
+        relative_drift = absolute_drift / baseline_phi if baseline_phi != 0 else 0.0
+        threshold = 0.05
+
+        return {
+            "baseline_phi": baseline_phi,
+            "current_phi": current_phi,
+            "absolute_drift": absolute_drift,
+            "relative_drift": relative_drift,
+            "threshold": threshold,
+            "threshold_exceeded": abs(relative_drift) > threshold,
+            "events_since_baseline": total_events,
+            "alert_count": alert_count,
+        }
+
+    def query_events(
+        self,
+        repo: Optional[str] = None,
+        operation: Optional[str] = None,
+        start_time: Optional[str] = None,
+        status: Optional[str] = None,
+        limit: int = 20,
+    ) -> List[Dict[str, Any]]:
+        """Query WAL events with optional filters"""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+
+        query = "SELECT * FROM events WHERE 1=1"
+        params: list = []
+
+        if repo:
+            query += " AND repositories LIKE ?"
+            params.append(f"%{repo}%")
+        if operation:
+            query += " AND event_type = ?"
+            params.append(operation)
+        if start_time:
+            query += " AND timestamp >= ?"
+            params.append(start_time)
+        if status:
+            query += " AND validation_state = ?"
+            params.append(status)
+
+        query += " ORDER BY timestamp DESC LIMIT ?"
+        params.append(limit)
+
+        cursor.execute(query, params)
+        rows = cursor.fetchall()
+        conn.close()
+
+        events = []
+        for row in rows:
+            events.append({
+                "event_id": row[0],
+                "timestamp": row[1],
+                "event_type": row[2],
+                "severity": row[3],
+                "ecosystem_id": row[4],
+                "repositories": json.loads(row[5]),
+                "intent_hash": row[6],
+                "parent_intent_hash": row[7],
+                "phi_cps_baseline": row[8],
+                "phi_cps_current": row[9],
+                "phi_cps_delta": row[10],
+                "phi_cps_threshold": row[11],
+                "phi_cps_alert": bool(row[12]),
+                "validation_state": row[13],
+                "auto_approved": bool(row[14]),
+                "rollback_performed": bool(row[15]),
+                "description": row[16],
+                "metadata": json.loads(row[17]) if row[17] else {},
+            })
+        return events
+
+    def validate_chain(
+        self,
+        intent_hash: str,
+        parent_intent_hash: Optional[str] = None,
+    ) -> Tuple[bool, str]:
+        """Verify IntentHash chain continuity"""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+
+        # Find the event by intent_hash
+        cursor.execute(
+            "SELECT * FROM events WHERE intent_hash = ?", (intent_hash,)
+        )
+        row = cursor.fetchone()
+
+        if not row:
+            conn.close()
+            return False, f"Event with intent_hash {intent_hash} not found"
+
+        # If parent specified, verify linkage
+        if parent_intent_hash:
+            cursor.execute(
+                "SELECT * FROM events WHERE intent_hash = ?",
+                (parent_intent_hash,),
+            )
+            parent_row = cursor.fetchone()
+            if not parent_row:
+                conn.close()
+                return False, f"Parent event {parent_intent_hash} not found"
+            # Verify the event's parent_intent_hash matches
+            if row[7] != parent_intent_hash:
+                conn.close()
+                return False, f"Chain broken: event parent {row[7]} != expected {parent_intent_hash}"
+
+        conn.close()
+        return True, f"Chain valid for {intent_hash}"
+
     def _generate_id(self, seed: str) -> str:
         """Generate unique ID from seed"""
         return hashlib.sha256(seed.encode()).hexdigest()[:16]

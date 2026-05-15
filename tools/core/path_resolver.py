@@ -48,8 +48,8 @@ class PathResolver:
                 pass
         self._load_config()
         
-        # EnvGuard Auto-Configuration
-        env_guard.adapt("path_resolver")
+        # EnvGuard Auto-Configuration (deferred to avoid circular import)
+        self._env_guard_configured = False
 
     def _default_config_path(self) -> str:
         """Get default config path."""

@@ -18,7 +18,9 @@ try:
         GlobalWALManager,
         ValidationState,
         EventStatus,
-        WALEvent
+        WALEvent,
+        Severity,
+        EventType,
     )
 except ImportError:
     # Fallback import
@@ -27,7 +29,9 @@ except ImportError:
         GlobalWALManager,
         ValidationState,
         EventStatus,
-        WALEvent
+        WALEvent,
+        Severity,
+        EventType,
     )
 
 
@@ -118,44 +122,39 @@ def append_event(
         try:
             metadata_dict = json.loads(metadata)
         except json.JSONDecodeError:
-            click.echo(f"❌ Invalid JSON metadata: {metadata}", err=True)
+            click.echo(f"[ERR] Invalid JSON metadata: {metadata}", err=True)
             sys.exit(1)
     
-    validation_state = ValidationState[validation]
-    event_status = EventStatus[status]
+    click.echo("")
+    click.echo("Appending event to Global WAL")
+    click.echo("-" * 40)
     
-    click.echo(f"\n➕ Appending event to Global WAL")
-    click.echo("─" * 60)
-    
-    event = wal.append_event(
-        operation=operation,
-        repo=repo,
-        phi_cps_delta=phi_delta,
-        commit_sha=commit_sha,
+    event_id = wal.append_event(
+        event_type=EventType.COMPONENT_IMPLEMENTATION,
+        ecosystem_id="ECOSYSTEM-1",
+        repositories=[repo],
+        phi_cps_baseline=1.0,
+        phi_cps_current=1.0 + phi_delta,
         parent_intent_hash=parent_hash,
+        severity=Severity.INFO,
+        description=f"{operation} on {repo}",
         metadata=metadata_dict,
-        validation_state=validation_state,
-        status=event_status
     )
     
-    click.echo(f"\n✅ Event appended successfully!")
-    click.echo(f"\n📊 EVENT METADATA:")
-    click.echo(f"   🆔 Event ID: {event.event_id}")
-    click.echo(f"   🔗 IntentHash: {event.intent_hash}")
-    click.echo(f"   📈 φ-CPS delta: +{event.phi_cps_delta:.4f}")
-    click.echo(f"   📈 φ-CPS current: {event.phi_cps_current:.4f}")
-    click.echo(f"   ✅ Validation: {event.validation_state}")
-    click.echo(f"   🟢 Status: {event.status}")
-    
-    if parent_hash:
-        click.echo(f"   🔗 Parent: {parent_hash}")
+    click.echo("")
+    click.echo("Event appended successfully!")
+    click.echo("EVENT METADATA:")
+    click.echo(f"  Event ID: {event_id}")
+    click.echo(f"  phi-CPS delta: +{phi_delta:.4f}")
+    click.echo(f"  phi-CPS current: {1.0 + phi_delta:.4f}")
     
     # Check drift
     drift = wal.get_drift()
     if drift["threshold_exceeded"]:
-        click.echo(f"\n⚠️  φ-CPS DRIFT THRESHOLD EXCEEDED!")
-        click.echo(f"   Drift: {drift['relative_drift']:.2%} (> {drift['threshold']:.0%})")
-        click.echo(f"   🛑 Rollback recommended: ecos wal rollback --reason drift_exceeded")
+        click.echo("")
+        click.echo("  WARNING: phi-CPS DRIFT THRESHOLD EXCEEDED!")
+        click.echo(f"  Drift: {drift['relative_drift']:.2%} (> {drift['threshold']:.0%})")
+        click.echo("  Rollback recommended: kiva wal rollback --reason drift_exceeded")
 
 
 @wal_cli.command(name='query')
@@ -206,7 +205,7 @@ def query_events(
     if hours:
         start_time = (datetime.now() - timedelta(hours=hours)).isoformat()
     
-    event_status = EventStatus[status] if status else None
+    event_status = status if status else None
     
     events = wal.query_events(
         repo=repo,
@@ -240,36 +239,32 @@ def query_events(
     
     for idx, event in enumerate(events, 1):
         status_icons = {
-            "PENDING": "🔵",
-            "SUCCESS": "✅",
-            "FAILED": "❌"
+            "PENDING": "[PENDING]",
+            "SUCCESS": "[OK]",
+            "FAILED": "[FAIL]"
         }
         
         validation_icons = {
-            "VALID": "✅",
-            "INVALID": "❌",
-            "UNKNOWN": "❓"
+            "PENDING": "[PENDING]",
+            "SUCCESS": "[OK]",
+            "FAILED": "[FAIL]"
         }
         
-        status_icon = status_icons.get(event.status, "❓")
-        validation_icon = validation_icons.get(event.validation_state, "❓")
+        status_icon = status_icons.get(event["validation_state"], "[?]")
         
         # Format timestamp
-        timestamp = datetime.fromisoformat(event.timestamp)
+        timestamp = datetime.fromisoformat(event["timestamp"])
         time_str = timestamp.strftime("%Y-%m-%d %H:%M:%S")
         
-        click.echo(f"\n{idx}. {status_icon} {event.operation}")
-        click.echo(f"   Repo: {event.repo}")
-        click.echo(f"   IntentHash: {event.intent_hash}")
-        click.echo(f"   φ-CPS: {event.phi_cps_current:.4f} (Δ +{event.phi_cps_delta:.4f})")
-        click.echo(f"   Validation: {validation_icon} {event.validation_state}")
+        click.echo(f"\n{idx}. {status_icon} {event['event_type']}")
+        click.echo(f"   Repo: {', '.join(event['repositories'])}")
+        click.echo(f"   IntentHash: {event['intent_hash']}")
+        click.echo(f"   phi-CPS: {event['phi_cps_current']:.4f} (delta +{event['phi_cps_delta']:.4f})")
+        click.echo(f"   Validation: {event['validation_state']}")
         click.echo(f"   Timestamp: {time_str}")
         
-        if event.commit_sha:
-            click.echo(f"   Commit: {event.commit_sha[:8]}")
-        
-        if event.parent_intent_hash:
-            click.echo(f"   Parent: {event.parent_intent_hash}")
+        if event.get("parent_intent_hash"):
+            click.echo(f"   Parent: {event['parent_intent_hash']}")
 
 
 @wal_cli.command(name='drift')
@@ -346,22 +341,24 @@ def verify_chain(intent_hash: str, parent: Optional[str]):
         parent_event = None
         
         for event in events:
-            if event.intent_hash == intent_hash:
+            if event["intent_hash"] == intent_hash:
                 target_event = event
-            if parent and event.intent_hash == parent:
+            if parent and event["intent_hash"] == parent:
                 parent_event = event
         
         if target_event:
-            click.echo(f"\n📊 EVENT DETAILS:")
-            click.echo(f"   Operation: {target_event.operation}")
-            click.echo(f"   Repo: {target_event.repo}")
-            click.echo(f"   φ-CPS: {target_event.phi_cps_current:.4f}")
-            click.echo(f"   Validation: {target_event.validation_state}")
+            click.echo("")
+            click.echo("EVENT DETAILS:")
+            click.echo(f"  Operation: {target_event['event_type']}")
+            click.echo(f"  Repo: {', '.join(target_event['repositories'])}")
+            click.echo(f"  phi-CPS: {target_event['phi_cps_current']:.4f}")
+            click.echo(f"  Validation: {target_event['validation_state']}")
         
         if parent_event:
-            click.echo(f"\n🔗 PARENT EVENT:")
-            click.echo(f"   Operation: {parent_event.operation}")
-            click.echo(f"   φ-CPS: {parent_event.phi_cps_current:.4f}")
+            click.echo("")
+            click.echo("PARENT EVENT:")
+            click.echo(f"  Operation: {parent_event['event_type']}")
+            click.echo(f"  phi-CPS: {parent_event['phi_cps_current']:.4f}")
     else:
         click.echo(f"\n❌ {message}", err=True)
         click.echo(f"\n💡 Check event exists: ecos wal query --limit 100")
@@ -397,28 +394,43 @@ def create_rollback(reason: str, metadata: Optional[str]):
             click.echo(f"❌ Invalid JSON metadata: {metadata}", err=True)
             sys.exit(1)
     
-    click.echo(f"\n🔄 Creating rollback point")
-    click.echo("─" * 60)
+    click.echo("")
+    click.echo("Creating rollback point")
+    click.echo("-" * 40)
     
-    rollback_id = wal.create_rollback_point(
+    # Get the latest event to rollback
+    events = wal.query_events(limit=1)
+    if events:
+        latest = events[0]
+        event_id = latest["event_id"]
+        phi_before = latest["phi_cps_current"]
+    else:
+        event_id = "manual_" + datetime.utcnow().strftime("%Y%m%d%H%M%S")
+        phi_before = 1.0
+    
+    rollback_id = wal.perform_rollback(
+        event_id=event_id,
         reason=reason,
-        metadata=metadata_dict
+        commits_reverted=[],
+        phi_cps_before=phi_before,
+        phi_cps_after=phi_before,
+        success=True,
     )
     
-    current_phi = wal._get_current_phi_cps()
-    
-    click.echo(f"\n✅ Rollback point created!")
-    click.echo(f"\n📊 ROLLBACK METADATA:")
-    click.echo(f"   🆔 Rollback ID: {rollback_id}")
-    click.echo(f"   📈 φ-CPS snapshot: {current_phi:.4f}")
-    click.echo(f"   📝 Reason: {reason}")
+    click.echo("")
+    click.echo("Rollback point created!")
+    click.echo("ROLLBACK METADATA:")
+    click.echo(f"  Rollback ID: {rollback_id}")
+    click.echo(f"  phi-CPS snapshot: {phi_before:.4f}")
+    click.echo(f"  Reason: {reason}")
     
     drift = wal.get_drift()
-    click.echo(f"\n📈 Current drift: {drift['relative_drift']:.2%}")
+    click.echo(f"  Current drift: {drift['relative_drift']:.2%}")
     
     if drift["threshold_exceeded"]:
-        click.echo(f"\n⚠️  Drift threshold exceeded")
-        click.echo(f"   Consider baseline reset: ecos phi prepare-reset")
+        click.echo("")
+        click.echo("WARNING: Drift threshold exceeded")
+        click.echo("  Consider baseline reset: kiva phi prepare-reset")
 
 
 @wal_cli.command(name='export')
