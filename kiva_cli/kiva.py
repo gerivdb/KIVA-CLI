@@ -12,6 +12,20 @@ ECOS-CLI unified command-line interface for:
 - Entity path mapping (EntityPathMapper)
 """
 
+import sys
+from pathlib import Path
+# Fix: ensure KIVA-CLI root is first in sys.path to avoid shadowing by NEXUS/tools
+_kiva_root = str(Path(__file__).resolve().parent.parent)
+# Remove any cached 'tools' module that may have been loaded from another path
+for _mod in list(sys.modules.keys()):
+    if _mod == 'tools' or _mod.startswith('tools.'):
+        del sys.modules[_mod]
+# Remove NEXUS and other conflicting paths that contain a 'tools' package
+sys.path = [p for p in sys.path if 'NEXUS' not in p and 'L0-CANON' not in p]
+if _kiva_root in sys.path:
+    sys.path.remove(_kiva_root)
+sys.path.insert(0, _kiva_root)
+
 import click
 from kiva_cli.commands.project_commands import project_cli
 from kiva_cli.commands.wal_commands import wal_cli
@@ -36,6 +50,7 @@ from kiva_cli.commands.lxc_commands import lxc_cli
 from kiva_cli.commands.dashboard_commands import dashboard_cli
 from kiva_cli.commands.kvcache_commands import kvcache_cli
 from kiva_cli.commands.zvec_commands import zvec_cli
+from kiva_cli.commands.epic_commands import epic_cli
 
 
 @click.group()
@@ -45,9 +60,9 @@ def cli():
 
     Provides:
     - Project scaffolding and management
-    - Cross-repo event tracking with phi-CPS
-    - Entity lifecycle management (L0-L5)
-    - Reusable skill registry and execution
+    - Event tracking (GlobalWALManager)
+    - Entity lifecycle (CitizenManager)
+    - Skill registry (SkillManager)
     - Script maturation (Skeleton -> Production)
     - Path resolution (local <-> remote)
     - Context management (active repo)
@@ -67,6 +82,7 @@ def cli():
     - Web UI dashboard
     - KVCache integration
     - zvec vector database
+    - EPIC-centric development mode
     """
     pass
 
@@ -95,6 +111,7 @@ cli.add_command(lxc_cli, name="lxc")
 cli.add_command(dashboard_cli, name="dashboard")
 cli.add_command(kvcache_cli, name="kvcache")
 cli.add_command(zvec_cli, name="zvec")
+cli.add_command(epic_cli, name="epic")
 
 
 def main():

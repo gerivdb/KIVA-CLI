@@ -1,0 +1,30 @@
+#!/usr/bin/env python3
+"""Test script for EPIC commands."""
+
+import sys
+from pathlib import Path
+
+# Add the kiva_cli directory to the path
+sys.path.insert(0, str(Path(__file__).parent / "kiva_cli"))
+
+try:
+    from kiva_cli.commands.epic_commands import KivaEpicMode
+
+    # Test creating the KivaEpicMode instance
+    epic_mode = KivaEpicMode()
+    print("PASS: KivaEpicMode created successfully")
+
+    # Test setup_workspace (will fail due to no service, but should handle gracefully)
+    result = epic_mode.setup_workspace("TEST_EPIC")
+    print(
+        "PASS: setup_workspace completed (expected to fail due to no ontology service)"
+    )
+
+    if result["errors"]:
+        print(f"PASS: Error handling works: {result['errors'][0]}")
+
+    print("PASS: All EPIC command tests passed!")
+
+except Exception as e:
+    print(f"FAIL: Test failed: {e}")
+    sys.exit(1)

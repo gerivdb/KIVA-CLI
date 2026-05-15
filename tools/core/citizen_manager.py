@@ -84,7 +84,7 @@ class CitizenManager:
     
     Provides:
     - L0-L5 entity hierarchy management
-    - Base-3 ternary validation (UNKNOWN/VALID/INVALID)
+    - Base-3 ternary validation (PENDING/VALID/INVALID)
     - Base-4 lifecycle states (GENESIS/ACTIVE/DEPRECATED/ARCHIVED)
     - φ-CPS per-entity tracking
     - IntentHash verification
@@ -231,7 +231,7 @@ class CitizenManager:
             entity_type=entity_type.value,
             entity_level=entity_level.value,
             lifecycle_state=lifecycle_state.value,
-            validation_state=ValidationState.UNKNOWN.value if ValidationState else "UNKNOWN",
+            validation_state=ValidationState.PENDING.value if ValidationState else "PENDING",
             repo=repo,
             phi_cps=phi_cps,
             intent_hash=intent_hash,

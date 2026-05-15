@@ -257,7 +257,7 @@ def export_registry(output_path: str, output_format: str):
 @citizen_cli.command(name='validate')
 @click.argument('citizen_id')
 @click.option('--state', required=True,
-              type=click.Choice(['UNKNOWN', 'VALID', 'INVALID']),
+              type=click.Choice(['PENDING', 'VALID', 'INVALID']),
               help='Validation state')
 def validate_citizen(citizen_id: str, state: str):
     """Update citizen validation state."""

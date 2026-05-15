@@ -1,0 +1,801 @@
+#!/usr/bin/env python3
+"""
+Epic Commands - KIVA CLI
+
+Provides epic-centric development mode for KIVA-CLI.
+Transforms from file-centric to EPIC-centric workflow.
+"""
+
+import click
+import requests
+import json
+import os
+from pathlib import Path
+from typing import Dict, List, Optional, Any
+from dataclasses import dataclass
+import logging
+
+logger = logging.getLogger(__name__)
+
+
+@dataclass
+class EpicMetadata:
+    """EPIC metadata from ontology service."""
+
+    epic_id: str
+    title: str
+    intent: str
+    status: str
+    category: str
+    verses: List[str]
+    modules: List[str]
+    intent_hash: str
+
+
+@dataclass
+class GovernanceStatus:
+    """SCO-7 governance status."""
+
+    compliant: bool
+    warnings: List[str]
+    recommendations: List[str]
+
+
+class OntologyClient:
+    """Client for NEXUS_ONTOLOGY_SERVICE API."""
+
+    def __init__(self, base_url: str = None):
+        self.base_url = base_url or os.environ.get(
+            "KIVA_ONTOLOGY_SERVICE_URL", "http://localhost:8080"
+        )
+        self.session = requests.Session()
+        self.session.timeout = 10
+
+    def get_epic_metadata(self, epic_id: str) -> Optional[EpicMetadata]:
+        """Fetch EPIC metadata from ontology service."""
+        try:
+            url = f"{self.base_url}/epics/{epic_id}"
+            response = self.session.get(url)
+            response.raise_for_status()
+
+            data = response.json()
+            return EpicMetadata(
+                epic_id=data["id"],
+                title=data["title"],
+                intent=data["intent"],
+                status=data.get("status", "unknown"),
+                category=data.get("category", "unknown"),
+                verses=data.get("verses", []),
+                modules=data.get("modules", []),
+                intent_hash=data.get("intent_hash", ""),
+            )
+        except requests.RequestException as e:
+            logger.warning(f"Ontology service unavailable: {e}")
+            return None
+        except KeyError as e:
+            logger.error(f"Invalid EPIC data structure: {e}")
+            return None
+
+    def get_categories(self) -> Dict[str, Any]:
+        """Get ontology categories for context."""
+        try:
+            url = f"{self.base_url}/categories"
+            response = self.session.get(url)
+            response.raise_for_status()
+            return response.json()
+        except requests.RequestException:
+            return {}
+
+
+class Sco7Client:
+    """Client for SCO-7 governance service."""
+
+    def __init__(self, base_url: str = None):
+        self.base_url = base_url or os.environ.get(
+            "KIVA_SCO7_SERVICE_URL", "http://localhost:8081"
+        )
+        self.session = requests.Session()
+        self.session.timeout = 10
+
+    def check_governance(self, epic_id: str) -> GovernanceStatus:
+        """Check governance compliance for EPIC."""
+        try:
+            url = f"{self.base_url}/check/epic/{epic_id}"
+            response = self.session.get(url)
+            response.raise_for_status()
+
+            data = response.json()
+            return GovernanceStatus(
+                compliant=data.get("compliant", False),
+                warnings=data.get("warnings", []),
+                recommendations=data.get("recommendations", []),
+            )
+        except requests.RequestException as e:
+            logger.warning(f"SCO-7 service unavailable: {e}")
+            return GovernanceStatus(
+                compliant=False,
+                warnings=["SCO-7 service unavailable"],
+                recommendations=["Check SCO-7 service status"],
+            )
+
+
+class ContextManager:
+    """Manages EPIC context persistence."""
+
+    def __init__(self):
+        self.context_file = Path.home() / ".kiva_epic_context"
+        self.env_var = "KIVA_EPIC_CONTEXT"
+
+    def set_epic_context(self, epic_id: str):
+        """Set current EPIC context."""
+        # Set environment variable
+        os.environ[self.env_var] = epic_id
+
+        # Save to context file atomically
+        context_data = {
+            "epic_id": epic_id,
+            "timestamp": str(Path.cwd()),
+            "working_dir": str(Path.cwd()),
+        }
+
+        try:
+            import tempfile
+
+            # Write to temporary file first
+            with tempfile.NamedTemporaryFile(
+                mode="w", dir=self.context_file.parent, delete=False, suffix=".tmp"
+            ) as f:
+                json.dump(context_data, f, indent=2)
+                temp_path = f.name
+
+            # Atomic rename
+            os.replace(temp_path, self.context_file)
+        except Exception as e:
+            logger.warning(f"Failed to save context file: {e}")
+            # Clean up temp file if it exists
+            try:
+                if "temp_path" in locals():
+                    Path(temp_path).unlink(missing_ok=True)
+            except Exception:
+                pass
+
+    def get_epic_context(self) -> Optional[str]:
+        """Get current EPIC context."""
+        # Check environment variable first
+        env_context = os.environ.get(self.env_var)
+        if env_context:
+            return env_context
+
+        # Check context file
+        if self.context_file.exists():
+            try:
+                with open(self.context_file, "r") as f:
+                    data = json.load(f)
+                    return data.get("epic_id")
+            except Exception as e:
+                logger.warning(f"Failed to read context file: {e}")
+
+        return None
+
+    def clear_epic_context(self):
+        """Clear current EPIC context."""
+        # Remove environment variable
+        if self.env_var in os.environ:
+            del os.environ[self.env_var]
+
+        # Remove context file
+        if self.context_file.exists():
+            try:
+                self.context_file.unlink()
+            except Exception as e:
+                logger.warning(f"Failed to remove context file: {e}")
+
+
+class ResourceDiscovery:
+    """Discovers resources related to an EPIC."""
+
+    def __init__(self, ontology_client: OntologyClient):
+        self.ontology = ontology_client
+
+    def discover_files(
+        self, epic_id: str, base_path: str = "."
+    ) -> Dict[str, List[str]]:
+        """Discover files related to EPIC using multiple strategies."""
+        discovered = {
+            "epic_files": [],
+            "prds": [],
+            "tests": [],
+            "modules": [],
+            "docs": [],
+        }
+
+        base = Path(base_path)
+
+        # Strategy 1: By relations (from ontology)
+        metadata = self.ontology.get_epic_metadata(epic_id)
+        if metadata:
+            # Look for files by modules
+            for module in metadata.modules:
+                self._find_module_files(base, module, discovered)
+
+        # Strategy 2: By patterns
+        self._find_by_patterns(base, epic_id, discovered)
+
+        # Strategy 3: By content
+        self._find_by_content(base, epic_id, discovered)
+
+        # Strategy 4: By conventions
+        self._find_by_conventions(base, epic_id, discovered)
+
+        return discovered
+
+    def _find_module_files(self, base: Path, module: str, discovered: Dict):
+        """Find files for a specific module."""
+        # Look for module files in conventional locations
+        patterns = [
+            f"**/{module}.py",
+            f"**/{module}/**/*.py",
+            f"**/modules/{module}/**/*.py",
+        ]
+
+        for pattern in patterns:
+            for file_path in base.glob(pattern):
+                if file_path.is_file():
+                    discovered["modules"].append(str(file_path.relative_to(base)))
+
+    def _find_by_patterns(self, base: Path, epic_id: str, discovered: Dict):
+        """Find files by naming patterns."""
+        patterns = [
+            f"**/epics/{epic_id}.md",
+            f"**/PRD/{epic_id}.md",
+            f"**/tests/test_{epic_id}.py",
+            f"**/*{epic_id}*.py",
+            f"**/*{epic_id}*.md",
+        ]
+
+        for pattern in patterns:
+            for file_path in base.glob(pattern):
+                if file_path.is_file():
+                    rel_path = str(file_path.relative_to(base))
+                    if "epic" in rel_path.lower():
+                        discovered["epic_files"].append(rel_path)
+                    elif "prd" in rel_path.lower():
+                        discovered["prds"].append(rel_path)
+                    elif "test" in rel_path.lower():
+                        discovered["tests"].append(rel_path)
+                    else:
+                        discovered["docs"].append(rel_path)
+
+    def _find_by_content(self, base: Path, epic_id: str, discovered: Dict):
+        """Find files containing EPIC references using BDCP-optimized search."""
+        import subprocess
+        import threading
+        import queue
+
+        search_terms = [epic_id, f"EPIC_{epic_id}"]
+        # Only search in relevant file types and skip large files
+        file_patterns = ["*.py", "*.md", "*.txt", "*.json", "*.yml", "*.yaml"]
+
+        # BDCP Sprint 1: Parallel search with zero-copy patterns
+        results_queue = queue.Queue()
+
+        def bdcp_search_worker(pattern: str, terms: list, base_path: Path):
+            """Worker thread for BDCP-optimized search."""
+            local_results = {"tests": [], "modules": []}
+
+            try:
+                # Use ripgrep if available (BDCP-like: direct I/O, no buffering)
+                cmd = [
+                    "rg",
+                    "--files-with-matches",
+                    "--glob",
+                    pattern,
+                    "--max-filesize",
+                    "1M",
+                ]  # BDCP: Skip large files immediately
+
+                for term in terms:
+                    cmd.extend(["--regexp", term])
+                cmd.append(str(base_path))
+
+                result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+
+                if result.returncode == 0:
+                    # BDCP: Process results immediately without intermediate storage
+                    for line in result.stdout.strip().split("\n"):
+                        if line.strip():
+                            try:
+                                file_path = Path(line.strip())
+                                if file_path.exists():
+                                    rel_path = str(file_path.relative_to(base_path))
+                                    if "test" in rel_path.lower():
+                                        local_results["tests"].append(rel_path)
+                                    else:
+                                        local_results["modules"].append(rel_path)
+                            except (ValueError, OSError):
+                                continue
+
+            except (subprocess.TimeoutExpired, FileNotFoundError):
+                # BDCP Fallback: Synchronous search for critical patterns only
+                try:
+                    for file_path in base_path.glob(f"**/epics/*{epic_id}*"):
+                        if (
+                            file_path.is_file()
+                            and file_path.stat().st_size < 100 * 1024
+                        ):
+                            rel_path = str(file_path.relative_to(base_path))
+                            local_results["modules"].append(rel_path)
+                except Exception:
+                    pass
+
+            # BDCP: Zero-copy enqueue (results passed by reference)
+            results_queue.put(local_results)
+
+        # Launch parallel searches (BDCP: Multiple workers, no synchronization overhead)
+        threads = []
+        for pattern in file_patterns:
+            t = threading.Thread(
+                target=bdcp_search_worker, args=(pattern, search_terms, base)
+            )
+            t.daemon = True
+            t.start()
+            threads.append(t)
+
+        # Collect results (BDCP: Minimal waiting, immediate processing)
+        for t in threads:
+            t.join(timeout=5)  # BDCP: Short timeout to avoid hanging
+
+        # Aggregate results (BDCP: In-place merge, no additional allocations)
+        while not results_queue.empty():
+            worker_result = results_queue.get_nowait()
+            discovered["tests"].extend(worker_result["tests"])
+            discovered["modules"].extend(worker_result["modules"])
+
+        # BDCP: Deduplicate in-place to avoid memory bloat
+        discovered["tests"] = list(set(discovered["tests"]))
+        discovered["modules"] = list(set(discovered["modules"]))
+
+    def _find_by_conventions(self, base: Path, epic_id: str, discovered: Dict):
+        """Find files by conventional project structure."""
+        conventional_paths = ["epics/", "PRD/", "tests/", "docs/", "src/", "modules/"]
+
+        for path_str in conventional_paths:
+            path = base / path_str
+            if path.exists() and path.is_dir():
+                for file_path in path.glob("**/*"):
+                    if file_path.is_file():
+                        rel_path = str(file_path.relative_to(base))
+                        if "test" in rel_path.lower():
+                            discovered["tests"].append(rel_path)
+                        elif "doc" in rel_path.lower():
+                            discovered["docs"].append(rel_path)
+                        else:
+                            discovered["modules"].append(rel_path)
+
+
+class KivaEpicMode:
+    """Main class for EPIC-centric development mode."""
+
+    def __init__(self):
+        self.ontology = OntologyClient()
+        self.sco7 = Sco7Client()
+        self.context = ContextManager()
+        self.discovery = ResourceDiscovery(self.ontology)
+
+    def setup_workspace(self, epic_id: str, interactive: bool = True) -> Dict[str, Any]:
+        """Setup workspace for EPIC development."""
+        result = {
+            "epic_id": epic_id,
+            "metadata": None,
+            "governance": None,
+            "resources": {},
+            "actions": [],
+            "errors": [],
+        }
+
+        # Phase 1: Get EPIC metadata
+        metadata = self.ontology.get_epic_metadata(epic_id)
+        if not metadata:
+            result["errors"].append(
+                "Could not fetch EPIC metadata - ontology service unavailable"
+            )
+            return result
+
+        result["metadata"] = metadata
+
+        # Phase 2: Check governance
+        governance = self.sco7.check_governance(epic_id)
+        result["governance"] = governance
+
+        # Phase 3: Discover resources
+        resources = self.discovery.discover_files(epic_id)
+        result["resources"] = resources
+
+        # Generate actionable recommendations
+        result["actions"] = self._generate_actions(metadata, governance, resources)
+
+        # Phase 4: Set context if successful
+        if not result["errors"]:
+            self.context.set_epic_context(epic_id)
+
+        return result
+
+    def _generate_actions(
+        self,
+        metadata: EpicMetadata,
+        governance: GovernanceStatus,
+        resources: Dict[str, List[str]],
+    ) -> List[str]:
+        """Generate actionable recommendations."""
+        actions = []
+
+        # EPIC files actions
+        if resources["epic_files"]:
+            actions.append(
+                f"📁 Review EPIC files: {', '.join(resources['epic_files'][:3])}"
+            )
+        else:
+            actions.append("⚠️ No EPIC files found - create EPIC documentation")
+
+        # PRD actions
+        if resources["prds"]:
+            actions.append(f"📋 Review PRDs: {', '.join(resources['prds'][:3])}")
+        else:
+            actions.append("📝 Check if PRD exists for this EPIC")
+
+        # Test actions
+        if resources["tests"]:
+            actions.append(f"🧪 Run tests: {', '.join(resources['tests'][:3])}")
+        else:
+            actions.append("🧪 Create tests for EPIC functionality")
+
+        # Module actions
+        if resources["modules"]:
+            actions.append(f"🔧 Review modules: {', '.join(resources['modules'][:5])}")
+        else:
+            actions.append("🏗️ Identify core modules to implement")
+
+        # Governance actions
+        if not governance.compliant:
+            actions.extend([f"⚠️ {warning}" for warning in governance.warnings[:3]])
+            actions.extend([f"💡 {rec}" for rec in governance.recommendations[:3]])
+
+        return actions
+
+
+@click.group(name="epic")
+def epic_cli():
+    """
+    EPIC-centric development mode for KIVA-CLI.
+
+    Transforms from file-centric to EPIC-centric workflow.
+    The 'kiva epic EPIC_X' command becomes the primary entry point.
+
+    Examples:
+        kiva epic EPIC_TEMPLATE_ENGINE_V1    # Setup EPIC workspace
+        kiva epic list                       # List available EPICs
+        kiva epic clear                      # Clear EPIC context
+    """
+    pass
+
+
+@epic_cli.command(name="setup")
+@click.argument("epic_id")
+@click.option("--no-interactive", is_flag=True, help="Skip interactive mode")
+def setup_epic(epic_id: str, no_interactive: bool):
+    """
+    Setup EPIC-centric workspace.
+
+    EPIC_ID: The EPIC identifier (e.g., EPIC_TEMPLATE_ENGINE_V1)
+
+    This command:
+    - Fetches EPIC metadata from ontology service
+    - Checks governance compliance with SCO-7
+    - Discovers related files and resources
+    - Sets persistent EPIC context
+    - Provides actionable recommendations
+
+    Example:
+        kiva epic setup EPIC_TEMPLATE_ENGINE_V1
+    """
+    epic_mode = KivaEpicMode()
+    result = epic_mode.setup_workspace(epic_id, interactive=not no_interactive)
+
+    # Display results
+    if result["errors"]:
+        click.echo(click.style("Setup failed:", fg="red"))
+        for error in result["errors"]:
+            click.echo(f"  {error}")
+        return
+
+    metadata = result["metadata"]
+    governance = result["governance"]
+    resources = result["resources"]
+
+    # Header
+    click.echo("")
+    click.echo(click.style(f"EPIC: {metadata.title}", fg="cyan", bold=True))
+    click.echo(click.style("=" * 60, fg="cyan"))
+    click.echo(f"ID: {metadata.epic_id}")
+    click.echo(f"Status: {metadata.status}")
+    click.echo(f"Category: {metadata.category}")
+    click.echo(f"Intent Hash: {metadata.intent_hash}")
+    click.echo("")
+
+    # Governance status
+    if governance.compliant:
+        click.echo(click.style("Governance: COMPLIANT", fg="green"))
+    else:
+        click.echo(click.style("Governance: WARNINGS", fg="yellow"))
+        for warning in governance.warnings:
+            click.echo(f"  WARNING: {warning}")
+    click.echo("")
+
+    # Resources discovered
+    click.echo(click.style("Resources Discovered:", fg="blue"))
+    for category, files in resources.items():
+        if files:
+            category_name = category.replace("_", " ").title()
+            click.echo(f"  {category_name}: {len(files)} files")
+            for file in files[:3]:  # Show first 3
+                click.echo(f"    • {file}")
+            if len(files) > 3:
+                click.echo(f"    • ... and {len(files) - 3} more")
+    click.echo("")
+
+    # Action Plan
+    if result["actions"]:
+        click.echo(click.style("🎯 Action Plan - Next Steps:", fg="green", bold=True))
+        click.echo("")
+
+        # Prioritize and format actions
+        prioritized_actions = _prioritize_actions(
+            result["actions"], metadata, resources
+        )
+
+        for i, action in enumerate(prioritized_actions, 1):
+            # Add command shortcuts for common actions
+            shortcut = _get_action_shortcut(action, epic_id)
+            if shortcut:
+                click.echo(f"  {i}. {action}")
+                click.echo(f"     → {click.style(shortcut, fg='blue')}")
+            else:
+                click.echo(f"  {i}. {action}")
+            click.echo("")
+
+    # Context set
+    click.echo(
+        click.style(f"✅ EPIC context activated: {epic_id}", fg="green", bold=True)
+    )
+    click.echo("Use 'kiva epic status --brief' for quick updates")
+    click.echo("Use 'kiva epic clear' to reset context")
+
+
+@epic_cli.command(name="status")
+@click.option("--brief", is_flag=True, help="Show brief status (5-10 lines)")
+@click.option("--verbose", is_flag=True, help="Show detailed status with full context")
+def epic_status(brief, verbose):
+    """
+    Show current EPIC context status.
+
+    Displays the active EPIC context and related information.
+
+    Options:
+        --brief: Quick overview (EPIC, status, key modules, next actions)
+        --verbose: Full details (default behavior)
+    """
+    context_manager = ContextManager()
+    current_epic = context_manager.get_epic_context()
+
+    if brief:
+        _show_brief_status(current_epic)
+    else:
+        _show_verbose_status(current_epic, verbose)
+
+
+def _show_brief_status(current_epic):
+    """Show brief status: essential info in 5-10 lines."""
+    click.echo("")
+    click.echo(click.style("EPIC Context - Brief", fg="cyan"))
+
+    if current_epic:
+        click.echo(f"EPIC: {click.style(current_epic, fg='green')}")
+
+        # Quick ontology fetch
+        ontology = OntologyClient()
+        metadata = ontology.get_epic_metadata(current_epic)
+        if metadata:
+            click.echo(f"Status: {metadata.status} | Category: {metadata.category}")
+            click.echo(
+                f"Modules: {len(metadata.modules)} | Verses: {len(metadata.verses)}"
+            )
+
+        # Governance quick check
+        sco7 = Sco7Client()
+        governance = sco7.check_governance(current_epic)
+        status_color = "green" if governance.compliant else "yellow"
+        click.echo(
+            f"Governance: {click.style('COMPLIANT' if governance.compliant else 'WARNINGS', fg=status_color)}"
+        )
+
+        click.echo("")
+        click.echo(
+            "Actions: Use 'kiva epic setup' for full context | 'kiva epic clear' to reset"
+        )
+    else:
+        click.echo(click.style("No active EPIC context", fg="yellow"))
+        click.echo("Use 'kiva epic setup EPIC_X' to start working")
+    click.echo("")
+
+
+def _show_verbose_status(current_epic, verbose):
+    """Show verbose status: full details."""
+    click.echo("")
+    click.echo(click.style("EPIC Context Status", fg="cyan"))
+    click.echo(click.style("=" * 40, fg="cyan"))
+
+    if current_epic:
+        click.echo(f"Active EPIC: {click.style(current_epic, fg='green')}")
+        click.echo(f"Working Directory: {Path.cwd()}")
+
+        # Try to get EPIC metadata
+        ontology = OntologyClient()
+        metadata = ontology.get_epic_metadata(current_epic)
+        if metadata:
+            click.echo(f"Title: {metadata.title}")
+            click.echo(f"Status: {metadata.status}")
+            click.echo(f"Category: {metadata.category}")
+            click.echo(f"Intent Hash: {metadata.intent_hash}")
+
+            if verbose and metadata.verses:
+                click.echo(f"Verses: {', '.join(metadata.verses)}")
+            if verbose and metadata.modules:
+                click.echo(f"Modules: {', '.join(metadata.modules[:5])}")
+                if len(metadata.modules) > 5:
+                    click.echo(f"  ... and {len(metadata.modules) - 5} more")
+        else:
+            click.echo(click.style("Ontology service unavailable", fg="yellow"))
+
+        # Governance status
+        if verbose:
+            sco7 = Sco7Client()
+            governance = sco7.check_governance(current_epic)
+            click.echo("")
+            if governance.compliant:
+                click.echo(click.style("Governance: COMPLIANT", fg="green"))
+            else:
+                click.echo(click.style("Governance: WARNINGS", fg="yellow"))
+                for warning in governance.warnings[:3]:
+                    click.echo(f"  WARNING: {warning}")
+                if governance.recommendations:
+                    click.echo("Recommendations:")
+                    for rec in governance.recommendations[:2]:
+                        click.echo(f"  • {rec}")
+    else:
+        click.echo(click.style("No active EPIC context", fg="yellow"))
+        click.echo("Use 'kiva epic setup EPIC_X' to set context")
+    click.echo("")
+
+
+@epic_cli.command(name="clear")
+def clear_epic():
+    """
+    Clear the current EPIC context.
+
+    Removes the active EPIC context and resets to file-centric mode.
+    """
+    context_manager = ContextManager()
+    current_epic = context_manager.get_epic_context()
+
+    if current_epic:
+        context_manager.clear_epic_context()
+        click.echo(click.style(f"EPIC context cleared: {current_epic}", fg="green"))
+    else:
+        click.echo(click.style("No active EPIC context to clear", fg="yellow"))
+
+
+@epic_cli.command(name="list")
+def list_epics():
+    """
+    List available EPICs from ontology service.
+
+    Shows all registered EPICs with their status and categories.
+    """
+    ontology = OntologyClient()
+    categories = ontology.get_categories()
+
+    if not categories:
+        click.echo(
+            click.style(
+                "Could not fetch EPICs - ontology service unavailable", fg="red"
+            )
+        )
+        return
+
+    click.echo("")
+    click.echo(click.style("Available EPICs", fg="cyan"))
+    click.echo(click.style("=" * 50, fg="cyan"))
+
+    epics_by_category = {}
+    for category, data in categories.items():
+        if "epics" in data:
+            epics_by_category[category] = data["epics"]
+
+    if not epics_by_category:
+        click.echo("No EPICs found")
+        return
+
+    for category, epics in epics_by_category.items():
+        click.echo("")
+        click.echo(click.style(f"{category.title()}", fg="blue"))
+        for epic in epics[:5]:  # Show first 5 per category
+            click.echo(f"  • {epic}")
+        if len(epics) > 5:
+            click.echo(f"  • ... and {len(epics) - 5} more")
+
+    click.echo("")
+    click.echo("Use 'kiva epic setup EPIC_ID' to work on a specific EPIC")
+
+
+def _prioritize_actions(actions, metadata, resources):
+    """Prioritize and format actions based on EPIC context."""
+    prioritized = []
+
+    # High priority: EPIC files and documentation
+    epic_actions = [a for a in actions if "epic" in a.lower() or "prd" in a.lower()]
+    if epic_actions:
+        prioritized.extend(epic_actions[:2])  # Max 2 EPIC/PRD actions
+
+    # Medium priority: Core modules
+    if resources.get("modules"):
+        module_count = len(resources["modules"])
+        if module_count > 0:
+            prioritized.append(
+                f"Review {module_count} core modules (start with router.py, transport.py)"
+            )
+
+    # Medium priority: Tests
+    if resources.get("tests"):
+        test_count = len(resources["tests"])
+        if test_count > 0:
+            prioritized.append(
+                f"Run {test_count} related tests to validate current state"
+            )
+
+    # Low priority: Governance warnings
+    gov_actions = [
+        a for a in actions if "warning" in a.lower() or "governance" in a.lower()
+    ]
+    if gov_actions:
+        prioritized.extend(gov_actions[:1])  # Max 1 governance action
+
+    # Add any remaining actions
+    for action in actions:
+        if action not in prioritized:
+            prioritized.append(action)
+
+    return prioritized[:5]  # Max 5 actions
+
+
+def _get_action_shortcut(action, epic_id):
+    """Generate CLI shortcuts for common actions."""
+    action_lower = action.lower()
+
+    if "epic files" in action_lower or "review epic" in action_lower:
+        return f"find . -name '*{epic_id}*' -type f"
+
+    if "prd" in action_lower:
+        return (
+            f"find . -name '*PRD*' -o -name '*prd*' | grep -i {epic_id.split('_')[-1]}"
+        )
+
+    if "modules" in action_lower or "review modules" in action_lower:
+        return f"find . -name '*.py' | xargs grep -l '{epic_id}' | head -5"
+
+    if "tests" in action_lower or "run tests" in action_lower:
+        return f"python -m pytest tests/ -k '{epic_id.split('_')[-1]}' -v"
+
+    if "governance" in action_lower or "sco-7" in action_lower:
+        return f"sco7 check epic {epic_id}"
+
+    return None
