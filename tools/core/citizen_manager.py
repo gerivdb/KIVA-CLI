@@ -20,7 +20,8 @@ try:
     from tools.core.global_wal_manager import (
         GlobalWALManager,
         ValidationState,
-        EventStatus
+        EventStatus,
+        EventType
     )
 except ImportError:
     # Fallback for standalone usage
@@ -256,9 +257,12 @@ class CitizenManager:
         # Append to WAL if available
         if self.wal:
             self.wal.append_event(
-                operation="CITIZEN_REGISTER",
-                repo=repo,
-                phi_cps_delta=phi_cps,
+                event_type=EventType.VALIDATION,
+                ecosystem_id="ECOSYSTEM-1",
+                repositories=[repo],
+                phi_cps_baseline=1.0,
+                phi_cps_current=1.0 + phi_cps,
+                description=f"Registered citizen: {name}",
                 metadata={
                     "citizen_id": citizen_id,
                     "name": name,
@@ -324,9 +328,12 @@ class CitizenManager:
         # Append to WAL
         if self.wal:
             self.wal.append_event(
-                operation="CITIZEN_PROMOTE",
-                repo=citizen.repo,
-                phi_cps_delta=phi_delta,
+                event_type=EventType.VALIDATION,
+                ecosystem_id="ECOSYSTEM-1",
+                repositories=[citizen.repo],
+                phi_cps_baseline=1.0,
+                phi_cps_current=1.0 + phi_delta,
+                description=f"Promoted {citizen.name}: {current_level.value} -> {target_level.value}",
                 metadata={
                     "citizen_id": citizen_id,
                     "from_level": current_level.value,
@@ -389,9 +396,12 @@ class CitizenManager:
         # Append to WAL
         if self.wal:
             self.wal.append_event(
-                operation="CITIZEN_DEMOTE",
-                repo=citizen.repo,
-                phi_cps_delta=phi_delta,
+                event_type=EventType.VALIDATION,
+                ecosystem_id="ECOSYSTEM-1",
+                repositories=[citizen.repo],
+                phi_cps_baseline=1.0,
+                phi_cps_current=1.0 + phi_delta,
+                description=f"Demoted {citizen.name}: {current_level.value} -> {target_level.value}",
                 metadata={
                     "citizen_id": citizen_id,
                     "from_level": current_level.value,
