@@ -1,22 +1,22 @@
 {
   "$schema": "https://raw.githubusercontent.com/gerivdb/NEXUS/main/schemas/ecos-root.schema.json",
   "name": "KIVA-CLI",
-  "version": "0.14.0",
+  "version": "0.23.0",
   "layer": "L3",
   "category": "orchestrator",
   "intent": "Orchestrateur local écosystème — Planificateur Windows, 100% ENV2 FinOps",
   "dependencies": ["NEXUS", "WAZAA", "BRAIN-DOCS"],
   "packageManager": "npm",
   "health": {
-    "lastAudit": "2026-04-05",
+    "lastAudit": "2026-05-16",
     "status": "healthy"
   },
   "metadata": {
     "created": "2026-04-03",
     "ecosVersion": "2.0.0",
     "owner": "gerivdb",
-    "lastCommit": "96a8adb",
-    "intentHash": "0xITAD_ECOS_ENV2_GERICODE_20260405"
+    "lastCommit": "cd11baa",
+    "intentHash": "0xITAD_ECOS_ENV2_GERICODE_20260516"
   },
   "itad": {
     "env_id": "ENV2",
@@ -35,6 +35,18 @@
       "declared_at": "2026-04-05T06:00:00Z",
       "deployed_at": "2026-04-05T06:23:42Z",
       "intent_hash": "0xITAD_ECOS_ENV2_GERICODE_20260405"
+    },
+    "ECOS-CLI": {
+      "env_id": "ENV2",
+      "physical_path": "D:\\DO\\WEB\\TOOLS\\L1-INFRA\\ECOS-CLI",
+      "entry_points": ["bin/ecos.ps1", "ecos.py"],
+      "wazaa_registered": true,
+      "nexus_declared": true,
+      "declared_at": "2026-05-16T23:36:00Z",
+      "deployed_at": "2026-05-16T23:36:00Z",
+      "intent_hash": "0xECOS_CLI_BASELINE_RESET_20260516",
+      "phi_cps_baseline": 6.5245,
+      "status": "ACTIVE"
     }
   }
 }
