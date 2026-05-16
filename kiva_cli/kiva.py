@@ -51,10 +51,11 @@ from kiva_cli.commands.dashboard_commands import dashboard_cli
 from kiva_cli.commands.kvcache_commands import kvcache_cli
 from kiva_cli.commands.zvec_commands import zvec_cli
 from kiva_cli.commands.epic_commands import epic_cli
+from kiva_cli.commands.gate_command import gate_cli
 
 
 @click.group()
-@click.version_option(version="0.22.0", prog_name="KIVA-CLI")
+@click.version_option(version="0.23.0", prog_name="KIVA-CLI")
 def cli():
     """KIVA-CLI - ECOS unified command-line interface.
 
@@ -71,7 +72,8 @@ def cli():
     - Repository discovery
     - Skill discovery & registration
     - Skill marketplace (install/update/remove)
-    - φ-CPS analytics and drift detection
+    - phi-CPS analytics and drift detection
+    - Merge gate (phi-CPS drift gate for all ECOS repos)
     - CI/CD integration and pipeline management
     - Security hardening and audit
     - Service discovery and management
@@ -101,6 +103,7 @@ cli.add_command(repo_cli, name="repo")
 cli.add_command(skill_discovery_cli, name="skill-discovery")
 cli.add_command(skill_market_cli, name="skill-market")
 cli.add_command(phi_cps_cli, name="phi-cps")
+cli.add_command(gate_cli, name="gate")
 cli.add_command(cicd_cli, name="cicd")
 cli.add_command(security_cli, name="security")
 cli.add_command(service_cli, name="service")
