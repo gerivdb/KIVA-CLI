@@ -44,9 +44,17 @@ class PhiCPSAnalytics:
             try:
                 with open(self.metrics_path, 'r', encoding='utf-8') as f:
                     data = json.load(f)
-                for m in data.get("metrics", []):
-                    self.metrics.append(PhiCPSMetric(m))
-            except (json.JSONDecodeError, IOError):
+                # Handle both formats: {"metrics": [...]} and direct [...]
+                if isinstance(data, list):
+                    items = data
+                elif isinstance(data, dict):
+                    items = data.get("metrics", [])
+                else:
+                    items = []
+                for m in items:
+                    if isinstance(m, dict) and "phi_value" in m:
+                        self.metrics.append(PhiCPSMetric(m))
+            except (json.JSONDecodeError, IOError, TypeError):
                 pass
 
     def _save_metrics(self):
