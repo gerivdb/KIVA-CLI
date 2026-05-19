@@ -4,6 +4,10 @@
 #
 # Install: git config core.hooksPath .githooks
 # Or via:  ecos automate install-hooks --force
+#
+# CANONICAL TEMPLATE — source: gerivdb/NEXUS/.githooks/pre-push
+# Promoted from FLUENCE SHA: 044aa6aceb0c37ddf3b15f297cfa8565bd38e1d5
+# Date: 2026-05-17 | HOOK_VERSION=0.2.0 | CONFORME_NEXUS
 
 REPO=$(basename $(git rev-parse --show-toplevel))
 BASE="main"
