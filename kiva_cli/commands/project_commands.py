@@ -11,23 +11,12 @@ import sys
 from pathlib import Path
 from typing import Optional
 
-try:
-    from tools.core.project_manager import (
-        ProjectManager,
-        FrameworkType,
-        LifecycleState,
-        ValidationState
-    )
-except ImportError:
-    # Fallback import path
-    import sys
-    sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-    from tools.core.project_manager import (
-        ProjectManager,
-        FrameworkType,
-        LifecycleState,
-        ValidationState
-    )
+from kiva_cli.core.project_manager import (
+    ProjectManager,
+    FrameworkType,
+    LifecycleState,
+    ValidationState
+)
 
 
 @click.group(name='project')
@@ -375,7 +364,7 @@ def lifecycle_transition(name: str, new_state: str, workspace: Optional[str]):
     Valid transitions:
     - GENESIS → ACTIVE | ARCHIVED
     - ACTIVE → DEPRECATED | ARCHIVED
-    - DEPRECATED → ACTIVE | ARCHIVED
+    - DEPRECATED → ARCHIVED | ACTIVE
     - ARCHIVED → (terminal state, no transitions)
     
     Examples:

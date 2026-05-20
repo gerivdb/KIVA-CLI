@@ -6,7 +6,7 @@ Provides commands for security audits, AppArmor profiles, and secrets management
 """
 
 import click
-from tools.core.security_manager import SecurityManager
+from kiva_cli.core.security_manager import SecurityManager
 
 
 @click.group(name='security')

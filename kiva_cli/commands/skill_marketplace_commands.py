@@ -6,7 +6,7 @@ Provides commands for installing, updating, and managing skills.
 """
 
 import click
-from tools.core.skill_installer import SkillInstaller
+from kiva_cli.core.skill_installer import SkillInstaller
 
 
 @click.group(name='skill-market')

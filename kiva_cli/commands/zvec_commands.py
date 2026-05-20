@@ -6,7 +6,7 @@ Provides commands for vector search and semantic operations.
 """
 
 import click
-from tools.core.zvec_manager import ZVecManager
+from kiva_cli.core.zvec_manager import ZVecManager
 
 
 @click.group(name='zvec')

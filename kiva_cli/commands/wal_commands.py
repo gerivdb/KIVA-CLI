@@ -14,7 +14,7 @@ from datetime import datetime, timedelta
 import json
 
 try:
-    from tools.core.global_wal_manager import (
+    from kiva_cli.core.global_wal_manager import (
         GlobalWALManager,
         ValidationState,
         EventStatus,
@@ -25,7 +25,7 @@ try:
 except ImportError:
     # Fallback import
     sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-    from tools.core.global_wal_manager import (
+    from kiva_cli.core.global_wal_manager import (
         GlobalWALManager,
         ValidationState,
         EventStatus,

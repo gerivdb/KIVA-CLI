@@ -6,7 +6,7 @@ Provides commands for service registration, discovery, and management.
 """
 
 import click
-from tools.core.service_discovery import ServiceDiscovery
+from kiva_cli.core.service_discovery import ServiceDiscovery
 
 
 @click.group(name='service')

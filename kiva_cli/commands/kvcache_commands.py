@@ -6,7 +6,7 @@ Provides commands for managing the KVCache system.
 """
 
 import click
-from tools.core.kvcache_manager import KVCacheManager
+from kiva_cli.core.kvcache_manager import KVCacheManager
 
 
 @click.group(name='kvcache')

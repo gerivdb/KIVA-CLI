@@ -12,11 +12,11 @@ from pathlib import Path
 from typing import Optional
 
 try:
-    from tools.core.script_maturation_manager import ScriptMaturationManager
+    from kiva_cli.core.script_maturation_manager import ScriptMaturationManager
 except ImportError:
     import sys
     sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-    from tools.core.script_maturation_manager import ScriptMaturationManager
+    from kiva_cli.core.script_maturation_manager import ScriptMaturationManager
 
 
 @click.group(name='script')

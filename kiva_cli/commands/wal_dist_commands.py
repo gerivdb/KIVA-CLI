@@ -6,7 +6,7 @@ Provides commands for distributed WAL management.
 """
 
 import click
-from tools.core.distributed_wal_manager import DistributedWALManager
+from kiva_cli.core.distributed_wal_manager import DistributedWALManager
 
 
 @click.group(name='wal-dist')

@@ -6,7 +6,7 @@ Provides commands for LXC/LXD container management.
 """
 
 import click
-from tools.core.lxc_manager import LXCManager
+from kiva_cli.core.lxc_manager import LXCManager
 
 
 @click.group(name='lxc')

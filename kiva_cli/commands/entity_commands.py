@@ -6,7 +6,7 @@ Provides entity path mapping commands.
 """
 
 import click
-from tools.core.entity_path_mapper import EntityPathMapper
+from kiva_cli.core.entity_path_mapper import EntityPathMapper
 
 
 @click.group(name='entity')

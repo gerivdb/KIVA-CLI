@@ -6,7 +6,7 @@ Provides commands for cluster management.
 """
 
 import click
-from tools.core.cluster_manager import ClusterManager
+from kiva_cli.core.cluster_manager import ClusterManager
 
 
 @click.group(name='cluster')

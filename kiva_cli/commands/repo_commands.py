@@ -133,7 +133,7 @@ def discover_repos(scan_dir: tuple, add_all: bool):
         kiva repo discover
         kiva repo discover --scan-dir D:\\MyRepos
     """
-    from tools.core.path_resolver import PathResolver
+    from kiva_cli.core.path_resolver import PathResolver
     
     scan_dirs = list(scan_dir) if scan_dir else None
     discovery = RepoDiscovery(scan_dirs)

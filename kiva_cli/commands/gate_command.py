@@ -8,7 +8,7 @@ Used as local CI gate replacing GitHub Actions for all ECOS repos.
 
 import sys
 import click
-from tools.core.phi_cps_analytics import PhiCPSAnalytics
+from kiva_cli.core.phi_cps_analytics import PhiCPSAnalytics
 
 THRESHOLD_WARNING   = 0.02   # 2%
 THRESHOLD_CRITICAL  = 0.05   # 5%  <- merge blocked above this

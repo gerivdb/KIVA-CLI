@@ -126,7 +126,7 @@ def copy_path(path: str, remote: bool):
         kiva explorer copy-path
         kiva explorer copy-path --remote
     """
-    from tools.core.path_resolver import PathResolver
+    from kiva_cli.core.path_resolver import PathResolver
     
     resolver = PathResolver()
     resolved = resolver.resolve(path)
@@ -153,7 +153,7 @@ def convert_and_copy(path: str, target_format: str):
         kiva explorer convert C:\\DevTools\\bin\\script.ps1
         kiva explorer convert gerivdb/DevTools/bin/script.ps1 --to local
     """
-    from tools.core.path_resolver import PathResolver
+    from kiva_cli.core.path_resolver import PathResolver
     
     resolver = PathResolver()
     converted = resolver.convert_path(path, target_format)

@@ -6,8 +6,8 @@ Provides context management commands for active repository selection.
 """
 
 import click
-from tools.core.context_manager import ContextManager
-from tools.core.path_resolver import PathResolver
+from kiva_cli.core.context_manager import ContextManager
+from kiva_cli.core.path_resolver import PathResolver
 
 
 @click.group(name='context')

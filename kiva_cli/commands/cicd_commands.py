@@ -6,7 +6,7 @@ Provides commands for CI/CD integration and pipeline management.
 """
 
 import click
-from tools.core.cicd_manager import CICDManager
+from kiva_cli.core.cicd_manager import CICDManager
 
 
 @click.group(name='cicd')
