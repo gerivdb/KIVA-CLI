@@ -7,7 +7,7 @@ import pytest
 from pathlib import Path
 from unittest.mock import Mock, patch, AsyncMock
 
-from tools.pipeline.auto_rollback_pipeline import (
+from kiva_cli.core.auto_rollback_pipeline import (
     AutoRollbackPipeline,
     ValidationState,
 )

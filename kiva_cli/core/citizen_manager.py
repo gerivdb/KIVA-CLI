@@ -220,7 +220,8 @@ class CitizenManager:
         citizen_id = self._generate_citizen_id()
         
         # Generate IntentHash
-        intent_hash = self._generate_intent_hash(name, repo, entity_type.value)
+        entity_type_str = entity_type.value if hasattr(entity_type, 'value') else str(entity_type)
+        intent_hash = self._generate_intent_hash(name, repo, entity_type_str)
         
         # Initial φ-CPS (based on level)
         phi_cps = self._calculate_initial_phi_cps(entity_level)
@@ -229,9 +230,9 @@ class CitizenManager:
         citizen = Citizen(
             citizen_id=citizen_id,
             name=name,
-            entity_type=entity_type.value,
-            entity_level=entity_level.value,
-            lifecycle_state=lifecycle_state.value,
+            entity_type=entity_type_str,
+            entity_level=entity_level.value if hasattr(entity_level, 'value') else str(entity_level),
+            lifecycle_state=lifecycle_state.value if hasattr(lifecycle_state, 'value') else str(lifecycle_state),
             validation_state=ValidationState.PENDING.value if ValidationState else "PENDING",
             repo=repo,
             phi_cps=phi_cps,
@@ -266,8 +267,8 @@ class CitizenManager:
                 metadata={
                     "citizen_id": citizen_id,
                     "name": name,
-                    "entity_type": entity_type.value,
-                    "entity_level": entity_level.value
+                    "entity_type": entity_type_str,
+                    "entity_level": entity_level.value if hasattr(entity_level, 'value') else str(entity_level)
                 }
             )
         

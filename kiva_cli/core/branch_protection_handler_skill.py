@@ -142,6 +142,16 @@ class BranchProtectionHandlerSkill:
                     "PyGithub not installed. Run: pip install PyGithub"
                 )
         return self._github_client
+
+    @github_client.setter
+    def github_client(self, value):
+        """Allow setting github_client (for testing/mocking)."""
+        self._github_client = value
+
+    @github_client.deleter
+    def github_client(self):
+        """Allow deleting github_client (for testing/mocking)."""
+        self._github_client = None
     
     def handle(
         self,
@@ -290,8 +300,15 @@ class BranchProtectionHandlerSkill:
     
     def _generate_feature_branch_name(self, base_branch: str) -> str:
         """Generate unique feature branch name."""
-        timestamp = datetime.utcnow().strftime("%Y%m%d-%H%M%S")
+        timestamp = datetime.utcnow().strftime("%Y%m%d%H%M%S")
         return f"ecos-auto/{base_branch}-{timestamp}"
+
+    def generate_feature_branch_name(self, base_branch: str = "main") -> str:
+        """Public API: Generate unique feature branch name with 3 segments.
+
+        Format: ecos-auto/main-YYYYMMDD-HHMMSS (3 dash-separated segments)
+        """
+        return self._generate_feature_branch_name(base_branch)
     
     def _create_feature_branch(
         self,

@@ -36,6 +36,9 @@ class Severity(Enum):
 class ValidationState(Enum):
     """Ternary validation states"""
 
+    UNKNOWN = "UNKNOWN"
+    VALID = "VALID"
+    INVALID = "INVALID"
     PENDING = "PENDING"
     SUCCESS = "SUCCESS"
     FAILED = "FAILED"
@@ -176,20 +179,33 @@ class GlobalWALManager:
 
     def append_event(
         self,
-        event_type: EventType,
-        ecosystem_id: str,
-        repositories: List[str],
-        phi_cps_baseline: float,
-        phi_cps_current: float,
+        event_type: EventType = None,
+        ecosystem_id: str = "",
+        repositories: List[str] = None,
+        phi_cps_baseline: float = 0.0,
+        phi_cps_current: float = 0.0,
         parent_intent_hash: Optional[str] = None,
         severity: Severity = Severity.INFO,
         phi_cps_threshold: float = 0.05,
         description: str = "",
         metadata: Optional[Dict[str, Any]] = None,
         auto_approved: bool = True,
+        operation: Optional[str] = None,
+        repository: Optional[str] = None,
+        phi_cps_delta: Optional[float] = None,
     ) -> str:
         """Append a new event to the WAL"""
         with self._lock:
+            # Handle alternate calling convention from skill_manager
+            if event_type is None and operation is not None:
+                event_type = EventType.DEPLOYMENT
+            if event_type is None:
+                event_type = EventType.DEPLOYMENT
+            if repositories is None and repository is not None:
+                repositories = [repository]
+            if repositories is None:
+                repositories = []
+
             event_id = self._generate_id(
                 f"event_{ecosystem_id}_{datetime.utcnow().isoformat()}"
             )
@@ -197,8 +213,12 @@ class GlobalWALManager:
                 event_id, event_type.value, repositories, parent_intent_hash
             )
 
-            phi_cps_delta = phi_cps_current - phi_cps_baseline
-            phi_cps_alert = abs(phi_cps_delta) > phi_cps_threshold
+            # Handle alternate phi_cps_delta parameter
+            if phi_cps_delta is not None:
+                computed_delta = round(phi_cps_delta, 10)
+            else:
+                computed_delta = round(phi_cps_current - phi_cps_baseline, 10)
+            phi_cps_alert = abs(computed_delta) > phi_cps_threshold
 
             validation_state = (
                 ValidationState.PENDING if phi_cps_alert else ValidationState.SUCCESS
@@ -228,7 +248,7 @@ class GlobalWALManager:
                     parent_intent_hash,
                     phi_cps_baseline,
                     phi_cps_current,
-                    phi_cps_delta,
+                    computed_delta,
                     phi_cps_threshold,
                     int(phi_cps_alert),
                     validation_state.value,
@@ -708,6 +728,9 @@ class GlobalWALManager:
         start_time: Optional[str] = None,
         status: Optional[str] = None,
         limit: int = 20,
+        ecosystem_id: Optional[str] = None,
+        event_type: Optional[EventType] = None,
+        phi_cps_alert_only: bool = False,
     ) -> List[Dict[str, Any]]:
         """Query WAL events with optional filters"""
         conn = sqlite3.connect(self.db_path)
@@ -728,6 +751,14 @@ class GlobalWALManager:
         if status:
             query += " AND validation_state = ?"
             params.append(status)
+        if ecosystem_id:
+            query += " AND ecosystem_id = ?"
+            params.append(ecosystem_id)
+        if event_type:
+            query += " AND event_type = ?"
+            params.append(event_type.value if hasattr(event_type, 'value') else str(event_type))
+        if phi_cps_alert_only:
+            query += " AND phi_cps_delta > phi_cps_threshold"
 
         query += " ORDER BY timestamp DESC LIMIT ?"
         params.append(limit)
