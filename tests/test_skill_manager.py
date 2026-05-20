@@ -96,58 +96,56 @@ class TestSkillExecution:
 
 class TestPipelineIntegration:
     """Test SkillManager integration with PipelineManager"""
-    
-    def test_skill_execution_step(self):
-        with tempfile.TemporaryDirectory() as tmpdir:
-            skill_db = str(Path(tmpdir) / "skills.db")
-            pipeline_db = str(Path(tmpdir) / "pipelines.db")
-            
-            from kiva_cli.core.pipeline_manager import PipelineManager, PipelineType, StepType
-            from tools.ecosystem.skill_manager import SkillManager
-            
-            sm = SkillManager(db_path=skill_db)
-            pm = PipelineManager(db_path=pipeline_db)
-            pm._skill_manager = sm  # Inject for testing
-            
-            # Register skill
-            sm.register_skill(
-                name="test_skill",
-                script_content="print('Skill executed')",
-                skill_type=SkillType.PYTHON
-            )
-            
-            # Create pipeline with SKILL_EXECUTION step
-            pipeline_id = pm.create_pipeline("Test", "Test", PipelineType.SEQUENTIAL)
-            step_id = pm.add_step(
-                pipeline_id,
-                "execute_skill",
-                StepType.SKILL_EXECUTION,
-                {"skill_name": "test_skill"}
-            )
-            
-            # Execute step
-            result = pm.execute_step(step_id)
-            assert result['validation_state'] == ValidationState.SUCCESS
-    
-    def test_skill_execution_step_missing_skill(self):
-        with tempfile.TemporaryDirectory() as tmpdir:
-            skill_db = str(Path(tmpdir) / "skills.db")
-            pipeline_db = str(Path(tmpdir) / "pipelines.db")
-            
-            from kiva_cli.core.pipeline_manager import PipelineManager, PipelineType, StepType
-            from tools.ecosystem.skill_manager import SkillManager
-            
-            sm = SkillManager(db_path=skill_db)
-            pm = PipelineManager(db_path=pipeline_db)
-            pm._skill_manager = sm
-            
-            pipeline_id = pm.create_pipeline("Test", "Test", PipelineType.SEQUENTIAL)
-            step_id = pm.add_step(
-                pipeline_id,
-                "execute_missing",
-                StepType.SKILL_EXECUTION,
-                {"skill_name": "missing_skill"}
-            )
-            
-            result = pm.execute_step(step_id)
-            assert result['validation_state'] == ValidationState.FAILED
+
+    def test_skill_execution_step(self, tmp_path):
+        skill_db = str(tmp_path / "skills.db")
+        pipeline_db = str(tmp_path / "pipelines.db")
+
+        from kiva_cli.core.pipeline_manager import PipelineManager, PipelineType, StepType
+        from tools.ecosystem.skill_manager import SkillManager
+
+        sm = SkillManager(db_path=skill_db)
+        pm = PipelineManager(db_path=pipeline_db)
+        pm._skill_manager = sm  # Inject for testing
+
+        # Register skill
+        sm.register_skill(
+            name="test_skill",
+            script_content="print('Skill executed')",
+            skill_type=SkillType.PYTHON
+        )
+
+        # Create pipeline with SKILL_EXECUTION step
+        pipeline_id = pm.create_pipeline("Test", "Test", PipelineType.SEQUENTIAL)
+        step_id = pm.add_step(
+            pipeline_id,
+            "execute_skill",
+            StepType.SKILL_EXECUTION,
+            {"skill_name": "test_skill"}
+        )
+
+        # Execute step
+        result = pm.execute_step(step_id)
+        assert result['validation_state'] == ValidationState.SUCCESS
+
+    def test_skill_execution_step_missing_skill(self, tmp_path):
+        skill_db = str(tmp_path / "skills.db")
+        pipeline_db = str(tmp_path / "pipelines.db")
+
+        from kiva_cli.core.pipeline_manager import PipelineManager, PipelineType, StepType
+        from tools.ecosystem.skill_manager import SkillManager
+
+        sm = SkillManager(db_path=skill_db)
+        pm = PipelineManager(db_path=pipeline_db)
+        pm._skill_manager = sm
+
+        pipeline_id = pm.create_pipeline("Test", "Test", PipelineType.SEQUENTIAL)
+        step_id = pm.add_step(
+            pipeline_id,
+            "execute_missing",
+            StepType.SKILL_EXECUTION,
+            {"skill_name": "missing_skill"}
+        )
+
+        result = pm.execute_step(step_id)
+        assert result['validation_state'] == ValidationState.FAILED
