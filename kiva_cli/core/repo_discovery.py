@@ -44,17 +44,20 @@ class RepoDiscovery:
         repos = []
         
         try:
+            # Check if current directory is a git repo
+            if (base_dir / ".git").exists():
+                repo_info = self._get_repo_info(base_dir)
+                if repo_info:
+                    repos.append(repo_info)
+                # Don't recurse into a git repo
+                return repos
+            
+            # Not a git repo, scan subdirectories
             for item in base_dir.iterdir():
                 if item.is_dir() and item.name.startswith('.'):
                     continue
                 
-                if item.is_dir() and (item / ".git").exists():
-                    # Found a git repo
-                    repo_info = self._get_repo_info(item)
-                    if repo_info:
-                        repos.append(repo_info)
-                elif item.is_dir():
-                    # Recurse into subdirectory
+                if item.is_dir():
                     repos.extend(self._scan_directory(item))
         except (PermissionError, OSError) as e:
             print(f"Warning: Could not scan {base_dir}: {e}")
@@ -108,78 +111,3 @@ class RepoDiscovery:
                 new_repos.append(repo)
         
         return new_repos, existing_repos
-
-
-@click.group(name='repo')
-def repo_cli():
-    """
-    Repository discovery and management.
-
-    Provides:
-    - Automatic repository discovery
-    - Registry management
-    """
-    pass
-
-
-@repo_cli.command(name='discover')
-@click.option('--scan-dir', '-s', multiple=True, help='Directory to scan')
-@click.option('--add-all', '-a', is_flag=True, help='Add all discovered repos without prompting')
-def discover_repos(scan_dir: tuple, add_all: bool):
-    """
-    Discover git repositories in scan directories.
-
-    Example:
-        kiva repo discover
-        kiva repo discover --scan-dir D:\\MyRepos
-    """
-    from kiva_cli.core.path_resolver import PathResolver
-    
-    scan_dirs = list(scan_dir) if scan_dir else None
-    discovery = RepoDiscovery(scan_dirs)
-    resolver = PathResolver()
-    
-    click.echo("Scanning for repositories...")
-    discovered = discovery.discover_repos()
-    
-    if not discovered:
-        click.echo(click.style("No repositories found.", fg="yellow"))
-        return
-    
-    new_repos, existing_repos = discovery.compare_with_registry(discovered, resolver.list_repos())
-    
-    click.echo(f"\nFound {len(discovered)} repositories:")
-    click.echo(click.style(f"  {len(existing_repos)} already registered", fg="green"))
-    click.echo(click.style(f"  {len(new_repos)} new", fg="yellow"))
-    
-    if existing_repos:
-        click.echo("\nAlready registered:")
-        for repo in existing_repos:
-            click.echo(f"  {click.style(repo['name'], fg='green')} ({repo['path']})")
-    
-    if new_repos:
-        click.echo("\nNew repositories:")
-        for repo in new_repos:
-            click.echo(f"  {click.style(repo['name'], fg='yellow')}")
-            click.echo(f"    Path:   {repo['path']}")
-            click.echo(f"    Remote: {repo['remote']}")
-            
-            if add_all:
-                resolver.add_repo(repo['name'], repo['path'], repo['remote'])
-                click.echo(click.style(f"    Added!", fg="green"))
-            else:
-                response = input("    Add to registry? [y/N]: ")
-                if response.lower() == 'y':
-                    resolver.add_repo(repo['name'], repo['path'], repo['remote'])
-                    click.echo(click.style(f"    Added!", fg="green"))
-    
-    click.echo("")
-
-
-@repo_cli.command(name='list')
-def list_discovered():
-    """
-    List all discovered repositories (alias for kiva path list).
-    """
-    from kiva_cli.commands.path_commands import list_repos
-    list_repos()

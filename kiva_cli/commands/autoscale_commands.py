@@ -6,7 +6,7 @@ Provides commands for managing auto-scaling policies.
 """
 
 import click
-from tools.core.autoscaling_manager import AutoScalingManager
+from kiva_cli.core.autoscaling_manager import AutoScalingManager
 
 
 @click.group(name='autoscale')

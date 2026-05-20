@@ -6,8 +6,8 @@ Test cross-component functionality and φ-CPS stability
 import pytest
 import tempfile
 from pathlib import Path
-from tools.core.pipeline_manager import PipelineManager, PipelineType, StepType, ValidationState
-from tools.core.global_wal_manager import GlobalWALManager, EventType, Severity
+from kiva_cli.core.pipeline_manager import PipelineManager, PipelineType, StepType, ValidationState
+from kiva_cli.core.global_wal_manager import GlobalWALManager, EventType, Severity
 
 class TestPipelineWALIntegration:
     """Test PipelineManager events logged to GlobalWALManager"""

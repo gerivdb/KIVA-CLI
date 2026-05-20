@@ -7,7 +7,7 @@ Provides commands for starting and managing the web UI dashboard.
 
 import click
 import time
-from tools.core.dashboard_server import DashboardServer
+from kiva_cli.core.dashboard_server import DashboardServer
 
 
 @click.group(name='dashboard')

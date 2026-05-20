@@ -7,7 +7,7 @@ and creating issues in concerned repositories.
 """
 
 import click
-from tools.core.skill_discovery_manager import SkillDiscoveryManager, SkillInfo
+from kiva_cli.core.skill_discovery_manager import SkillDiscoveryManager, SkillInfo
 
 
 @click.group(name='skill-discovery')

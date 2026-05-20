@@ -9,7 +9,7 @@ import click
 from pathlib import Path
 from typing import Optional
 
-from tools.core.path_resolver import PathResolver
+from kiva_cli.core.path_resolver import PathResolver
 
 
 @click.group(name='path')

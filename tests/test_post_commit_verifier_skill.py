@@ -9,7 +9,7 @@ from unittest.mock import Mock, patch, MagicMock
 # Add parent directory to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from tools.core.post_commit_verifier_skill import (
+from kiva_cli.core.post_commit_verifier_skill import (
     FileExpectation,
     PostCommitVerifierSkill,
     VerificationStatus,
@@ -220,7 +220,7 @@ class TestPostCommitVerifierSkill(unittest.TestCase):
     
     def test_json_serialization(self):
         """Test JSON serialization."""
-        from tools.core.post_commit_verifier_skill import PostCommitVerification
+        from kiva_cli.core.post_commit_verifier_skill import PostCommitVerification
         
         verification = PostCommitVerification(
             repository='owner/repo',

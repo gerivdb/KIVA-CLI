@@ -19,7 +19,7 @@ from typing import Optional
 from tabulate import tabulate
 
 try:
-    from tools.core.citizen_manager import (
+    from kiva_cli.core.citizen_manager import (
         CitizenManager,
         EntityLevel,
         EntityType,

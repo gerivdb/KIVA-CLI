@@ -6,7 +6,7 @@ Provides commands for φ-CPS analytics, drift detection, and reporting.
 """
 
 import click
-from tools.core.phi_cps_analytics import PhiCPSAnalytics
+from kiva_cli.core.phi_cps_analytics import PhiCPSAnalytics
 
 
 @click.group(name='phi-cps')

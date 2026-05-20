@@ -6,7 +6,7 @@ Provides commands for path memory management and ultra-reliable path resolution.
 """
 
 import click
-from tools.core.path_memory_manager import UltraReliablePathResolver, PathErrorMemory
+from kiva_cli.core.path_memory_manager import UltraReliablePathResolver, PathErrorMemory
 
 
 @click.group(name='pathmem')

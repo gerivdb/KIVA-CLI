@@ -6,7 +6,7 @@ Provides commands for secure sandbox execution.
 """
 
 import click
-from tools.core.opensandbox_manager import OpenSandboxManager
+from kiva_cli.core.opensandbox_manager import OpenSandboxManager
 
 
 @click.group(name='sandbox')

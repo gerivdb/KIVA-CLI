@@ -11,7 +11,7 @@ from click.testing import CliRunner
 
 try:
     from kiva_cli.commands.citizen_commands import citizen_cli
-    from tools.core.citizen_manager import CitizenManager, EntityLevel
+    from kiva_cli.core.citizen_manager import CitizenManager, EntityLevel
 except ImportError:
     citizen_cli = None
     CitizenManager = None

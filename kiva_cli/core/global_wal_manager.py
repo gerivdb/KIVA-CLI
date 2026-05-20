@@ -1,37 +1,60 @@
-#!/usr/bin/env python3
 """
-Global WAL Manager - Write-Ahead Log for ECOYSTEM
-
-Provides atomic, durable event tracking across all repositories in ecosystem-1.
-Implements IntentHash¹¹ validation and φ-CPS calculation.
-
-Features:
-- Atomic append operations
-- Cross-repo event correlation
-- IntentHash¹¹ chain validation
-- φ-CPS tracking and drift detection
-- Base-3 ternary state management
-- Event replay capabilities
-- Crash recovery
+GlobalWALManager: Cross-repository Write-Ahead Log for event tracking,
+φ-CPS validation, and IntentHash management across ecosystem-1.
 """
 
-import os
+import sqlite3
 import json
 import hashlib
-import sqlite3
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Dict, List, Optional, Any, Tuple
-from dataclasses import dataclass, asdict
-from datetime import datetime
-import logging
+from enum import Enum
 import threading
+from dataclasses import dataclass
 
-logger = logging.getLogger(__name__)
+
+class EventType(Enum):
+    """Event types for WAL entries"""
+
+    COMPONENT_IMPLEMENTATION = "COMPONENT_IMPLEMENTATION"
+    VALIDATION = "VALIDATION"
+    DEPLOYMENT = "DEPLOYMENT"
+    INCIDENT = "INCIDENT"
+
+
+class Severity(Enum):
+    """Event severity levels"""
+
+    DEBUG = "DEBUG"
+    INFO = "INFO"
+    WARNING = "WARNING"
+    ERROR = "ERROR"
+    CRITICAL = "CRITICAL"
+
+
+class ValidationState(Enum):
+    """Ternary validation states"""
+
+    PENDING = "PENDING"
+    SUCCESS = "SUCCESS"
+    FAILED = "FAILED"
+
+
+class EventStatus(Enum):
+    """Event execution status"""
+
+    PENDING = "PENDING"
+    RUNNING = "RUNNING"
+    SUCCESS = "SUCCESS"
+    FAILED = "FAILED"
+    CANCELLED = "CANCELLED"
 
 
 @dataclass
 class WALEvent:
     """Write-Ahead Log event record"""
+
     event_id: str
     timestamp: str
     repo_name: str
@@ -48,575 +71,748 @@ class WALEvent:
 
 
 class GlobalWALManager:
-    """Manager for global Write-Ahead Log across ECOYSTEM"""
-    
-    # Base-3 status values
-    STATUS_PENDING = "PENDING"
-    STATUS_SUCCESS = "SUCCESS"
-    STATUS_FAILED = "FAILED"
-    
-    # Event types
-    EVENT_COMMIT = "commit"
-    EVENT_ISSUE = "issue"
-    EVENT_PR = "pr"
-    EVENT_SYNC = "sync"
-    EVENT_VALIDATION = "validation"
-    
-    # φ-CPS thresholds
-    PHI_DRIFT_THRESHOLD = 0.05
-    PHI_GENESIS = 4.092
-    
-    def __init__(self, db_path: Optional[Path] = None):
-        """
-        Args:
-            db_path: Path to SQLite database (default: ~/.kiva/global_wal.db)
-        """
-        if db_path is None:
-            db_path = Path.home() / ".kiva" / "global_wal.db"
-        
-        self.db_path = db_path
-        self.db_path.parent.mkdir(parents=True, exist_ok=True)
-        
-        # Thread-safe connection pool
-        self._local = threading.local()
-        
-        # Initialize database
-        self._init_database()
-        
-        logger.info(f"GlobalWALManager initialized: {self.db_path}")
-    
-    def _get_connection(self) -> sqlite3.Connection:
-        """Get thread-local database connection"""
-        if not hasattr(self._local, 'connection'):
-            self._local.connection = sqlite3.connect(
-                str(self.db_path),
-                check_same_thread=False
-            )
-            self._local.connection.row_factory = sqlite3.Row
-        return self._local.connection
-    
-    def _init_database(self):
-        """Initialize WAL database schema"""
-        conn = self._get_connection()
+    """Manages cross-repository Write-Ahead Log with φ-CPS tracking"""
+
+    def __init__(self, db_path: Optional[str] = None):
+        """Initialize GlobalWALManager with SQLite persistence"""
+        self.db_path = db_path or str(Path.home() / ".kiva" / "global_wal.db")
+        Path(self.db_path).parent.mkdir(parents=True, exist_ok=True)
+        self._lock = threading.Lock()
+        self._init_db()
+
+    def _init_db(self):
+        """Initialize SQLite database schema"""
+        conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
-        
+
         # Events table
         cursor.execute("""
-            CREATE TABLE IF NOT EXISTS wal_events (
+            CREATE TABLE IF NOT EXISTS events (
                 event_id TEXT PRIMARY KEY,
                 timestamp TEXT NOT NULL,
-                repo_name TEXT NOT NULL,
                 event_type TEXT NOT NULL,
-                entity_id TEXT NOT NULL,
-                action TEXT NOT NULL,
+                severity TEXT NOT NULL,
+                ecosystem_id TEXT NOT NULL,
+                repositories TEXT NOT NULL,
                 intent_hash TEXT NOT NULL,
-                phi_delta REAL NOT NULL,
-                phi_pre REAL NOT NULL,
-                phi_post REAL NOT NULL,
-                status TEXT NOT NULL,
+                parent_intent_hash TEXT,
+                phi_cps_baseline REAL NOT NULL,
+                phi_cps_current REAL NOT NULL,
+                phi_cps_delta REAL NOT NULL,
+                phi_cps_threshold REAL NOT NULL,
+                phi_cps_alert INTEGER NOT NULL,
+                validation_state TEXT NOT NULL,
+                auto_approved INTEGER NOT NULL,
+                rollback_performed INTEGER DEFAULT 0,
+                description TEXT,
                 metadata TEXT,
-                error TEXT,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                created_at TEXT NOT NULL
             )
         """)
-        
-        # Indexes for performance
+
+        # Operations table
         cursor.execute("""
-            CREATE INDEX IF NOT EXISTS idx_repo_name 
-            ON wal_events(repo_name)
-        """)
-        
-        cursor.execute("""
-            CREATE INDEX IF NOT EXISTS idx_timestamp 
-            ON wal_events(timestamp)
-        """)
-        
-        cursor.execute("""
-            CREATE INDEX IF NOT EXISTS idx_event_type 
-            ON wal_events(event_type)
-        """)
-        
-        cursor.execute("""
-            CREATE INDEX IF NOT EXISTS idx_intent_hash 
-            ON wal_events(intent_hash)
-        """)
-        
-        cursor.execute("""
-            CREATE INDEX IF NOT EXISTS idx_status 
-            ON wal_events(status)
-        """)
-        
-        # φ-CPS tracking table
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS phi_history (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                timestamp TEXT NOT NULL,
-                repo_name TEXT NOT NULL,
-                phi_value REAL NOT NULL,
-                delta REAL NOT NULL,
-                event_id TEXT,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (event_id) REFERENCES wal_events(event_id)
-            )
-        """)
-        
-        # IntentHash chain validation table
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS intent_chain (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                intent_hash TEXT UNIQUE NOT NULL,
-                prev_hash TEXT,
+            CREATE TABLE IF NOT EXISTS operations (
+                operation_id TEXT PRIMARY KEY,
                 event_id TEXT NOT NULL,
-                timestamp TEXT NOT NULL,
-                valid BOOLEAN NOT NULL DEFAULT 1,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (event_id) REFERENCES wal_events(event_id)
+                operation_type TEXT NOT NULL,
+                repository TEXT NOT NULL,
+                path TEXT,
+                commit_sha TEXT,
+                status TEXT NOT NULL,
+                duration_ms INTEGER,
+                error_message TEXT,
+                FOREIGN KEY (event_id) REFERENCES events(event_id)
             )
         """)
-        
+
+        # Dependencies table
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS dependencies (
+                dependency_id TEXT PRIMARY KEY,
+                event_id TEXT NOT NULL,
+                from_repo TEXT NOT NULL,
+                to_repo TEXT NOT NULL,
+                dependency_type TEXT NOT NULL,
+                version TEXT,
+                FOREIGN KEY (event_id) REFERENCES events(event_id)
+            )
+        """)
+
+        # Rollbacks table
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS rollbacks (
+                rollback_id TEXT PRIMARY KEY,
+                event_id TEXT NOT NULL,
+                rollback_timestamp TEXT NOT NULL,
+                rollback_reason TEXT NOT NULL,
+                commits_reverted TEXT,
+                phi_cps_before REAL NOT NULL,
+                phi_cps_after REAL NOT NULL,
+                success INTEGER NOT NULL,
+                FOREIGN KEY (event_id) REFERENCES events(event_id)
+            )
+        """)
+
+        # Indices for performance
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_events_timestamp ON events(timestamp)"
+        )
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_events_ecosystem ON events(ecosystem_id)"
+        )
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_events_type ON events(event_type)"
+        )
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_operations_event ON operations(event_id)"
+        )
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_operations_repo ON operations(repository)"
+        )
+
         conn.commit()
-        logger.info("WAL database schema initialized")
-    
-    # ========================================================================
-    # EVENT OPERATIONS
-    # ========================================================================
-    
+        conn.close()
+
     def append_event(
         self,
-        repo_name: str,
-        event_type: str,
-        entity_id: str,
-        action: str,
-        phi_delta: float,
+        event_type: EventType,
+        ecosystem_id: str,
+        repositories: List[str],
+        phi_cps_baseline: float,
+        phi_cps_current: float,
+        parent_intent_hash: Optional[str] = None,
+        severity: Severity = Severity.INFO,
+        phi_cps_threshold: float = 0.05,
+        description: str = "",
         metadata: Optional[Dict[str, Any]] = None,
-        status: str = STATUS_SUCCESS
-    ) -> WALEvent:
-        """
-        Append event to WAL
-        
-        Args:
-            repo_name: Repository name (e.g., "KIVA-CLI")
-            event_type: Type of event
-            entity_id: Entity identifier
-            action: Action performed
-            phi_delta: φ-CPS delta
-            metadata: Additional metadata
-            status: Event status (PENDING/SUCCESS/FAILED)
-            
-        Returns:
-            WALEvent object
-        """
-        # Get current φ-CPS
-        phi_pre = self.get_current_phi(repo_name)
-        phi_post = phi_pre + phi_delta
-        
-        # Check drift
-        if abs(phi_delta) > self.PHI_DRIFT_THRESHOLD:
-            logger.warning(
-                f"φ-CPS drift exceeds threshold: {phi_delta} > {self.PHI_DRIFT_THRESHOLD}"
+        auto_approved: bool = True,
+    ) -> str:
+        """Append a new event to the WAL"""
+        with self._lock:
+            event_id = self._generate_id(
+                f"event_{ecosystem_id}_{datetime.utcnow().isoformat()}"
             )
-        
-        # Generate event ID
-        event_id = self._generate_event_id()
-        
-        # Compute IntentHash
-        intent_hash = self._compute_intent_hash({
-            "repo": repo_name,
-            "type": event_type,
-            "entity": entity_id,
-            "action": action,
-            "phi_delta": phi_delta
-        })
-        
-        # Create event
-        event = WALEvent(
-            event_id=event_id,
-            timestamp=datetime.now().isoformat(),
-            repo_name=repo_name,
-            event_type=event_type,
-            entity_id=entity_id,
-            action=action,
-            intent_hash=intent_hash,
-            phi_delta=phi_delta,
-            phi_pre=phi_pre,
-            phi_post=phi_post,
-            status=status,
-            metadata=metadata or {},
-            error=None
-        )
-        
-        # Atomic write
-        self._write_event(event)
-        
-        # Update φ-CPS history
-        self._update_phi_history(repo_name, phi_post, phi_delta, event_id)
-        
-        # Add to IntentHash chain
-        self._add_to_intent_chain(intent_hash, event_id)
-        
-        logger.info(
-            f"✓ WAL event appended: {repo_name}/{event_type}/{entity_id} "
-            f"(φ: {phi_pre:.4f} → {phi_post:.4f}, Δ: +{phi_delta:.4f})"
-        )
-        
-        return event
-    
-    def _write_event(self, event: WALEvent):
-        """Atomically write event to database"""
-        conn = self._get_connection()
-        cursor = conn.cursor()
-        
-        cursor.execute("""
-            INSERT INTO wal_events (
-                event_id, timestamp, repo_name, event_type, entity_id,
-                action, intent_hash, phi_delta, phi_pre, phi_post,
-                status, metadata, error
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (
-            event.event_id,
-            event.timestamp,
-            event.repo_name,
-            event.event_type,
-            event.entity_id,
-            event.action,
-            event.intent_hash,
-            event.phi_delta,
-            event.phi_pre,
-            event.phi_post,
-            event.status,
-            json.dumps(event.metadata),
-            event.error
-        ))
-        
-        conn.commit()
-    
-    def update_event_status(
+            intent_hash = self._generate_intent_hash(
+                event_id, event_type.value, repositories, parent_intent_hash
+            )
+
+            phi_cps_delta = phi_cps_current - phi_cps_baseline
+            phi_cps_alert = abs(phi_cps_delta) > phi_cps_threshold
+
+            validation_state = (
+                ValidationState.PENDING if phi_cps_alert else ValidationState.SUCCESS
+            )
+
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+
+            cursor.execute(
+                """
+                INSERT INTO events (
+                    event_id, timestamp, event_type, severity, ecosystem_id,
+                    repositories, intent_hash, parent_intent_hash,
+                    phi_cps_baseline, phi_cps_current, phi_cps_delta,
+                    phi_cps_threshold, phi_cps_alert, validation_state,
+                    auto_approved, description, metadata, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+                (
+                    event_id,
+                    datetime.utcnow().isoformat(),
+                    event_type.value,
+                    severity.value,
+                    ecosystem_id,
+                    json.dumps(repositories),
+                    intent_hash,
+                    parent_intent_hash,
+                    phi_cps_baseline,
+                    phi_cps_current,
+                    phi_cps_delta,
+                    phi_cps_threshold,
+                    int(phi_cps_alert),
+                    validation_state.value,
+                    int(auto_approved),
+                    description,
+                    json.dumps(metadata or {}),
+                    datetime.utcnow().isoformat(),
+                ),
+            )
+
+            conn.commit()
+            conn.close()
+
+            return event_id
+
+    def add_operation(
         self,
         event_id: str,
-        status: str,
-        error: Optional[str] = None
-    ):
-        """Update event status"""
-        conn = self._get_connection()
+        operation_type: str,
+        repository: str,
+        status: ValidationState,
+        path: Optional[str] = None,
+        commit_sha: Optional[str] = None,
+        duration_ms: Optional[int] = None,
+        error_message: Optional[str] = None,
+    ) -> str:
+        """Add an operation to an event"""
+        with self._lock:
+            operation_id = self._generate_id(
+                f"op_{event_id}_{repository}_{datetime.utcnow().isoformat()}"
+            )
+
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+
+            cursor.execute(
+                """
+                INSERT INTO operations (
+                    operation_id, event_id, operation_type, repository,
+                    path, commit_sha, status, duration_ms, error_message
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+                (
+                    operation_id,
+                    event_id,
+                    operation_type,
+                    repository,
+                    path,
+                    commit_sha,
+                    status.value,
+                    duration_ms,
+                    error_message,
+                ),
+            )
+
+            conn.commit()
+            conn.close()
+
+            return operation_id
+
+    def add_dependency(
+        self,
+        event_id: str,
+        from_repo: str,
+        to_repo: str,
+        dependency_type: str,
+        version: Optional[str] = None,
+    ) -> str:
+        """Add a cross-repo dependency"""
+        with self._lock:
+            dependency_id = self._generate_id(
+                f"dep_{from_repo}_{to_repo}_{datetime.utcnow().isoformat()}"
+            )
+
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+
+            cursor.execute(
+                """
+                INSERT INTO dependencies (
+                    dependency_id, event_id, from_repo, to_repo,
+                    dependency_type, version
+                ) VALUES (?, ?, ?, ?, ?, ?)
+            """,
+                (dependency_id, event_id, from_repo, to_repo, dependency_type, version),
+            )
+
+            conn.commit()
+            conn.close()
+
+            return dependency_id
+
+    def perform_rollback(
+        self,
+        event_id: str,
+        reason: str,
+        commits_reverted: List[str],
+        phi_cps_before: float,
+        phi_cps_after: float,
+        success: bool = True,
+    ) -> str:
+        """Record a rollback operation"""
+        with self._lock:
+            rollback_id = self._generate_id(
+                f"rollback_{event_id}_{datetime.utcnow().isoformat()}"
+            )
+
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+
+            cursor.execute(
+                """
+                INSERT INTO rollbacks (
+                    rollback_id, event_id, rollback_timestamp, rollback_reason,
+                    commits_reverted, phi_cps_before, phi_cps_after, success
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+                (
+                    rollback_id,
+                    event_id,
+                    datetime.utcnow().isoformat(),
+                    reason,
+                    json.dumps(commits_reverted),
+                    phi_cps_before,
+                    phi_cps_after,
+                    int(success),
+                ),
+            )
+
+            # Update event
+            cursor.execute(
+                """
+                UPDATE events
+                SET rollback_performed = 1, validation_state = ?
+                WHERE event_id = ?
+            """,
+                (ValidationState.FAILED.value, event_id),
+            )
+
+            conn.commit()
+            conn.close()
+
+            return rollback_id
+
+    def get_event(self, event_id: str) -> Optional[Dict[str, Any]]:
+        """Get event details"""
+        conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
-        
-        cursor.execute("""
-            UPDATE wal_events
-            SET status = ?, error = ?
-            WHERE event_id = ?
-        """, (status, error, event_id))
-        
-        conn.commit()
-        logger.info(f"✓ Event {event_id} status updated: {status}")
-    
-    # ========================================================================
-    # φ-CPS MANAGEMENT
-    # ========================================================================
-    
-    def get_current_phi(self, repo_name: str) -> float:
-        """Get current φ-CPS value for repository"""
-        conn = self._get_connection()
-        cursor = conn.cursor()
-        
-        cursor.execute("""
-            SELECT phi_value
-            FROM phi_history
-            WHERE repo_name = ?
-            ORDER BY timestamp DESC
-            LIMIT 1
-        """, (repo_name,))
-        
+
+        cursor.execute("SELECT * FROM events WHERE event_id = ?", (event_id,))
         row = cursor.fetchone()
-        return row[0] if row else self.PHI_GENESIS
-    
-    def _update_phi_history(
+
+        if not row:
+            conn.close()
+            return None
+
+        # Get operations
+        cursor.execute("SELECT * FROM operations WHERE event_id = ?", (event_id,))
+        operations = cursor.fetchall()
+
+        # Get dependencies
+        cursor.execute("SELECT * FROM dependencies WHERE event_id = ?", (event_id,))
+        dependencies = cursor.fetchall()
+
+        # Get rollbacks
+        cursor.execute("SELECT * FROM rollbacks WHERE event_id = ?", (event_id,))
+        rollbacks = cursor.fetchall()
+
+        conn.close()
+
+        return {
+            "event_id": row[0],
+            "timestamp": row[1],
+            "event_type": row[2],
+            "severity": row[3],
+            "ecosystem_id": row[4],
+            "repositories": json.loads(row[5]),
+            "intent_hash": row[6],
+            "parent_intent_hash": row[7],
+            "phi_cps_baseline": row[8],
+            "phi_cps_current": row[9],
+            "phi_cps_delta": row[10],
+            "phi_cps_threshold": row[11],
+            "phi_cps_alert": bool(row[12]),
+            "validation_state": row[13],
+            "auto_approved": bool(row[14]),
+            "rollback_performed": bool(row[15]),
+            "description": row[16],
+            "metadata": json.loads(row[17]),
+            "created_at": row[18],
+            "operations": [
+                {
+                    "operation_id": op[0],
+                    "operation_type": op[2],
+                    "repository": op[3],
+                    "path": op[4],
+                    "commit_sha": op[5],
+                    "status": op[6],
+                    "duration_ms": op[7],
+                    "error_message": op[8],
+                }
+                for op in operations
+            ],
+            "dependencies": [
+                {
+                    "dependency_id": dep[0],
+                    "from_repo": dep[2],
+                    "to_repo": dep[3],
+                    "dependency_type": dep[4],
+                    "version": dep[5],
+                }
+                for dep in dependencies
+            ],
+            "rollbacks": [
+                {
+                    "rollback_id": rb[0],
+                    "rollback_timestamp": rb[2],
+                    "rollback_reason": rb[3],
+                    "commits_reverted": json.loads(rb[4]),
+                    "phi_cps_before": rb[5],
+                    "phi_cps_after": rb[6],
+                    "success": bool(rb[7]),
+                }
+                for rb in rollbacks
+            ],
+        }
+
+    def query_events(
         self,
-        repo_name: str,
-        phi_value: float,
-        delta: float,
-        event_id: str
-    ):
-        """Record φ-CPS change in history"""
-        conn = self._get_connection()
-        cursor = conn.cursor()
-        
-        cursor.execute("""
-            INSERT INTO phi_history (timestamp, repo_name, phi_value, delta, event_id)
-            VALUES (?, ?, ?, ?, ?)
-        """, (datetime.now().isoformat(), repo_name, phi_value, delta, event_id))
-        
-        conn.commit()
-    
-    def get_phi_history(
-        self,
-        repo_name: Optional[str] = None,
-        limit: int = 100
+        ecosystem_id: Optional[str] = None,
+        event_type: Optional[EventType] = None,
+        severity: Optional[Severity] = None,
+        repository: Optional[str] = None,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+        phi_cps_alert_only: bool = False,
+        limit: int = 100,
     ) -> List[Dict[str, Any]]:
-        """Get φ-CPS history"""
-        conn = self._get_connection()
+        """Query events with filters"""
+        conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
-        
-        if repo_name:
-            cursor.execute("""
-                SELECT timestamp, repo_name, phi_value, delta, event_id
-                FROM phi_history
-                WHERE repo_name = ?
-                ORDER BY timestamp DESC
-                LIMIT ?
-            """, (repo_name, limit))
+
+        query = "SELECT * FROM events WHERE 1=1"
+        params = []
+
+        if ecosystem_id:
+            query += " AND ecosystem_id = ?"
+            params.append(ecosystem_id)
+
+        if event_type:
+            query += " AND event_type = ?"
+            params.append(event_type.value)
+
+        if severity:
+            query += " AND severity = ?"
+            params.append(severity.value)
+
+        if repository:
+            query += " AND repositories LIKE ?"
+            params.append(f"%{repository}%")
+
+        if start_date:
+            query += " AND timestamp >= ?"
+            params.append(start_date)
+
+        if end_date:
+            query += " AND timestamp <= ?"
+            params.append(end_date)
+
+        if phi_cps_alert_only:
+            query += " AND phi_cps_alert = 1"
+
+        query += " ORDER BY timestamp DESC LIMIT ?"
+        params.append(limit)
+
+        cursor.execute(query, params)
+        rows = cursor.fetchall()
+        conn.close()
+
+        events = []
+        for row in rows:
+            events.append(
+                {
+                    "event_id": row[0],
+                    "timestamp": row[1],
+                    "event_type": row[2],
+                    "severity": row[3],
+                    "ecosystem_id": row[4],
+                    "repositories": json.loads(row[5]),
+                    "intent_hash": row[6],
+                    "parent_intent_hash": row[7],
+                    "phi_cps_baseline": row[8],
+                    "phi_cps_current": row[9],
+                    "phi_cps_delta": row[10],
+                    "phi_cps_threshold": row[11],
+                    "phi_cps_alert": bool(row[12]),
+                    "validation_state": row[13],
+                    "auto_approved": bool(row[14]),
+                    "rollback_performed": bool(row[15]),
+                    "description": row[16],
+                    "created_at": row[18],
+                }
+            )
+
+        return events
+
+    def get_statistics(
+        self,
+        ecosystem_id: Optional[str] = None,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Get WAL statistics"""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+
+        # Build base query
+        where_clause = "WHERE 1=1"
+        params = []
+
+        if ecosystem_id:
+            where_clause += " AND ecosystem_id = ?"
+            params.append(ecosystem_id)
+
+        if start_date:
+            where_clause += " AND timestamp >= ?"
+            params.append(start_date)
+
+        if end_date:
+            where_clause += " AND timestamp <= ?"
+            params.append(end_date)
+
+        # Total events
+        cursor.execute(f"SELECT COUNT(*) FROM events {where_clause}", params)
+        total_events = cursor.fetchone()[0]
+
+        # Events by type
+        cursor.execute(
+            f"SELECT event_type, COUNT(*) FROM events {where_clause} GROUP BY event_type",
+            params,
+        )
+        events_by_type = {row[0]: row[1] for row in cursor.fetchall()}
+
+        # Events by severity
+        cursor.execute(
+            f"SELECT severity, COUNT(*) FROM events {where_clause} GROUP BY severity",
+            params,
+        )
+        events_by_severity = {row[0]: row[1] for row in cursor.fetchall()}
+
+        # φ-CPS alerts
+        cursor.execute(
+            f"SELECT COUNT(*) FROM events {where_clause} AND phi_cps_alert = 1", params
+        )
+        phi_cps_alerts = cursor.fetchone()[0]
+
+        # Rollbacks
+        cursor.execute(
+            f"SELECT COUNT(*) FROM events {where_clause} AND rollback_performed = 1",
+            params,
+        )
+        rollbacks = cursor.fetchone()[0]
+
+        # Average φ-CPS delta
+        cursor.execute(f"SELECT AVG(phi_cps_delta) FROM events {where_clause}", params)
+        avg_phi_delta = cursor.fetchone()[0] or 0.0
+
+        # Success rate
+        cursor.execute(
+            f"SELECT validation_state, COUNT(*) FROM events {where_clause} GROUP BY validation_state",
+            params,
+        )
+        validation_states = {row[0]: row[1] for row in cursor.fetchall()}
+        success_count = validation_states.get(ValidationState.SUCCESS.value, 0)
+        success_rate = success_count / total_events if total_events > 0 else 0.0
+
+        conn.close()
+
+        return {
+            "total_events": total_events,
+            "events_by_type": events_by_type,
+            "events_by_severity": events_by_severity,
+            "phi_cps_alerts": phi_cps_alerts,
+            "rollbacks": rollbacks,
+            "avg_phi_delta": avg_phi_delta,
+            "validation_states": validation_states,
+            "success_rate": success_rate,
+        }
+
+    def export_events(
+        self, format: str = "json", output_path: Optional[str] = None, **query_params
+    ) -> str:
+        """Export events to JSON/CSV/Markdown"""
+        events = self.query_events(**query_params)
+
+        if format == "json":
+            content = json.dumps(events, indent=2, ensure_ascii=False)
+        elif format == "csv":
+            import csv
+            import io
+
+            output = io.StringIO()
+            if events:
+                writer = csv.DictWriter(output, fieldnames=events[0].keys())
+                writer.writeheader()
+                writer.writerows(events)
+            content = output.getvalue()
+        elif format == "markdown":
+            lines = ["# WAL Events Export\n"]
+            for event in events:
+                lines.append(f"## {event['event_id']}")
+                lines.append(f"- **Timestamp**: {event['timestamp']}")
+                lines.append(f"- **Type**: {event['event_type']}")
+                lines.append(f"- **Severity**: {event['severity']}")
+                lines.append(f"- **Repositories**: {', '.join(event['repositories'])}")
+                lines.append(f"- **φ-CPS Delta**: {event['phi_cps_delta']:.4f}")
+                lines.append(f"- **Validation**: {event['validation_state']}")
+                lines.append("")
+            content = "\n".join(lines)
         else:
-            cursor.execute("""
-                SELECT timestamp, repo_name, phi_value, delta, event_id
-                FROM phi_history
-                ORDER BY timestamp DESC
-                LIMIT ?
-            """, (limit,))
-        
-        return [
-            {
-                "timestamp": row[0],
-                "repo_name": row[1],
-                "phi_value": row[2],
-                "delta": row[3],
-                "event_id": row[4]
-            }
-            for row in cursor.fetchall()
-        ]
-    
-    # ========================================================================
-    # INTENTHASH CHAIN
-    # ========================================================================
-    
-    def _add_to_intent_chain(
+            raise ValueError(f"Unsupported format: {format}")
+
+        if output_path:
+            Path(output_path).write_text(content, encoding="utf-8")
+            return output_path
+
+        return content
+
+    def get_drift(self) -> Dict[str, Any]:
+        """Calculate φ-CPS drift across all events"""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+
+        # Get baseline (oldest event)
+        cursor.execute(
+            "SELECT phi_cps_baseline FROM events ORDER BY timestamp ASC LIMIT 1"
+        )
+        row = cursor.fetchone()
+        baseline_phi = row[0] if row else 1.0
+
+        # Get current (newest event)
+        cursor.execute(
+            "SELECT phi_cps_current FROM events ORDER BY timestamp DESC LIMIT 1"
+        )
+        row = cursor.fetchone()
+        current_phi = row[0] if row else baseline_phi
+
+        # Count events since baseline
+        cursor.execute("SELECT COUNT(*) FROM events")
+        total_events = cursor.fetchone()[0]
+
+        # Count alerts
+        cursor.execute("SELECT COUNT(*) FROM events WHERE phi_cps_alert = 1")
+        alert_count = cursor.fetchone()[0]
+
+        conn.close()
+
+        absolute_drift = current_phi - baseline_phi
+        relative_drift = absolute_drift / baseline_phi if baseline_phi != 0 else 0.0
+        threshold = 0.05
+
+        return {
+            "baseline_phi": baseline_phi,
+            "current_phi": current_phi,
+            "absolute_drift": absolute_drift,
+            "relative_drift": relative_drift,
+            "threshold": threshold,
+            "threshold_exceeded": abs(relative_drift) > threshold,
+            "events_since_baseline": total_events,
+            "alert_count": alert_count,
+        }
+
+    def query_events(
+        self,
+        repo: Optional[str] = None,
+        operation: Optional[str] = None,
+        start_time: Optional[str] = None,
+        status: Optional[str] = None,
+        limit: int = 20,
+    ) -> List[Dict[str, Any]]:
+        """Query WAL events with optional filters"""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+
+        query = "SELECT * FROM events WHERE 1=1"
+        params: list = []
+
+        if repo:
+            query += " AND repositories LIKE ?"
+            params.append(f"%{repo}%")
+        if operation:
+            query += " AND event_type = ?"
+            params.append(operation)
+        if start_time:
+            query += " AND timestamp >= ?"
+            params.append(start_time)
+        if status:
+            query += " AND validation_state = ?"
+            params.append(status)
+
+        query += " ORDER BY timestamp DESC LIMIT ?"
+        params.append(limit)
+
+        cursor.execute(query, params)
+        rows = cursor.fetchall()
+        conn.close()
+
+        events = []
+        for row in rows:
+            events.append({
+                "event_id": row[0],
+                "timestamp": row[1],
+                "event_type": row[2],
+                "severity": row[3],
+                "ecosystem_id": row[4],
+                "repositories": json.loads(row[5]),
+                "intent_hash": row[6],
+                "parent_intent_hash": row[7],
+                "phi_cps_baseline": row[8],
+                "phi_cps_current": row[9],
+                "phi_cps_delta": row[10],
+                "phi_cps_threshold": row[11],
+                "phi_cps_alert": bool(row[12]),
+                "validation_state": row[13],
+                "auto_approved": bool(row[14]),
+                "rollback_performed": bool(row[15]),
+                "description": row[16],
+                "metadata": json.loads(row[17]) if row[17] else {},
+            })
+        return events
+
+    def validate_chain(
         self,
         intent_hash: str,
-        event_id: str
-    ):
-        """Add IntentHash to validation chain"""
-        conn = self._get_connection()
+        parent_intent_hash: Optional[str] = None,
+    ) -> Tuple[bool, str]:
+        """Verify IntentHash chain continuity"""
+        conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
-        
-        # Get previous hash
-        cursor.execute("""
-            SELECT intent_hash
-            FROM intent_chain
-            ORDER BY timestamp DESC
-            LIMIT 1
-        """)
-        
-        row = cursor.fetchone()
-        prev_hash = row[0] if row else None
-        
-        # Insert new hash
-        cursor.execute("""
-            INSERT INTO intent_chain (intent_hash, prev_hash, event_id, timestamp, valid)
-            VALUES (?, ?, ?, ?, ?)
-        """, (intent_hash, prev_hash, event_id, datetime.now().isoformat(), True))
-        
-        conn.commit()
-    
-    def validate_intent_chain(self) -> Tuple[bool, List[str]]:
-        """Validate IntentHash chain integrity"""
-        conn = self._get_connection()
-        cursor = conn.cursor()
-        
-        cursor.execute("""
-            SELECT id, intent_hash, prev_hash
-            FROM intent_chain
-            ORDER BY timestamp ASC
-        """)
-        
-        errors = []
-        prev_hash = None
-        
-        for row in cursor.fetchall():
-            id_, hash_, expected_prev = row
-            
-            if prev_hash != expected_prev:
-                errors.append(
-                    f"Chain break at ID {id_}: expected prev={expected_prev}, got={prev_hash}"
-                )
-            
-            prev_hash = hash_
-        
-        valid = len(errors) == 0
-        
-        if valid:
-            logger.info("✓ IntentHash chain validation: VALID")
-        else:
-            logger.error(f"✗ IntentHash chain validation: INVALID ({len(errors)} errors)")
-        
-        return valid, errors
-    
-    def _compute_intent_hash(self, data: Dict[str, Any]) -> str:
-        """Compute IntentHash¹¹ for data"""
-        serialized = json.dumps(data, sort_keys=True)
-        hash_value = hashlib.sha3_256(serialized.encode()).hexdigest()
-        return f"IntentHash¹¹:sha3-256:{hash_value[:16]}"
-    
-    # ========================================================================
-    # QUERY OPERATIONS
-    # ========================================================================
-    
-    def get_events(
-        self,
-        repo_name: Optional[str] = None,
-        event_type: Optional[str] = None,
-        status: Optional[str] = None,
-        limit: int = 100
-    ) -> List[WALEvent]:
-        """Query events with filters"""
-        conn = self._get_connection()
-        cursor = conn.cursor()
-        
-        conditions = []
-        params = []
-        
-        if repo_name:
-            conditions.append("repo_name = ?")
-            params.append(repo_name)
-        
-        if event_type:
-            conditions.append("event_type = ?")
-            params.append(event_type)
-        
-        if status:
-            conditions.append("status = ?")
-            params.append(status)
-        
-        where_clause = " AND ".join(conditions) if conditions else "1=1"
-        params.append(limit)
-        
-        cursor.execute(f"""
-            SELECT event_id, timestamp, repo_name, event_type, entity_id,
-                   action, intent_hash, phi_delta, phi_pre, phi_post,
-                   status, metadata, error
-            FROM wal_events
-            WHERE {where_clause}
-            ORDER BY timestamp DESC
-            LIMIT ?
-        """, params)
-        
-        events = []
-        for row in cursor.fetchall():
-            events.append(WALEvent(
-                event_id=row[0],
-                timestamp=row[1],
-                repo_name=row[2],
-                event_type=row[3],
-                entity_id=row[4],
-                action=row[5],
-                intent_hash=row[6],
-                phi_delta=row[7],
-                phi_pre=row[8],
-                phi_post=row[9],
-                status=row[10],
-                metadata=json.loads(row[11]) if row[11] else {},
-                error=row[12]
-            ))
-        
-        return events
-    
-    def get_event_by_id(self, event_id: str) -> Optional[WALEvent]:
-        """Get event by ID"""
-        events = self.get_events(limit=1)
-        conn = self._get_connection()
-        cursor = conn.cursor()
-        
-        cursor.execute("""
-            SELECT event_id, timestamp, repo_name, event_type, entity_id,
-                   action, intent_hash, phi_delta, phi_pre, phi_post,
-                   status, metadata, error
-            FROM wal_events
-            WHERE event_id = ?
-        """, (event_id,))
-        
-        row = cursor.fetchone()
-        if not row:
-            return None
-        
-        return WALEvent(
-            event_id=row[0],
-            timestamp=row[1],
-            repo_name=row[2],
-            event_type=row[3],
-            entity_id=row[4],
-            action=row[5],
-            intent_hash=row[6],
-            phi_delta=row[7],
-            phi_pre=row[8],
-            phi_post=row[9],
-            status=row[10],
-            metadata=json.loads(row[11]) if row[11] else {},
-            error=row[12]
+
+        # Find the event by intent_hash
+        cursor.execute(
+            "SELECT * FROM events WHERE intent_hash = ?", (intent_hash,)
         )
-    
-    # ========================================================================
-    # STATISTICS
-    # ========================================================================
-    
-    def get_stats(self, repo_name: Optional[str] = None) -> Dict[str, Any]:
-        """Get WAL statistics"""
-        conn = self._get_connection()
-        cursor = conn.cursor()
-        
-        where_clause = "WHERE repo_name = ?" if repo_name else ""
-        params = [repo_name] if repo_name else []
-        
-        cursor.execute(f"""
-            SELECT
-                COUNT(*) as total_events,
-                SUM(CASE WHEN status = 'SUCCESS' THEN 1 ELSE 0 END) as successful,
-                SUM(CASE WHEN status = 'FAILED' THEN 1 ELSE 0 END) as failed,
-                SUM(CASE WHEN status = 'PENDING' THEN 1 ELSE 0 END) as pending,
-                SUM(phi_delta) as total_phi_delta
-            FROM wal_events
-            {where_clause}
-        """, params)
-        
         row = cursor.fetchone()
-        
-        current_phi = self.get_current_phi(repo_name) if repo_name else None
-        
-        return {
-            "total_events": row[0] or 0,
-            "successful": row[1] or 0,
-            "failed": row[2] or 0,
-            "pending": row[3] or 0,
-            "total_phi_delta": row[4] or 0.0,
-            "current_phi": current_phi
-        }
-    
-    # ========================================================================
-    # UTILITIES
-    # ========================================================================
-    
-    def _generate_event_id(self) -> str:
-        """Generate unique event ID"""
-        timestamp = datetime.now().isoformat()
-        random_data = os.urandom(8).hex()
-        return f"wal-{hashlib.sha256(f'{timestamp}{random_data}'.encode()).hexdigest()[:16]}"
-    
-    def export_to_json(self, output_path: Path, repo_name: Optional[str] = None):
-        """Export WAL to JSON file"""
-        events = self.get_events(repo_name=repo_name, limit=10000)
-        
-        export_data = {
-            "export_timestamp": datetime.now().isoformat(),
-            "repo_name": repo_name,
-            "total_events": len(events),
-            "events": [asdict(event) for event in events]
-        }
-        
-        output_path.parent.mkdir(parents=True, exist_ok=True)
-        
-        with open(output_path, 'w') as f:
-            json.dump(export_data, f, indent=2)
-        
-        logger.info(f"✓ WAL exported to {output_path}")
-    
-    def close(self):
-        """Close database connection"""
-        if hasattr(self._local, 'connection'):
-            self._local.connection.close()
-            logger.info("WAL database connection closed")
+
+        if not row:
+            conn.close()
+            return False, f"Event with intent_hash {intent_hash} not found"
+
+        # If parent specified, verify linkage
+        if parent_intent_hash:
+            cursor.execute(
+                "SELECT * FROM events WHERE intent_hash = ?",
+                (parent_intent_hash,),
+            )
+            parent_row = cursor.fetchone()
+            if not parent_row:
+                conn.close()
+                return False, f"Parent event {parent_intent_hash} not found"
+            # Verify the event's parent_intent_hash matches
+            if row[7] != parent_intent_hash:
+                conn.close()
+                return False, f"Chain broken: event parent {row[7]} != expected {parent_intent_hash}"
+
+        conn.close()
+        return True, f"Chain valid for {intent_hash}"
+
+    def _generate_id(self, seed: str) -> str:
+        """Generate unique ID from seed"""
+        return hashlib.sha256(seed.encode()).hexdigest()[:16]
+
+    def _generate_intent_hash(
+        self,
+        event_id: str,
+        event_type: str,
+        repositories: List[str],
+        parent_hash: Optional[str],
+    ) -> str:
+        """Generate IntentHash¹¹ for event"""
+        data = f"{event_id}:{event_type}:{','.join(sorted(repositories))}"
+        if parent_hash:
+            data += f":{parent_hash}"
+        data += f":{datetime.utcnow().isoformat()}"
+
+        hash_bytes = hashlib.sha256(data.encode()).digest()
+        return "0x" + hash_bytes[:8].hex().upper()
