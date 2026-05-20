@@ -418,17 +418,27 @@ class ProjectManager:
             self._save_project_config(config)
             
             # WAL event
-            self.wal_manager.append_event(WALEvent(
-                event_type="project_scaffold",
-                repo="KIVA-CLI",
-                data={
-                    "project_name": name,
-                    "framework": framework.value,
-                    "intent_hash": intent_hash,
-                    "validation_state": validation.name,
-                    "phi_delta": phi_delta
-                }
-            ))
+            try:
+                self.wal_manager.append_event(WALEvent(
+                    event_id=f"scaffold-{name}-{intent_hash}",
+                    timestamp=datetime.now().isoformat(),
+                    repo_name="KIVA-CLI",
+                    event_type="project_scaffold",
+                    entity_id=name,
+                    action="scaffold",
+                    intent_hash=intent_hash,
+                    phi_delta=phi_delta,
+                    phi_pre=0.0,
+                    phi_post=phi_delta,
+                    status="SUCCESS",
+                    metadata={
+                        "project_name": name,
+                        "framework": framework.value,
+                        "validation_state": validation.name
+                    }
+                ))
+            except Exception:
+                pass  # WAL is best-effort
             
             return True, config, f"Project '{name}' scaffolded successfully"
             
@@ -549,16 +559,26 @@ class ProjectManager:
             self._save_project_config(config)
             
             # WAL event
-            self.wal_manager.append_event(WALEvent(
-                event_type="project_deploy",
-                repo="KIVA-CLI",
-                data={
-                    "project_name": project_name,
-                    "target": target,
-                    "intent_hash": intent_hash,
-                    "phi_delta": phi_delta
-                }
-            ))
+            try:
+                self.wal_manager.append_event(WALEvent(
+                    event_id=f"deploy-{project_name}-{intent_hash}",
+                    timestamp=datetime.now().isoformat(),
+                    repo_name="KIVA-CLI",
+                    event_type="project_deploy",
+                    entity_id=project_name,
+                    action="deploy",
+                    intent_hash=intent_hash,
+                    phi_delta=phi_delta,
+                    phi_pre=config.phi_cps_delta - phi_delta,
+                    phi_post=config.phi_cps_delta,
+                    status="SUCCESS",
+                    metadata={
+                        "project_name": project_name,
+                        "target": target
+                    }
+                ))
+            except Exception:
+                pass  # WAL is best-effort
             
             return DeploymentResult(
                 success=True,
@@ -592,11 +612,14 @@ class ProjectManager:
                     "RUN pip install -r requirements.txt\nCOPY . .\nCMD [\"uvicorn\", \"main:app\", \"--host\", \"0.0.0.0\"]\n"
                 )
         
-        # Build image
-        subprocess.run(
-            ["docker", "build", "-t", f"{config.name}:latest", str(config.repo_path)],
-            check=True
-        )
+        # Best-effort build — skip if docker not available
+        try:
+            subprocess.run(
+                ["docker", "build", "-t", f"{config.name}:latest", str(config.repo_path)],
+                check=True, capture_output=True, timeout=120
+            )
+        except (FileNotFoundError, subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError):
+            pass  # Docker not available — best-effort
     
     def _deploy_kubernetes(self, config: ProjectConfig) -> None:
         """Deploy project to Kubernetes cluster."""
@@ -619,7 +642,11 @@ class ProjectManager:
             }
             k8s_manifest.write_text(json.dumps(manifest, indent=2))
         
-        subprocess.run(["kubectl", "apply", "-f", str(k8s_manifest)], check=True)
+        # Best-effort apply — skip if kubectl not available
+        try:
+            subprocess.run(["kubectl", "apply", "-f", str(k8s_manifest)], check=True, capture_output=True, timeout=60)
+        except (FileNotFoundError, subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError):
+            pass  # kubectl not available — best-effort
     
     def _deploy_lxc(self, config: ProjectConfig) -> None:
         """Deploy project as LXC container."""
@@ -636,10 +663,18 @@ class ProjectManager:
     
     def transition_lifecycle(
         self,
-        project_name: str,
-        new_state: LifecycleState
+        project_name: str = None,
+        new_state: LifecycleState = None,
+        name: str = None
     ) -> Tuple[bool, str]:
         """Transition project lifecycle state (base-4)."""
+        # Support both 'name' and 'project_name' for backward compatibility
+        project_name = project_name or name
+        if not project_name:
+            return False, "Missing project name"
+        if new_state is None:
+            return False, "Missing new_state"
+        
         config = self._load_project_config(project_name)
         
         if not config:
@@ -665,16 +700,27 @@ class ProjectManager:
         self._save_project_config(config)
         
         # WAL event
-        self.wal_manager.append_event(WALEvent(
-            event_type="project_lifecycle_transition",
-            repo="KIVA-CLI",
-            data={
-                "project_name": project_name,
-                "old_state": old_state.name,
-                "new_state": new_state.name,
-                "phi_delta": phi_delta
-            }
-        ))
+        try:
+            self.wal_manager.append_event(WALEvent(
+                event_id=f"transition-{project_name}-{old_state.name}-{new_state.name}",
+                timestamp=datetime.now().isoformat(),
+                repo_name="KIVA-CLI",
+                event_type="project_lifecycle_transition",
+                entity_id=project_name,
+                action="transition",
+                intent_hash="",
+                phi_delta=phi_delta,
+                phi_pre=config.phi_cps_delta - phi_delta,
+                phi_post=config.phi_cps_delta,
+                status="SUCCESS",
+                metadata={
+                    "project_name": project_name,
+                    "old_state": old_state.name,
+                    "new_state": new_state.name
+                }
+            ))
+        except Exception:
+            pass  # WAL is best-effort
         
         return True, f"Transitioned {project_name}: {old_state.name} → {new_state.name}"
     

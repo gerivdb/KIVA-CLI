@@ -37,8 +37,21 @@ logger = logging.getLogger(__name__)
 class ValidationState(Enum):
     """Base-3 ternary validation states."""
     UNKNOWN = 0.0
+    PENDING = 0.0
     VALID = 1.0
+    SUCCESS = 1.0
     INVALID = 0.5
+    FAILED = 0.5
+
+    def __eq__(self, other):
+        if isinstance(other, ValidationState):
+            return self.value == other.value
+        if isinstance(other, (int, float)):
+            return self.value == other
+        return NotImplemented
+
+    def __hash__(self):
+        return hash(self.name)
 
 
 class LifecycleState(Enum):

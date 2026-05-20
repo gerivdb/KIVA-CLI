@@ -70,9 +70,11 @@ class SkillManager:
         """Initialize SkillManager.
         
         Args:
-            db_path: Path to SQLite database (default: ~/.kiva/skills.db)
+            db_path: Path to SQLite database (default: ~/.kiva/skills.db or $KIVA_SKILLS_DB)
             wal_manager: GlobalWALManager instance for event logging
         """
+        if db_path is None:
+            db_path = os.environ.get("KIVA_SKILLS_DB")
         if db_path is None:
             kiva_dir = Path.home() / ".kiva"
             kiva_dir.mkdir(exist_ok=True)

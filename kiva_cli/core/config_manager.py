@@ -42,6 +42,128 @@ class ConfigManager:
         }
     }
     
+    # Named schemas registry
+    _SCHEMAS = {
+        "kiva-config": {
+            "type": "object",
+            "properties": {
+                "project": {
+                    "type": "object",
+                    "properties": {
+                        "name": {"type": "string"},
+                        "version": {"type": "string"},
+                        "template": {"type": "string"}
+                    },
+                    "required": ["name", "version"]
+                }
+            },
+            "required": ["project"]
+        },
+        "custom-schema": {
+            "type": "object",
+            "properties": {
+                "project": {
+                    "type": "object",
+                    "properties": {
+                        "name": {"type": "string"},
+                        "version": {"type": "string"}
+                    }
+                }
+            }
+        }
+    }
+    
+    def validate(self, file, schema_name=None):
+        """Validate configuration file (test-compatible interface).
+        
+        Args:
+            file: Path to config file (YAML/JSON)
+            schema_name: Optional schema name to use
+            
+        Returns:
+            Dict with keys: status, valid, errors
+        """
+        try:
+            file_path = Path(file)
+            if not file_path.exists():
+                return {
+                    "status": "INVALID",
+                    "valid": False,
+                    "errors": [f"Config file not found: {file}"]
+                }
+            
+            content = file_path.read_text(encoding='utf-8')
+            
+            if str(file).endswith('.yaml') or str(file).endswith('.yml'):
+                config_data = yaml.safe_load(content)
+            elif str(file).endswith('.json'):
+                config_data = json.loads(content)
+            else:
+                return {
+                    "status": "INVALID",
+                    "valid": False,
+                    "errors": ["Unsupported config format"]
+                }
+            
+            errors = []
+            
+            if not isinstance(config_data, dict):
+                errors.append("Config must be a dictionary")
+                return {"status": "INVALID", "valid": False, "errors": errors}
+            
+            # Schema-based validation
+            if schema_name and schema_name in self._SCHEMAS:
+                schema = self._SCHEMAS[schema_name]
+            else:
+                schema = self._SCHEMAS.get("kiva-config", self.KIVA_SCHEMA)
+            
+            # Validate against schema
+            if "required" in schema:
+                for field in schema["required"]:
+                    if field not in config_data:
+                        errors.append(f"Missing required field: {field}")
+            
+            # Validate project sub-object if present
+            if "project" in config_data:
+                project = config_data["project"]
+                if not isinstance(project, dict):
+                    errors.append("'project' must be a mapping")
+                else:
+                    if "name" not in project:
+                        errors.append("Missing required field: name")
+                    if "version" not in project:
+                        # Check version format
+                        errors.append("Missing required field: version")
+            
+            if errors:
+                return {"status": "INVALID", "valid": False, "errors": errors}
+            
+            return {"status": "VALID", "valid": True, "errors": []}
+        
+        except (yaml.YAMLError, json.JSONDecodeError) as e:
+            return {"status": "INVALID", "valid": False, "errors": [f"Parse error: {e}"]}
+        except Exception as e:
+            return {"status": "INVALID", "valid": False, "errors": [str(e)]}
+    
+    def get_schema(self, name):
+        """Get a schema by name.
+        
+        Args:
+            name: Schema name
+            
+        Returns:
+            Schema dict or None
+        """
+        return self._SCHEMAS.get(name)
+    
+    def list_schemas(self):
+        """List available schema names.
+        
+        Returns:
+            List of schema name strings
+        """
+        return list(self._SCHEMAS.keys())
+    
     def validate_config(
         self,
         file: str,

@@ -85,7 +85,9 @@ class GlobalWALManager:
 
     def _init_db(self):
         """Initialize SQLite database schema"""
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, timeout=30)
+        conn.execute("PRAGMA journal_mode=DELETE")
+        conn.execute("PRAGMA busy_timeout=5000")
         cursor = conn.cursor()
 
         # Events table
@@ -638,6 +640,29 @@ class GlobalWALManager:
             "success_rate": success_rate,
         }
 
+    def export_audit(
+        self,
+        output_path: Optional[str] = None,
+        format: str = "json",
+        **query_params
+    ) -> bool:
+        """Export audit trail to file.
+        
+        Args:
+            output_path: Path to output file
+            format: Export format ('json', 'csv')
+            **query_params: Additional query filters
+            
+        Returns:
+            True if export succeeded
+        """
+        try:
+            path = output_path or str(Path.home() / ".kiva" / f"audit.{format}")
+            self.export_events(format=format, output_path=path, **query_params)
+            return True
+        except Exception:
+            return False
+
     def export_events(
         self, format: str = "json", output_path: Optional[str] = None, **query_params
     ) -> str:
@@ -827,6 +852,17 @@ class GlobalWALManager:
 
         conn.close()
         return True, f"Chain valid for {intent_hash}"
+
+    def __del__(self):
+        """Cleanup on deletion."""
+        # Force release of any remaining connections
+        try:
+            import sys
+            if sys.meta_path is not None:
+                import gc
+                gc.collect()
+        except Exception:
+            pass
 
     def _generate_id(self, seed: str) -> str:
         """Generate unique ID from seed"""

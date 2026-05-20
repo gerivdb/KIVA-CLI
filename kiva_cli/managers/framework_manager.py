@@ -86,6 +86,8 @@ class FrameworkManager:
         
         # Create directory structure
         dirs = [
+            "app/api",
+            "app/api/v1",
             "app/api/v1/endpoints",
             "app/core",
             "app/db",
@@ -100,6 +102,103 @@ class FrameworkManager:
         for d in dirs:
             (project_path / d).mkdir(parents=True, exist_ok=True)
             (project_path / d / "__init__.py").touch()
+        
+        # app/api/v1/__init__.py with api_router
+        (project_path / "app/api/v1/__init__.py").write_text(
+'''"""API v1 Router"""
+from fastapi import APIRouter
+from app.api.v1.endpoints import health
+
+api_router = APIRouter()
+api_router.include_router(health.router, prefix="/health", tags=["health"])
+'''
+        )
+        
+        # app/api/v1/endpoints/health.py
+        (project_path / "app/api/v1/endpoints/health.py").write_text(
+'''"""Health Check Endpoint"""
+from fastapi import APIRouter
+
+router = APIRouter()
+
+@router.get("/")
+async def health_check():
+    return {"status": "healthy"}
+'''
+        )
+        
+        # app/db/base.py
+        (project_path / "app/db/base.py").write_text(
+'''"""SQLAlchemy Base"""
+from sqlalchemy import Column, Integer, DateTime
+from sqlalchemy.orm import DeclarativeBase
+from datetime import datetime
+
+class Base(DeclarativeBase):
+    id = Column(Integer, primary_key=True, index=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+'''
+        )
+        
+        # app/db/session.py
+        (project_path / "app/db/session.py").write_text(
+'''"""Database Session"""
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+from app.core.config import settings
+
+engine = create_engine(settings.DATABASE_URL)
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+'''
+        )
+        
+        # alembic.ini
+        (project_path / "alembic.ini").write_text(
+'''[alembic]
+script_location = alembic
+sqlalchemy.url = postgresql://user:pass@localhost/dbname
+
+[loggers]
+keys = root,sqlalchemy,alembic
+
+[logger_alembic]
+level = INFO
+handlers =
+qualname = alembic
+'''
+        )
+        
+        # alembic/env.py
+        (project_path / "alembic/env.py").write_text(
+'''"""Alembic environment"""
+from alembic import context
+from sqlalchemy import engine_from_config
+from app.db.base import Base
+
+config = context.config
+target_metadata = Base.metadata
+
+def run_migrations_online():
+    connectable = engine_from_config(
+        config.get_section(config.config_ini_section),
+        prefix="sqlalchemy.",
+    )
+    with connectable.connect() as connection:
+        context.configure(connection=connection, target_metadata=target_metadata)
+        with context.begin_transaction():
+            context.run_migrations()
+
+run_migrations_online()
+'''
+        )
         
         # app/main.py
         (project_path / "app/main.py").write_text(

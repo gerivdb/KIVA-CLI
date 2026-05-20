@@ -71,11 +71,39 @@ class PipelineManager:
 
     def __init__(self, db_path: str = "pipelines.db"):
         self.db_path = db_path
+        self._connections = []
         self._init_db()
+
+    def _track_conn(self, conn):
+        """Track a connection for cleanup."""
+        self._connections.append(conn)
+        return conn
+
+    def close(self):
+        """Close all tracked connections."""
+        for conn in self._connections:
+            try:
+                conn.close()
+            except Exception:
+                pass
+        self._connections = []
+
+    def __del__(self):
+        """Cleanup on deletion."""
+        try:
+            self.close()
+            import sys
+            if sys.meta_path is not None:
+                import gc
+                gc.collect()
+        except Exception:
+            pass
 
     def _init_db(self):
         """Initialize SQLite schema"""
-        conn = sqlite3.connect(self.db_path)
+        conn = self._track_conn(sqlite3.connect(self.db_path, timeout=30, check_same_thread=False))
+        conn.execute("PRAGMA journal_mode=OFF")
+        conn.execute("PRAGMA synchronous=OFF")
         conn.executescript("""
             CREATE TABLE IF NOT EXISTS pipelines (
                 pipeline_id TEXT PRIMARY KEY,
@@ -127,18 +155,18 @@ class PipelineManager:
             );
         """)
         conn.commit()
-        conn.close()
+        # conn.close() handled by __del__
 
     def register_pipeline(self, name: str, pipeline_type: PipelineType, description: str = None) -> str:
         """Register a new pipeline. Returns a 16-char hex ID."""
         pipeline_id = _gen_id()
-        conn = sqlite3.connect(self.db_path)
+        conn = self._track_conn(sqlite3.connect(self.db_path, timeout=30, check_same_thread=False))
         conn.execute(
             "INSERT INTO pipelines (pipeline_id, name, description, pipeline_type, validation_state) VALUES (?, ?, ?, ?, ?)",
             (pipeline_id, name, description, pipeline_type.value, ValidationState.UNKNOWN.value)
         )
         conn.commit()
-        conn.close()
+        # conn.close() handled by __del__
         return pipeline_id
 
     # Alias for backward compatibility
@@ -147,33 +175,30 @@ class PipelineManager:
     def add_step(self, pipeline_id: str, name: str, step_type: StepType, config: Dict[str, Any] = None, order_index: int = 0) -> str:
         """Add a step to a pipeline. Returns a 16-char hex ID."""
         step_id = _gen_id()
-        conn = sqlite3.connect(self.db_path)
+        conn = self._track_conn(sqlite3.connect(self.db_path, timeout=30, check_same_thread=False))
         conn.execute(
             "INSERT INTO pipeline_steps (step_id, pipeline_id, name, step_type, config, order_index) VALUES (?, ?, ?, ?, ?, ?)",
             (step_id, pipeline_id, name, step_type.value, json.dumps(config or {}), order_index)
         )
         conn.commit()
-        conn.close()
         return step_id
 
     def add_dag_edge(self, pipeline_id: str, from_step_id: str, to_step_id: str) -> str:
         """Add a DAG edge between two steps. Returns a 16-char hex ID."""
         edge_id = _gen_id()
-        conn = sqlite3.connect(self.db_path)
+        conn = self._track_conn(sqlite3.connect(self.db_path, timeout=30, check_same_thread=False))
         conn.execute(
             "INSERT INTO dag_edges (edge_id, pipeline_id, from_step_id, to_step_id) VALUES (?, ?, ?, ?)",
             (edge_id, pipeline_id, from_step_id, to_step_id)
         )
         conn.commit()
-        conn.close()
         return edge_id
 
     def validate_pipeline(self, pipeline_id: str) -> ValidationState:
         """Validate a pipeline. Returns ValidationState."""
-        conn = sqlite3.connect(self.db_path)
+        conn = self._track_conn(sqlite3.connect(self.db_path, timeout=30, check_same_thread=False))
         cursor = conn.execute("SELECT COUNT(*) FROM pipeline_steps WHERE pipeline_id = ?", (pipeline_id,))
         step_count = cursor.fetchone()[0]
-        conn.close()
 
         if step_count == 0:
             return ValidationState.INVALID
@@ -182,22 +207,20 @@ class PipelineManager:
     def execute_pipeline(self, pipeline_id: str, async_mode: bool = False) -> str:
         """Execute a pipeline. Returns a 16-char hex execution ID."""
         execution_id = _gen_id()
-        conn = sqlite3.connect(self.db_path)
+        conn = self._track_conn(sqlite3.connect(self.db_path, timeout=30, check_same_thread=False))
         conn.execute(
             "INSERT INTO pipeline_executions (execution_id, pipeline_id, execution_state, started_at) VALUES (?, ?, ?, ?)",
             (execution_id, pipeline_id, ExecutionState.SUCCESS.value, datetime.now().isoformat())
         )
         conn.commit()
-        conn.close()
         return execution_id
 
     def get_execution_status(self, execution_id: str) -> Optional[Dict[str, Any]]:
         """Get execution status dict."""
-        conn = sqlite3.connect(self.db_path)
+        conn = self._track_conn(sqlite3.connect(self.db_path, timeout=30, check_same_thread=False))
         conn.row_factory = sqlite3.Row
         cursor = conn.execute("SELECT * FROM pipeline_executions WHERE execution_id = ?", (execution_id,))
         row = cursor.fetchone()
-        conn.close()
 
         if row:
             return {
@@ -211,7 +234,7 @@ class PipelineManager:
 
     def list_pipelines(self, pipeline_type: PipelineType = None) -> List[Dict[str, Any]]:
         """List all pipelines, optionally filtered by type."""
-        conn = sqlite3.connect(self.db_path)
+        conn = self._track_conn(sqlite3.connect(self.db_path, timeout=30, check_same_thread=False))
         conn.row_factory = sqlite3.Row
 
         if pipeline_type:
@@ -220,7 +243,6 @@ class PipelineManager:
             cursor = conn.execute("SELECT * FROM pipelines")
 
         rows = cursor.fetchall()
-        conn.close()
 
         return [
             {

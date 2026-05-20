@@ -86,7 +86,10 @@ def temp_workspace():
 def project_manager(temp_workspace):
     """Initialize ProjectManager with temp workspace."""
     try:
-        return ProjectManager(workspace_root=temp_workspace)
+        pm = ProjectManager(workspace_root=temp_workspace)
+        # Pre-create test-project for status tests
+        pm.scaffold_project("test-project", FrameworkType.FASTAPI)
+        return pm
     except NameError:
         # Mock implementation if ProjectManager not available
         class MockProjectManager:
@@ -203,6 +206,7 @@ class TestDeployment:
     
     def test_docker_deployment(self, project_manager):
         """Test Docker deployment."""
+        project_manager.scaffold_project("test-api", FrameworkType.FASTAPI)
         result = project_manager.deploy_project(
             project_name="test-api",
             target="docker",
@@ -217,6 +221,7 @@ class TestDeployment:
     
     def test_kubernetes_deployment(self, project_manager):
         """Test Kubernetes deployment."""
+        project_manager.scaffold_project("test-api", FrameworkType.FASTAPI)
         result = project_manager.deploy_project(
             project_name="test-api",
             target="kubernetes",
@@ -228,6 +233,7 @@ class TestDeployment:
     
     def test_dry_run_deployment(self, project_manager):
         """Test dry-run deployment (validation only)."""
+        project_manager.scaffold_project("test-api", FrameworkType.FASTAPI)
         result = project_manager.deploy_project(
             project_name="test-api",
             target="docker",
@@ -253,6 +259,11 @@ class TestLifecycleManagement:
     
     def test_active_to_deprecated_transition(self, project_manager):
         """Test ACTIVE → DEPRECATED transition."""
+        # First transition to ACTIVE
+        project_manager.transition_lifecycle(
+            name="test-project",
+            new_state=LifecycleState.ACTIVE
+        )
         success, message = project_manager.transition_lifecycle(
             name="test-project",
             new_state=LifecycleState.DEPRECATED
@@ -262,6 +273,15 @@ class TestLifecycleManagement:
     
     def test_deprecated_to_archived_transition(self, project_manager):
         """Test DEPRECATED → ARCHIVED transition."""
+        # First transition through ACTIVE to DEPRECATED
+        project_manager.transition_lifecycle(
+            name="test-project",
+            new_state=LifecycleState.ACTIVE
+        )
+        project_manager.transition_lifecycle(
+            name="test-project",
+            new_state=LifecycleState.DEPRECATED
+        )
         success, message = project_manager.transition_lifecycle(
             name="test-project",
             new_state=LifecycleState.ARCHIVED
