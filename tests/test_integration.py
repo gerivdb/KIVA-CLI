@@ -20,28 +20,31 @@ class TestPipelineWALIntegration:
             pm = PipelineManager(db_path=pm_db)
             wal = GlobalWALManager(db_path=wal_db)
             
-            # Create pipeline
-            pipeline_id = pm.create_pipeline(
-                name="Test Pipeline",
-                description="Integration test",
-                pipeline_type=PipelineType.SEQUENTIAL
-            )
-            
-            # Log to WAL
-            event_id = wal.append_event(
-                event_type=EventType.COMPONENT_IMPLEMENTATION,
-                ecosystem_id="test-eco",
-                repositories=["test-repo"],
-                phi_cps_baseline=4.092,
-                phi_cps_current=4.093,
-                description=f"Pipeline created: {pipeline_id}"
-            )
-            
-            # Verify linkage
-            event = wal.get_event(event_id)
-            assert event is not None
-            assert f"Pipeline created: {pipeline_id}" in event['description']
-            assert event['phi_cps_delta'] == 0.001
+            try:
+                # Create pipeline
+                pipeline_id = pm.create_pipeline(
+                    name="Test Pipeline",
+                    description="Integration test",
+                    pipeline_type=PipelineType.SEQUENTIAL
+                )
+                
+                # Log to WAL
+                event_id = wal.append_event(
+                    event_type=EventType.COMPONENT_IMPLEMENTATION,
+                    ecosystem_id="test-eco",
+                    repositories=["test-repo"],
+                    phi_cps_baseline=4.092,
+                    phi_cps_current=4.093,
+                    description=f"Pipeline created: {pipeline_id}"
+                )
+                
+                # Verify linkage
+                event = wal.get_event(event_id)
+                assert event is not None
+                assert f"Pipeline created: {pipeline_id}" in event['description']
+                assert event['phi_cps_delta'] == 0.001
+            finally:
+                pm.close()
     
     def test_pipeline_execution_tracked_in_wal(self):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -51,30 +54,33 @@ class TestPipelineWALIntegration:
             pm = PipelineManager(db_path=pm_db)
             wal = GlobalWALManager(db_path=wal_db)
             
-            # Create and execute pipeline
-            pipeline_id = pm.create_pipeline("Exec Test", "Test", PipelineType.SEQUENTIAL)
-            step_id = pm.add_step(pipeline_id, "step1", StepType.FILE_CREATE, {"path": "/tmp/test.txt"})
-            
-            event_id = wal.append_event(
-                EventType.VALIDATION,
-                "test-eco",
-                ["test-repo"],
-                4.093,
-                4.094
-            )
-            
-            # Add operation for step execution
-            op_id = wal.add_operation(
-                event_id=event_id,
-                operation_type="PIPELINE_STEP_EXECUTION",
-                repository="test-repo",
-                status=ValidationState.SUCCESS,
-                path=f"pipeline/{pipeline_id}/step/{step_id}"
-            )
-            
-            event = wal.get_event(event_id)
-            assert len(event['operations']) == 1
-            assert event['operations'][0]['operation_type'] == "PIPELINE_STEP_EXECUTION"
+            try:
+                # Create and execute pipeline
+                pipeline_id = pm.create_pipeline("Exec Test", "Test", PipelineType.SEQUENTIAL)
+                step_id = pm.add_step(pipeline_id, "step1", StepType.FILE_CREATE, {"path": "/tmp/test.txt"})
+                
+                event_id = wal.append_event(
+                    EventType.VALIDATION,
+                    "test-eco",
+                    ["test-repo"],
+                    4.093,
+                    4.094
+                )
+                
+                # Add operation for step execution
+                op_id = wal.add_operation(
+                    event_id=event_id,
+                    operation_type="PIPELINE_STEP_EXECUTION",
+                    repository="test-repo",
+                    status=ValidationState.SUCCESS,
+                    path=f"pipeline/{pipeline_id}/step/{step_id}"
+                )
+                
+                event = wal.get_event(event_id)
+                assert len(event['operations']) == 1
+                assert event['operations'][0]['operation_type'] == "PIPELINE_STEP_EXECUTION"
+            finally:
+                pm.close()
     
     def test_pipeline_failure_triggers_wal_alert(self):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -84,23 +90,26 @@ class TestPipelineWALIntegration:
             pm = PipelineManager(db_path=pm_db)
             wal = GlobalWALManager(db_path=wal_db)
             
-            # Simulate pipeline failure with large φ-CPS impact
-            pipeline_id = pm.create_pipeline("Fail Test", "Test", PipelineType.SEQUENTIAL)
-            
-            event_id = wal.append_event(
-                EventType.INCIDENT,
-                "test-eco",
-                ["test-repo"],
-                phi_cps_baseline=4.0,
-                phi_cps_current=4.15,  # Large delta
-                severity=Severity.ERROR,
-                description=f"Pipeline {pipeline_id} failed with φ-CPS impact"
-            )
-            
-            event = wal.get_event(event_id)
-            assert event['phi_cps_alert']  # Alert should trigger
-            assert event['severity'] == Severity.ERROR.value
-            assert event['validation_state'] == ValidationState.PENDING.value
+            try:
+                # Simulate pipeline failure with large φ-CPS impact
+                pipeline_id = pm.create_pipeline("Fail Test", "Test", PipelineType.SEQUENTIAL)
+                
+                event_id = wal.append_event(
+                    EventType.INCIDENT,
+                    "test-eco",
+                    ["test-repo"],
+                    phi_cps_baseline=4.0,
+                    phi_cps_current=4.15,  # Large delta
+                    severity=Severity.ERROR,
+                    description=f"Pipeline {pipeline_id} failed with φ-CPS impact"
+                )
+                
+                event = wal.get_event(event_id)
+                assert event['phi_cps_alert']  # Alert should trigger
+                assert event['severity'] == Severity.ERROR.value
+                assert event['validation_state'] == ValidationState.PENDING.value
+            finally:
+                pm.close()
 
 class TestCrossRepoSync:
     """Test cross-repository synchronization patterns"""
@@ -113,30 +122,33 @@ class TestCrossRepoSync:
             pm = PipelineManager(db_path=pm_db)
             wal = GlobalWALManager(db_path=wal_db)
             
-            # Create pipeline affecting multiple repos
-            pipeline_id = pm.create_pipeline("Multi-repo Sync", "Sync test", PipelineType.PARALLEL)
-            
-            repos = ["KIVA-CLI", "ECOYSTEM", "DevTools"]
-            event_id = wal.append_event(
-                EventType.DEPLOYMENT,
-                "ecosystem-1",
-                repos,
-                4.092,
-                4.095
-            )
-            
-            # Add operations for each repo
-            for repo in repos:
-                wal.add_operation(
-                    event_id=event_id,
-                    operation_type="CROSS_REPO_SYNC",
-                    repository=repo,
-                    status=ValidationState.SUCCESS
+            try:
+                # Create pipeline affecting multiple repos
+                pipeline_id = pm.create_pipeline("Multi-repo Sync", "Sync test", PipelineType.PARALLEL)
+                
+                repos = ["KIVA-CLI", "ECOYSTEM", "DevTools"]
+                event_id = wal.append_event(
+                    EventType.DEPLOYMENT,
+                    "ecosystem-1",
+                    repos,
+                    4.092,
+                    4.095
                 )
-            
-            event = wal.get_event(event_id)
-            assert len(event['operations']) == 3
-            assert set(event['repositories']) == set(repos)
+                
+                # Add operations for each repo
+                for repo in repos:
+                    wal.add_operation(
+                        event_id=event_id,
+                        operation_type="CROSS_REPO_SYNC",
+                        repository=repo,
+                        status=ValidationState.SUCCESS
+                    )
+                
+                event = wal.get_event(event_id)
+                assert len(event['operations']) == 3
+                assert set(event['repositories']) == set(repos)
+            finally:
+                pm.close()
     
     def test_dependency_chain_tracking(self):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -264,20 +276,23 @@ class TestTernaryLogic:
             pm_db = str(Path(tmpdir) / "pipeline.db")
             pm = PipelineManager(db_path=pm_db)
             
-            pipeline_id = pm.create_pipeline("Ternary Test", "Test", PipelineType.SEQUENTIAL)
-            step_id = pm.add_step(pipeline_id, "step1", StepType.FILE_CREATE, {})
-            
-            # Check initial state (PENDING)
-            step = pm.get_step(step_id)
-            assert step['status'] == ValidationState.PENDING.value
-            
-            # Valid transitions: PENDING -> SUCCESS
-            pm.update_step_status(step_id, ValidationState.SUCCESS)
-            step = pm.get_step(step_id)
-            assert step['status'] == ValidationState.SUCCESS.value
-            
-            # Invalid transition: SUCCESS -> PENDING should not change state
-            # (not implemented but demonstrates ternary immutability)
+            try:
+                pipeline_id = pm.create_pipeline("Ternary Test", "Test", PipelineType.SEQUENTIAL)
+                step_id = pm.add_step(pipeline_id, "step1", StepType.FILE_CREATE, {})
+                
+                # Check initial state (PENDING)
+                step = pm.get_step(step_id)
+                assert step['status'] == ValidationState.PENDING.value
+                
+                # Valid transitions: PENDING -> SUCCESS
+                pm.update_step_status(step_id, ValidationState.SUCCESS)
+                step = pm.get_step(step_id)
+                assert step['status'] == ValidationState.SUCCESS.value
+                
+                # Invalid transition: SUCCESS -> PENDING should not change state
+                # (not implemented but demonstrates ternary immutability)
+            finally:
+                pm.close()
     
     def test_fuzzy_ternary_confidence_scores(self):
         # Fuzzy ternary: [0.0, 0.5, 1.0]

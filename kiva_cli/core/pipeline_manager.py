@@ -166,11 +166,12 @@ class PipelineManager:
             (pipeline_id, name, description, pipeline_type.value, ValidationState.UNKNOWN.value)
         )
         conn.commit()
-        # conn.close() handled by __del__
         return pipeline_id
 
-    # Alias for backward compatibility
-    create_pipeline = register_pipeline
+    # Alias with signature matching test expectations: (name, description, pipeline_type)
+    def create_pipeline(self, name: str, description: str, pipeline_type: PipelineType) -> str:
+        """Create a new pipeline. Returns a 16-char hex ID. Alias for register_pipeline."""
+        return self.register_pipeline(name=name, pipeline_type=pipeline_type, description=description)
 
     def add_step(self, pipeline_id: str, name: str, step_type: StepType, config: Dict[str, Any] = None, order_index: int = 0) -> str:
         """Add a step to a pipeline. Returns a 16-char hex ID."""
@@ -231,6 +232,34 @@ class PipelineManager:
                 "completed_at": row["completed_at"],
             }
         return None
+
+    def get_step(self, step_id: str) -> Optional[Dict[str, Any]]:
+        """Get step details by step_id."""
+        conn = self._track_conn(sqlite3.connect(self.db_path, timeout=30, check_same_thread=False))
+        conn.row_factory = sqlite3.Row
+        cursor = conn.execute("SELECT * FROM pipeline_steps WHERE step_id = ?", (step_id,))
+        row = cursor.fetchone()
+        if row:
+            return {
+                "step_id": row["step_id"],
+                "pipeline_id": row["pipeline_id"],
+                "name": row["name"],
+                "step_type": row["step_type"],
+                "config": json.loads(row["config"]) if row["config"] else {},
+                "order_index": row["order_index"],
+                "status": row["status"],
+            }
+        return None
+
+    def update_step_status(self, step_id: str, status: ValidationState) -> bool:
+        """Update step status. Returns True if updated."""
+        conn = self._track_conn(sqlite3.connect(self.db_path, timeout=30, check_same_thread=False))
+        conn.execute(
+            "UPDATE pipeline_steps SET status = ? WHERE step_id = ?",
+            (status.value, step_id)
+        )
+        conn.commit()
+        return True
 
     def list_pipelines(self, pipeline_type: PipelineType = None) -> List[Dict[str, Any]]:
         """List all pipelines, optionally filtered by type."""
