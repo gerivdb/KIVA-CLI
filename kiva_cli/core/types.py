@@ -133,6 +133,20 @@ class DeploymentResult(KivaResult):
     deployment_id: Optional[str] = None
 
 
+@dataclass
+class RepairReport(KivaResult):
+    """Result of a repair operation (PRD-KIVA-001)."""
+    repair_id: str = ""
+    failure_source: str = ""       # e.g. "post_commit_verifier:abc123"
+    detected_pattern: str = ""
+    strategies_applied: List[str] = field(default_factory=list)
+    files_modified: List[str] = field(default_factory=list)
+    confidence: float = 0.0        # 0.0 to 1.0
+    before_state: Dict[str, Any] = field(default_factory=dict)
+    after_state: Dict[str, Any] = field(default_factory=dict)
+    wal_event_id: str = ""
+
+
 # =============================================================================
 # DOMAIN TYPES
 # =============================================================================
@@ -234,6 +248,8 @@ __all__ = [
     "ConfigResult",
     "ValidationResult",
     "DeploymentResult",
+    # Repair (PRD-KIVA-001)
+    "RepairReport",
     # Domain
     "FrameworkType",
     "ProjectConfig",
