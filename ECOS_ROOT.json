@@ -4,8 +4,12 @@
   "version": "0.23.0",
   "layer": "L3",
   "category": "orchestrator",
-  "intent": "Orchestrateur local écosystème — Planificateur Windows, 100% ENV2 FinOps",
-  "dependencies": ["NEXUS", "WAZAA", "BRAIN-DOCS"],
+  "intent": "Orchestrateur local \u00c3\u00a9cosyst\u00c3\u00a8me \u00e2\u20ac\u201d Planificateur Windows, 100% ENV2 FinOps",
+  "dependencies": [
+    "NEXUS",
+    "WAZAA",
+    "BRAIN-DOCS"
+  ],
   "packageManager": "npm",
   "health": {
     "lastAudit": "2026-05-16",
@@ -29,7 +33,9 @@
     "KIVA-CLI": {
       "env_id": "ENV2",
       "physical_path": "D:\\DO\\WEB\\TOOLS\\KIVA-CLI",
-      "entry_points": ["kiva_cli/kiva.py"],
+      "entry_points": [
+        "kiva_cli/kiva.py"
+      ],
       "wazaa_registered": true,
       "nexus_declared": true,
       "declared_at": "2026-04-05T06:00:00Z",
@@ -39,7 +45,10 @@
     "ECOS-CLI": {
       "env_id": "ENV2",
       "physical_path": "D:\\DO\\WEB\\TOOLS\\L1-INFRA\\ECOS-CLI",
-      "entry_points": ["bin/ecos.ps1", "ecos.py"],
+      "entry_points": [
+        "bin/ecos.ps1",
+        "ecos.py"
+      ],
       "wazaa_registered": true,
       "nexus_declared": true,
       "declared_at": "2026-05-16T23:36:00Z",
