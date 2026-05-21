@@ -21,8 +21,31 @@ __mode__ = "H0_AUTONOMOUS_BASE3_NO_HITL"
 
 from typing import Literal
 
-# Base-3 Status Enum
-Status = Literal["PENDING", "SUCCESS", "FAILED"]
+# =============================================================================
+# SHARED TYPES REGISTRY (PRD-KIVA-004)
+# Re-export canonical types at package level for convenience.
+# Prefer importing from kiva_cli.core.types for new code.
+# =============================================================================
+from .core.types import (
+    ValidationState,
+    LifecycleState,
+    KivaResult,
+    FrameworkType,
+    ProjectConfig,
+    IntentHash,
+    Status,  # re-exported alias
+)
 
-# Base-4 Lifecycle Enum
-Lifecycle = Literal["GENESIS", "ACTIVE", "DEPRECATED", "ARCHIVED"]
+# Legacy aliases (kept for backward compat)
+Lifecycle = Literal["GENESIS", "ACTIVE", "DEPRECATED", "ARCHIVED"]  # prefer LifecycleState
+
+__all__ = [
+    "ValidationState",
+    "LifecycleState",
+    "KivaResult",
+    "FrameworkType",
+    "ProjectConfig",
+    "IntentHash",
+    "Status",
+    "Lifecycle",
+]
