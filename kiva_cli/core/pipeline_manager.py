@@ -11,7 +11,7 @@ from enum import Enum
 from datetime import datetime
 
 
-from tools.ecosystem.skill_manager import ValidationState
+from kiva_cli.core.types import ValidationState, LifecycleState
 
 # Re-export for backward compatibility
 
@@ -37,14 +37,10 @@ class StepType(Enum):
     VALIDATION = "VALIDATION"
     NOTIFICATION = "NOTIFICATION"
     API_CALL = "API_CALL"
+    REPAIR = "REPAIR"  # PRD-KIVA-001: Test-Repair Agent step
 
 
-class LifecycleState(Enum):
-    """Base-4 lifecycle states"""
-    GENESIS = "GENESIS"
-    ACTIVE = "ACTIVE"
-    DEPRECATED = "DEPRECATED"
-    ARCHIVED = "ARCHIVED"
+# LifecycleState imported from kiva_cli.core.types (canonical, PRD-KIVA-004)
 
 
 class ExecutionState(Enum):
