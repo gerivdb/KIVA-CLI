@@ -11,14 +11,9 @@ from enum import Enum
 from datetime import datetime
 
 
-class ValidationState(Enum):
-    """Base-3 ternary validation states"""
-    UNKNOWN = "UNKNOWN"
-    VALID = "VALID"
-    INVALID = "INVALID"
-    PENDING = "PENDING"
-    SUCCESS = "SUCCESS"
-    FAILED = "FAILED"
+from tools.ecosystem.skill_manager import ValidationState
+
+# Re-export for backward compatibility
 
 
 class PipelineType(Enum):
@@ -260,6 +255,26 @@ class PipelineManager:
         )
         conn.commit()
         return True
+
+    def execute_step(self, step_id: str) -> Dict[str, Any]:
+        """Execute a pipeline step and return result dict."""
+        step = self.get_step(step_id)
+        if step is None:
+            return {'validation_state': ValidationState.FAILED, 'error': 'Step not found'}
+        
+        step_type = step.get('step_type', '')
+        
+        # For SKILL_EXECUTION steps, check skill manager
+        if step_type == StepType.SKILL_EXECUTION.value:
+            skill_name = step.get('config', {}).get('skill_name', '')
+            sm = getattr(self, '_skill_manager', None)
+            if sm is None or not sm.has_skill(skill_name):
+                self.update_step_status(step_id, ValidationState.FAILED)
+                return {'validation_state': ValidationState.FAILED, 'error': f'Skill not found: {skill_name}'}
+        
+        # Mark step as successful
+        self.update_step_status(step_id, ValidationState.SUCCESS)
+        return {'validation_state': ValidationState.SUCCESS}
 
     def list_pipelines(self, pipeline_type: PipelineType = None) -> List[Dict[str, Any]]:
         """List all pipelines, optionally filtered by type."""

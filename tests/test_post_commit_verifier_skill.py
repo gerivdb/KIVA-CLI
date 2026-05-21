@@ -39,21 +39,22 @@ class TestPostCommitVerifierSkill(unittest.TestCase):
         mock_repo = Mock()
         mock_repo.get_contents.return_value = mock_file
         
-        with patch.object(self.verifier, 'github_client') as mock_client:
-            mock_client.get_repo.return_value = mock_repo
-            
-            expected = FileExpectation(path='test.md', sha='abc123')
-            result = self.verifier._verify_file(
-                repository='owner/repo',
-                commit_sha='commit123',
-                branch='main',
-                expected=expected
-            )
-            
-            self.assertEqual(result.status, VerificationStatus.VALID)
-            self.assertEqual(result.actual_sha, 'abc123')
-            self.assertEqual(result.actual_size, 1000)
-            self.assertEqual(result.attempts, 1)
+        mock_gh = Mock()
+        mock_gh.get_repo.return_value = mock_repo
+        self.verifier._github_client = mock_gh
+        
+        expected = FileExpectation(path='test.md', sha='abc123')
+        result = self.verifier._verify_file(
+            repository='owner/repo',
+            commit_sha='commit123',
+            branch='main',
+            expected=expected
+        )
+        
+        self.assertEqual(result.status, VerificationStatus.VALID)
+        self.assertEqual(result.actual_sha, 'abc123')
+        self.assertEqual(result.actual_size, 1000)
+        self.assertEqual(result.attempts, 1)
     
     def test_verify_file_sha_mismatch(self):
         """Test file verification with SHA mismatch."""
@@ -63,40 +64,42 @@ class TestPostCommitVerifierSkill(unittest.TestCase):
         mock_repo = Mock()
         mock_repo.get_contents.return_value = mock_file
         
-        with patch.object(self.verifier, 'github_client') as mock_client:
-            mock_client.get_repo.return_value = mock_repo
-            
-            expected = FileExpectation(path='test.md', sha='abc123')
-            result = self.verifier._verify_file(
-                repository='owner/repo',
-                commit_sha='commit123',
-                branch='main',
-                expected=expected
-            )
-            
-            self.assertEqual(result.status, VerificationStatus.INVALID)
-            self.assertIn('SHA mismatch', result.error_message)
-            self.assertEqual(result.attempts, 3)  # Should retry
+        mock_gh = Mock()
+        mock_gh.get_repo.return_value = mock_repo
+        self.verifier._github_client = mock_gh
+        
+        expected = FileExpectation(path='test.md', sha='abc123')
+        result = self.verifier._verify_file(
+            repository='owner/repo',
+            commit_sha='commit123',
+            branch='main',
+            expected=expected
+        )
+        
+        self.assertEqual(result.status, VerificationStatus.INVALID)
+        self.assertIn('SHA mismatch', result.error_message)
+        self.assertEqual(result.attempts, 3)  # Should retry
     
     def test_verify_file_not_found(self):
         """Test file verification when file doesn't exist."""
         mock_repo = Mock()
         mock_repo.get_contents.side_effect = Exception('File not found')
         
-        with patch.object(self.verifier, 'github_client') as mock_client:
-            mock_client.get_repo.return_value = mock_repo
-            
-            expected = FileExpectation(path='missing.md')
-            result = self.verifier._verify_file(
-                repository='owner/repo',
-                commit_sha='commit123',
-                branch='main',
-                expected=expected
-            )
-            
-            self.assertEqual(result.status, VerificationStatus.INVALID)
-            self.assertIn('Error fetching file', result.error_message)
-            self.assertEqual(result.attempts, 3)
+        mock_gh = Mock()
+        mock_gh.get_repo.return_value = mock_repo
+        self.verifier._github_client = mock_gh
+        
+        expected = FileExpectation(path='missing.md')
+        result = self.verifier._verify_file(
+            repository='owner/repo',
+            commit_sha='commit123',
+            branch='main',
+            expected=expected
+        )
+        
+        self.assertEqual(result.status, VerificationStatus.INVALID)
+        self.assertIn('Error fetching file', result.error_message)
+        self.assertEqual(result.attempts, 3)
     
     def test_verify_multiple_files(self):
         """Test verification of multiple files."""
@@ -106,24 +109,25 @@ class TestPostCommitVerifierSkill(unittest.TestCase):
         mock_repo = Mock()
         mock_repo.get_contents.side_effect = [mock_file1, mock_file2]
         
-        with patch.object(self.verifier, 'github_client') as mock_client:
-            mock_client.get_repo.return_value = mock_repo
-            
-            expectations = [
-                FileExpectation(path='file1.md', sha='sha1'),
-                FileExpectation(path='file2.md', sha='sha2')
-            ]
-            
-            verification = self.verifier.verify(
-                repository='owner/repo',
-                commit_sha='commit123',
-                branch='main',
-                expected_files=expectations
-            )
-            
-            self.assertEqual(verification.overall_status, VerificationStatus.VALID)
-            self.assertEqual(len(verification.results), 2)
-            self.assertEqual(verification.total_attempts, 2)
+        mock_gh = Mock()
+        mock_gh.get_repo.return_value = mock_repo
+        self.verifier._github_client = mock_gh
+        
+        expectations = [
+            FileExpectation(path='file1.md', sha='sha1'),
+            FileExpectation(path='file2.md', sha='sha2')
+        ]
+        
+        verification = self.verifier.verify(
+            repository='owner/repo',
+            commit_sha='commit123',
+            branch='main',
+            expected_files=expectations
+        )
+        
+        self.assertEqual(verification.overall_status, VerificationStatus.VALID)
+        self.assertEqual(len(verification.results), 2)
+        self.assertEqual(verification.total_attempts, 2)
     
     def test_overall_status_computation(self):
         """Test overall status computation."""
@@ -201,22 +205,23 @@ class TestPostCommitVerifierSkill(unittest.TestCase):
         mock_repo = Mock()
         mock_repo.get_contents.side_effect = Exception('File not found')
         
-        with patch.object(self.verifier, 'github_client') as mock_client:
-            mock_client.get_repo.return_value = mock_repo
+        mock_gh = Mock()
+        mock_gh.get_repo.return_value = mock_repo
+        self.verifier._github_client = mock_gh
+        
+        with patch.object(self.verifier, 'rollback') as mock_rollback:
+            expectations = [FileExpectation(path='missing.md')]
             
-            with patch.object(self.verifier, 'rollback') as mock_rollback:
-                expectations = [FileExpectation(path='missing.md')]
-                
-                verification = self.verifier.verify(
-                    repository='owner/repo',
-                    commit_sha='commit123',
-                    branch='main',
-                    expected_files=expectations
-                )
-                
-                self.assertEqual(verification.overall_status, VerificationStatus.INVALID)
-                self.assertTrue(verification.rollback_triggered)
-                mock_rollback.assert_called_once_with(verification)
+            verification = self.verifier.verify(
+                repository='owner/repo',
+                commit_sha='commit123',
+                branch='main',
+                expected_files=expectations
+            )
+            
+            self.assertEqual(verification.overall_status, VerificationStatus.INVALID)
+            self.assertTrue(verification.rollback_triggered)
+            mock_rollback.assert_called_once_with(verification)
     
     def test_json_serialization(self):
         """Test JSON serialization."""

@@ -17,6 +17,7 @@ import json
 import logging
 import time
 from dataclasses import dataclass, field
+from datetime import datetime
 from enum import Enum
 from typing import Dict, List, Optional, Tuple
 
@@ -139,6 +140,16 @@ class PostCommitVerifierSkill:
                 )
         return self._github_client
     
+    @github_client.setter
+    def github_client(self, value):
+        """Allow setting github_client (for testing/mocking)."""
+        self._github_client = value
+    
+    @github_client.deleter
+    def github_client(self):
+        """Allow deleting github_client (for testing/mocking)."""
+        self._github_client = None
+    
     def verify(
         self,
         repository: str,
@@ -246,7 +257,7 @@ class PostCommitVerifierSkill:
                     result.status = VerificationStatus.VALID
                     result.actual_sha = file_content.sha
                     result.actual_size = file_content.size
-                    result.verified_at = time.strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+                    result.verified_at = datetime.now().isoformat(timespec='milliseconds') + 'Z'
                     self.logger.debug(
                         f"File verified: {expected.path} "
                         f"(SHA: {file_content.sha[:8]}, {file_content.size} bytes)"

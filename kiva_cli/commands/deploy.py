@@ -133,7 +133,11 @@ def deploy_project(project, environment, validate=False):
     if validate:
         if not validate_config(project):
             return {"status": "FAILED", "message": "Validation failed"}
-    return {"status": "SUCCESS", "deployment_id": "dep-123"}
+    try:
+        result = execute_deployment(project, environment)
+        return result
+    except Exception as e:
+        return {"status": "FAILED", "error": str(e)}
 
 
 def check_deployment_status(deployment_id):

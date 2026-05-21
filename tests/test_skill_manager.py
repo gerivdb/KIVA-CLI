@@ -5,7 +5,8 @@ Unit tests for SkillManager
 import pytest
 import tempfile
 from pathlib import Path
-from tools.ecosystem.skill_manager import SkillManager, SkillType, ValidationState
+from tools.ecosystem.skill_manager import SkillManager, SkillType
+from kiva_cli.core.pipeline_manager import ValidationState
 
 class TestSkillRegistry:
     """Test skill registration and retrieval"""

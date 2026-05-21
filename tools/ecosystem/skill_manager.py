@@ -14,6 +14,9 @@ import time
 
 class ValidationState(Enum):
     """Base-3 ternary validation states"""
+    UNKNOWN = "UNKNOWN"
+    VALID = "VALID"
+    INVALID = "INVALID"
     PENDING = "PENDING"
     SUCCESS = "SUCCESS"
     FAILED = "FAILED"
@@ -100,6 +103,10 @@ class SkillManager:
         if row:
             return dict(row)
         return None
+    
+    def has_skill(self, name: str) -> bool:
+        """Check if a skill is registered."""
+        return self.get_skill(name) is not None
     
     def list_skills(self) -> List[Dict[str, Any]]:
         """List all registered skills"""

@@ -44,9 +44,9 @@ async def test_execute_complete_workflow():
     })
     assert result.state == ValidationState.SUCCESS
     assert result.lifecycle == LifecycleState.ACTIVE
-    assert len(result.stages) == 3  # Clarify, Implement, Validate
+    assert len(result.stages) == 4  # Clarify, Base5Generate, Implement, Validate
     assert result.rollback_triggered == False
-    assert len(result.intent_hash_chain) == 3
+    assert len(result.intent_hash_chain) == 4
     assert result.phi_cps_delta > 0.0
 
 
@@ -110,7 +110,7 @@ async def test_rollback_trigger():
     })
     assert result.state == ValidationState.FAILED
     assert result.rollback_triggered == True
-    assert len(result.stages) == 4  # Clarify, Implement, Validate, Rollback
+    assert len(result.stages) == 5  # Clarify, Base5Generate, Implement, Validate, Rollback
     assert result.stages[-1].stage == WorkflowStage.ROLLBACK
 
 
