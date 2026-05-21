@@ -19,9 +19,7 @@ class WALLogger:
         metadata: Optional[Dict[str, Any]] = None,
     ) -> str:
         """Log an event. Returns event ID."""
-        event_id = hashlib.sha256(
-            f"{event_type}:{project}:{status}:{os.urandom(16).hex()}".encode()
-        ).hexdigest()[:16]
+        event_id = f"event_kiva_{event_type.lower()}_{os.urandom(4).hex()}"
 
         event = {
             "event_id": event_id,
@@ -38,3 +36,10 @@ class WALLogger:
         if project:
             return [e for e in self._events if e["project"] == project]
         return list(self._events)
+
+    def get_event(self, event_id: str) -> Optional[Dict[str, Any]]:
+        """Get a single event by ID."""
+        for e in self._events:
+            if e["event_id"] == event_id:
+                return e
+        return None

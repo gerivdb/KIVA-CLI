@@ -38,9 +38,9 @@ class TestDeploymentManagerIntegration:
         assert "intent_hash" in result
         assert result["phi_delta"] > 0.0
     
-    def test_deploy_invalid_project(self, temp_workspace):
+    def test_deploy_invalid_project(self, temp_workspace, temp_deployments_dir):
         """Test deploying non-existent project fails."""
-        deployment_manager = DeploymentManager()
+        deployment_manager = DeploymentManager(deployments_dir=temp_deployments_dir)
         
         result = deployment_manager.deploy(
             project_path=temp_workspace / "nonexistent",
@@ -51,7 +51,7 @@ class TestDeploymentManagerIntegration:
         assert result["status"] == "FAILED"
         assert "error" in result
     
-    def test_rollback_deployment(self, temp_workspace, mock_ecos_cli):
+    def test_rollback_deployment(self, temp_workspace, mock_ecos_cli, temp_deployments_dir):
         """Test rolling back deployment."""
         # Create and deploy project
         project_manager = ProjectManager(workspace_root=temp_workspace)
@@ -61,7 +61,7 @@ class TestDeploymentManagerIntegration:
         )
         project_path = Path(init_result["project_path"])
         
-        deployment_manager = DeploymentManager()
+        deployment_manager = DeploymentManager(deployments_dir=temp_deployments_dir)
         deploy_result = deployment_manager.deploy(
             project_path=project_path,
             environment="production",
@@ -78,11 +78,11 @@ class TestDeploymentManagerIntegration:
         assert "intent_hash" in result
         assert result["phi_delta"] > 0.0
     
-    def test_list_deployments(self, temp_workspace, mock_ecos_cli):
+    def test_list_deployments(self, temp_workspace, mock_ecos_cli, temp_deployments_dir):
         """Test listing deployments."""
         # Create projects and deploy
         project_manager = ProjectManager(workspace_root=temp_workspace)
-        deployment_manager = DeploymentManager()
+        deployment_manager = DeploymentManager(deployments_dir=temp_deployments_dir)
         
         for i in range(3):
             init_result = project_manager.init_project(
@@ -128,7 +128,7 @@ class TestDeploymentManagerIntegration:
         assert result["total_count"] == 2
         assert all(d["environment"] == "staging" for d in result["deployments"])
     
-    def test_get_deployment(self, temp_workspace, mock_ecos_cli):
+    def test_get_deployment(self, temp_workspace, mock_ecos_cli, temp_deployments_dir):
         """Test getting deployment details."""
         project_manager = ProjectManager(workspace_root=temp_workspace)
         init_result = project_manager.init_project(
@@ -136,7 +136,7 @@ class TestDeploymentManagerIntegration:
             template="fastapi",
         )
         
-        deployment_manager = DeploymentManager()
+        deployment_manager = DeploymentManager(deployments_dir=temp_deployments_dir)
         deploy_result = deployment_manager.deploy(
             project_path=Path(init_result["project_path"]),
             environment="production",

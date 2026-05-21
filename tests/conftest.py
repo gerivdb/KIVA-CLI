@@ -16,6 +16,14 @@ def temp_workspace() -> Generator[Path, None, None]:
 
 
 @pytest.fixture
+def temp_deployments_dir(tmp_path) -> Path:
+    """Create temporary deployments directory."""
+    d = tmp_path / "deployments"
+    d.mkdir()
+    return d
+
+
+@pytest.fixture
 def mock_ecos_cli(monkeypatch):
     """Mock ECOS CLI subprocess calls."""
     import subprocess

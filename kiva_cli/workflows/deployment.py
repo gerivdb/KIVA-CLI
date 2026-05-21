@@ -9,7 +9,7 @@ class DeploymentWorkflow:
     def __init__(
         self,
         project: str,
-        environment: str,
+        environment: str = "staging",
         auto_rollback: bool = False,
     ):
         self.project = project
