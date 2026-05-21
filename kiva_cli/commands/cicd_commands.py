@@ -19,6 +19,7 @@ def cicd_cli():
     - Configure self-hosted runners
     - Run CI pipelines locally
     - Check pipeline status
+    - Run NEXUS Sync Agent v2 (dry-run or live)
     """
     pass
 
@@ -37,11 +38,11 @@ def setup(repo_path: str, pipeline: str):
     """
     manager = CICDManager()
     success = manager.setup_github_actions(repo_path, pipeline)
-    
+
     if success:
-        click.echo(click.style(f"GitHub Actions workflow setup successfully.", fg="green"))
+        click.echo(click.style("GitHub Actions workflow setup successfully.", fg="green"))
     else:
-        click.echo(click.style(f"Failed to setup workflow.", fg="red"))
+        click.echo(click.style("Failed to setup workflow.", fg="red"))
 
 
 @cicd_cli.command(name='run')
@@ -57,7 +58,7 @@ def run_pipeline(repo_path: str):
     """
     manager = CICDManager()
     success = manager.run_ci_pipeline(repo_path)
-    
+
     if success:
         click.echo(click.style("CI pipeline passed!", fg="green"))
     else:
@@ -77,7 +78,7 @@ def status(repo_path: str):
     """
     manager = CICDManager()
     info = manager.get_pipeline_status(repo_path)
-    
+
     click.echo("")
     click.echo(click.style("CI/CD Pipeline Status", fg="cyan"))
     click.echo(click.style("=" * 40, fg="cyan"))
@@ -86,3 +87,49 @@ def status(repo_path: str):
     for wf in info['workflows']:
         click.echo(f"  - {wf}")
     click.echo("")
+
+
+@cicd_cli.command(name='nexus-sync')
+@click.option(
+    '--dry-run',
+    is_flag=True,
+    default=True,
+    show_default=True,
+    help='Simulation sans écriture (recommandé pour le premier run)',
+)
+@click.option(
+    '--repo',
+    default=None,
+    metavar='REPO',
+    help='Filtrer sur un repo spécifique (ex: KIVA-CLI)',
+)
+@click.pass_context
+def nexus_sync(ctx: click.Context, dry_run: bool, repo: str | None) -> None:
+    """
+    Lance le NEXUS Sync Agent v2 depuis KIVA-CLI (PRD-KIVA-006).
+
+    Par défaut, effectue un dry-run qui génère un rapport markdown
+    sans modifier quoi que ce soit.
+
+    Exemples:
+        kiva cicd nexus-sync --dry-run
+        kiva cicd nexus-sync --dry-run --repo KIVA-CLI
+        kiva cicd nexus-sync  # dry-run activé par défaut
+    """
+    from kiva_cli.core.nexus_sync_orchestrator import NexusSyncOrchestrator
+
+    orch = NexusSyncOrchestrator()
+    mode = "(dry-run) " if dry_run else ""
+    click.echo(click.style(f"🔄 NEXUS Sync v2 {mode}en cours...", fg="cyan"))
+
+    result = orch.run(dry_run=dry_run, repo_filter=repo)
+
+    if result.success:
+        click.echo(click.style(f"✅ Sync {mode}terminé", fg="green"))
+        if result.report_path:
+            click.echo(f"📄 Rapport : {result.report_path}")
+        if result.stdout:
+            click.echo(result.stdout)
+    else:
+        click.echo(click.style(f"❌ Échec : {result.stderr}", fg="red"), err=True)
+        ctx.exit(1)
