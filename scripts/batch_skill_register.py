@@ -17,9 +17,8 @@ from pathlib import Path
 from typing import List, Dict, Optional, Tuple
 
 # Add parent directory to path
-sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from tools.core.skill_manager import SkillManager
+from kiva_cli.core.skill_manager import SkillManager
 
 
 def detect_script_type(file_path: Path) -> Optional[str]:

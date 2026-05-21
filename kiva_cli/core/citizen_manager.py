@@ -17,7 +17,7 @@ from dataclasses import dataclass, asdict
 from enum import Enum
 
 try:
-    from tools.core.global_wal_manager import (
+    from kiva_cli.core.global_wal_manager import (
         GlobalWALManager,
         ValidationState,
         EventStatus,

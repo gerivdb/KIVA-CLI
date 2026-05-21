@@ -15,7 +15,6 @@ try:
     from kiva_cli.core.script_maturation_manager import ScriptMaturationManager
 except ImportError:
     import sys
-    sys.path.insert(0, str(Path(__file__).parent.parent.parent))
     from kiva_cli.core.script_maturation_manager import ScriptMaturationManager
 
 

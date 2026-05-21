@@ -8,9 +8,8 @@ import time
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from tools.core.daemon_manager import DaemonManager
+from kiva_cli.core.daemon_manager import DaemonManager
 
 
 class TestDaemonManagerInit(unittest.TestCase):

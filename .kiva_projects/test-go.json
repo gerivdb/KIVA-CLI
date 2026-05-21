@@ -1,0 +1,13 @@
+{
+  "name": "test-go",
+  "framework": "go_service",
+  "repo_path": "/tmp/tmpo8zag3br/test-go",
+  "lifecycle_state": "GENESIS",
+  "validation_state": "VALID",
+  "intent_hash": "0x45FB9B00BAF5892F30A5E5BDF0BAE911C0C574CB",
+  "phi_cps_delta": 0.018,
+  "created_at": "2026-05-21T00:03:20.650840",
+  "updated_at": "2026-05-21T00:03:20.650843",
+  "dependencies": [],
+  "deployment_targets": []
+}

@@ -4,10 +4,9 @@
 
 import sys
 from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from tools.core.pipeline_manager import PipelineManager
-from tools.core.global_wal_manager import GlobalWALManager
+from kiva_cli.core.pipeline_manager import PipelineManager
+from kiva_cli.core.global_wal_manager import GlobalWALManager
 import json
 
 def validate_phi_cps_stability():

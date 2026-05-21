@@ -1,31 +1,7 @@
 #!/usr/bin/env python3
-"""KIVA-CLI main entry point.
-
-ECOS-CLI unified command-line interface for:
-- Project scaffolding (ProjectManager)
-- Event tracking (GlobalWALManager)
-- Entity lifecycle (CitizenManager)
-- Skill registry (SkillManager)
-- Script maturation (ScriptMaturationManager)
-- Path resolution (PathResolver)
-- Context management (ContextManager)
-- Entity path mapping (EntityPathMapper)
-"""
+"""KIVA-CLI main entry point."""
 
 import sys
-from pathlib import Path
-# Fix: ensure KIVA-CLI root is first in sys.path to avoid shadowing by NEXUS/tools
-_kiva_root = str(Path(__file__).resolve().parent.parent)
-# Remove any cached 'tools' module that may have been loaded from another path
-for _mod in list(sys.modules.keys()):
-    if _mod == 'tools' or _mod.startswith('tools.'):
-        del sys.modules[_mod]
-# Remove NEXUS and other conflicting paths that contain a 'tools' package
-sys.path = [p for p in sys.path if 'NEXUS' not in p and 'L0-CANON' not in p]
-if _kiva_root in sys.path:
-    sys.path.remove(_kiva_root)
-sys.path.insert(0, _kiva_root)
-
 import click
 from kiva_cli.commands.project_commands import project_cli
 from kiva_cli.commands.wal_commands import wal_cli
@@ -53,43 +29,12 @@ from kiva_cli.commands.zvec_commands import zvec_cli
 from kiva_cli.commands.epic_commands import epic_cli
 from kiva_cli.commands.gate_command import gate_cli
 
-
 @click.group()
 @click.version_option(version="0.23.0", prog_name="KIVA-CLI")
 def cli():
-    """KIVA-CLI - ECOS unified command-line interface.
-
-    Provides:
-    - Project scaffolding and management
-    - Event tracking (GlobalWALManager)
-    - Entity lifecycle (CitizenManager)
-    - Skill registry (SkillManager)
-    - Script maturation (Skeleton -> Production)
-    - Path resolution (local <-> remote)
-    - Context management (active repo)
-    - Windows Explorer integration
-    - Entity path mapping
-    - Repository discovery
-    - Skill discovery & registration
-    - Skill marketplace (install/update/remove)
-    - phi-CPS analytics and drift detection
-    - Merge gate (phi-CPS drift gate for all ECOS repos)
-    - CI/CD integration and pipeline management
-    - Security hardening and audit
-    - Service discovery and management
-    - Auto-scaling policy management
-    - Distributed WAL management
-    - Multi-host cluster management
-    - LXC/LXD container orchestration
-    - Web UI dashboard
-    - KVCache integration
-    - zvec vector database
-    - EPIC-centric development mode
-    """
+    """KIVA-CLI - ECOS unified command-line interface."""
     pass
 
-
-# Register command groups
 cli.add_command(project_cli, name="project")
 cli.add_command(wal_cli, name="wal")
 cli.add_command(citizen_cli, name="citizen")
@@ -116,11 +61,8 @@ cli.add_command(kvcache_cli, name="kvcache")
 cli.add_command(zvec_cli, name="zvec")
 cli.add_command(epic_cli, name="epic")
 
-
 def main():
-    """Main entry point for KIVA-CLI"""
     cli()
-
 
 if __name__ == "__main__":
     main()

@@ -102,7 +102,7 @@ class TestPipelineIntegration:
             skill_db = str(Path(tmpdir) / "skills.db")
             pipeline_db = str(Path(tmpdir) / "pipelines.db")
             
-            from tools.core.pipeline_manager import PipelineManager, PipelineType, StepType
+            from kiva_cli.core.pipeline_manager import PipelineManager, PipelineType, StepType
             from tools.ecosystem.skill_manager import SkillManager
             
             sm = SkillManager(db_path=skill_db)
@@ -134,7 +134,7 @@ class TestPipelineIntegration:
             skill_db = str(Path(tmpdir) / "skills.db")
             pipeline_db = str(Path(tmpdir) / "pipelines.db")
             
-            from tools.core.pipeline_manager import PipelineManager, PipelineType, StepType
+            from kiva_cli.core.pipeline_manager import PipelineManager, PipelineType, StepType
             from tools.ecosystem.skill_manager import SkillManager
             
             sm = SkillManager(db_path=skill_db)

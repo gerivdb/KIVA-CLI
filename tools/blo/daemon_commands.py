@@ -18,7 +18,7 @@ import json
 from pathlib import Path
 from typing import Optional
 
-from tools.core.daemon_manager import DaemonManager
+from kiva_cli.core.daemon_manager import DaemonManager
 
 
 @click.group()

@@ -11,7 +11,7 @@ Provides:
 - Security: Sandboxed execution with parameter validation
 
 Usage:
-    from tools.core.skill_manager import SkillManager
+    from kiva_cli.core.skill_manager import SkillManager
     
     manager = SkillManager()
     skill_id = manager.register_skill(
@@ -36,9 +36,8 @@ from typing import Dict, List, Optional, Any, Tuple
 import sys
 
 # Add parent directory to path for imports
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from tools.core.global_wal_manager import GlobalWALManager
+from kiva_cli.core.global_wal_manager import GlobalWALManager
 
 
 class SkillManager:

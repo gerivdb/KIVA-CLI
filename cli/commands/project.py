@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Optional
 
 try:
-    from tools.core.project_manager import (
+    from kiva_cli.core.project_manager import (
         ProjectManager,
         FrameworkType,
         LifecycleState,
@@ -24,7 +24,7 @@ try:
     )
 except ImportError:
     sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-    from tools.core.project_manager import (
+    from kiva_cli.core.project_manager import (
         ProjectManager,
         FrameworkType,
         LifecycleState,

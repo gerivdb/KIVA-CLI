@@ -13,7 +13,7 @@ import shutil
 
 # Mock imports if modules not available
 try:
-    from tools.core.project_manager import (
+    from kiva_cli.core.project_manager import (
         ProjectManager,
         FrameworkType,
         LifecycleState,

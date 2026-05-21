@@ -6,7 +6,7 @@ import click
 import json
 from pathlib import Path
 from tabulate import tabulate
-from tools.core.pipeline_manager import (
+from kiva_cli.core.pipeline_manager import (
     PipelineManager, PipelineType, StepType,
     ValidationState, LifecycleState, ExecutionState
 )

@@ -1,0 +1,13 @@
+{
+  "name": "test-fastapi",
+  "framework": "fastapi",
+  "repo_path": "/tmp/tmpfr7u87z1/test-fastapi",
+  "lifecycle_state": "GENESIS",
+  "validation_state": "VALID",
+  "intent_hash": "0x00BC4CACB3AC1F739A2BEC36909C69172DFFEEE7",
+  "phi_cps_delta": 0.018,
+  "created_at": "2026-05-21T00:03:20.641559",
+  "updated_at": "2026-05-21T00:03:20.641562",
+  "dependencies": [],
+  "deployment_targets": []
+}

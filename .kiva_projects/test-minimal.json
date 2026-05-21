@@ -1,0 +1,13 @@
+{
+  "name": "test-minimal",
+  "framework": "fastapi",
+  "repo_path": "/tmp/tmphcea8y1j/test-minimal",
+  "lifecycle_state": "GENESIS",
+  "validation_state": "VALID",
+  "intent_hash": "0x2DA180B9853A694C1DF5A6506C29E348B330139A",
+  "phi_cps_delta": 0.018,
+  "created_at": "2026-05-21T00:03:20.631635",
+  "updated_at": "2026-05-21T00:03:20.631639",
+  "dependencies": [],
+  "deployment_targets": []
+}

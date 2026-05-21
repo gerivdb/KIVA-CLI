@@ -20,10 +20,9 @@ from pathlib import Path
 from click.testing import CliRunner
 import sys
 
-sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from kiva_cli.commands.skill_commands import skill_cli
-from tools.core.skill_manager import SkillManager
+from kiva_cli.core.skill_manager import SkillManager
 
 
 @pytest.fixture

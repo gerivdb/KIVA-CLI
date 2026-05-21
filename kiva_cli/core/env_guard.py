@@ -396,3 +396,6 @@ def quick_check(
         }
     
     return guard.check(SimpleCitizen(), target_env)
+
+# Instance globale pour compatibilité
+env_guard = EnvGuard()

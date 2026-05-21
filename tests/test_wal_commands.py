@@ -18,7 +18,7 @@ from kiva_cli.commands.wal_commands import (
     export_audit
 )
 
-from tools.core.global_wal_manager import GlobalWALManager
+from kiva_cli.core.global_wal_manager import GlobalWALManager
 
 
 class TestWALCLIAppend:

@@ -14,7 +14,7 @@ Provides:
 - Log aggregation and rotation
 
 Usage:
-    from tools.core.daemon_manager import DaemonManager
+    from kiva_cli.core.daemon_manager import DaemonManager
     
     manager = DaemonManager()
     daemon_id = manager.register_daemon(
@@ -44,9 +44,8 @@ from typing import Dict, List, Optional, Any, Tuple
 import sys
 import psutil
 
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from tools.core.global_wal_manager import GlobalWALManager
+from kiva_cli.core.global_wal_manager import GlobalWALManager
 
 
 class DaemonManager:

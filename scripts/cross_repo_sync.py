@@ -19,16 +19,15 @@ from typing import List, Dict, Any, Optional
 from datetime import datetime, timezone
 
 # Add parent directory to path
-sys.path.insert(0, str(Path(__file__).parent.parent))
 
 try:
-    from tools.core.citizen_manager import (
+    from kiva_cli.core.citizen_manager import (
         CitizenManager,
         EntityLevel,
         EntityType,
         LifecycleState
     )
-    from tools.core.global_wal_manager import GlobalWALManager
+    from kiva_cli.core.global_wal_manager import GlobalWALManager
 except ImportError as e:
     print(f"❌ Import error: {e}")
     sys.exit(1)

@@ -8,9 +8,8 @@ from unittest.mock import Mock, patch, MagicMock
 from datetime import datetime
 
 # Add parent directory to path
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from tools.core.branch_protection_handler_skill import (
+from kiva_cli.core.branch_protection_handler_skill import (
     BranchProtectionHandlerSkill,
     BranchProtectionStatus,
     FileChange,

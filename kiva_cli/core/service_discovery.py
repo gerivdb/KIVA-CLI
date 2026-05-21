@@ -14,7 +14,7 @@ from typing import Dict, List, Optional, Any
 
 HAS_KVCACHE = False
 try:
-    from tools.core.kvcache_manager import KVCacheManager
+    from kiva_cli.core.kvcache_manager import KVCacheManager
     HAS_KVCACHE = True
 except ImportError:
     pass
@@ -43,7 +43,7 @@ class ServiceDiscovery:
         self.cache = None
         if HAS_KVCACHE:
             try:
-                from tools.core.kvcache_manager import KVCacheManager
+                from kiva_cli.core.kvcache_manager import KVCacheManager
                 self.cache = KVCacheManager()
             except Exception:
                 pass

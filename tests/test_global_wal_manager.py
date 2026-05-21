@@ -5,7 +5,7 @@ Tests for GlobalWALManager
 import pytest
 import tempfile
 from pathlib import Path
-from tools.core.global_wal_manager import (
+from kiva_cli.core.global_wal_manager import (
     GlobalWALManager, EventType, Severity, ValidationState
 )
 

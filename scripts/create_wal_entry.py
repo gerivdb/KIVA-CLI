@@ -24,7 +24,6 @@ import uuid
 # Import from ECOYSTEM (assume accessible)
 try:
     ecoystem_path = Path(__file__).parent.parent.parent / "ECOYSTEM" / "tools" / "core"
-    sys.path.insert(0, str(ecoystem_path))
     from global_wal_manager import GlobalWALManager, CrossRepoEvent
 except ImportError as e:
     print(f"❌ Cannot import global_wal_manager: {e}")

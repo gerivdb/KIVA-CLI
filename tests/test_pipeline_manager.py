@@ -5,7 +5,7 @@ Tests for PipelineManager
 import pytest
 import tempfile
 from pathlib import Path
-from tools.core.pipeline_manager import (
+from kiva_cli.core.pipeline_manager import (
     PipelineManager, PipelineType, StepType,
     ValidationState, LifecycleState, ExecutionState
 )

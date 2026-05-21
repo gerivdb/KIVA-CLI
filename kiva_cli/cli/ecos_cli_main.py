@@ -20,15 +20,15 @@ from datetime import datetime
 
 # Import Phase 6 modules
 try:
-    from kiva_cli.core.validation.base3_ternary_logic import TernaryValidator, TernaryState
-    from kiva_cli.core.lifecycle.base4_lifecycle_manager import (
+    from kiva_cli.core.base3_ternary_logic import TernaryValidator, TernaryState
+    from kiva_cli.core.base4_lifecycle_manager import (
         LifecycleManager, LifecycleState, LifecycleEntity
     )
-    from kiva_cli.core.lifecycle.base4_base3_integration import (
+    from kiva_cli.core.base4_base3_integration import (
         LifecycleValidator, LifecycleMetrics
     )
-    from kiva_cli.core.security.intenthash_validator import IntentHashValidator
-    from kiva_cli.core.metrics.phi_cps_manager import PhiCPSManager
+    from kiva_cli.core.intent_hash_validator import IntentHashValidator
+    from kiva_cli.core.phi_cps_manager import PhiCPSManager
     MODULES_AVAILABLE = True
 except ImportError as e:
     print(f"⚠️  Warning: Some modules not yet deployed: {e}")

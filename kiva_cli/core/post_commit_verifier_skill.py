@@ -318,7 +318,7 @@ class PostCommitVerifierSkill:
         )
         
         # TODO: Integrate with AutoRollbackPipeline
-        # from tools.core.auto_rollback_pipeline import AutoRollbackPipeline
+        # from kiva_cli.core.auto_rollback_pipeline import AutoRollbackPipeline
         # pipeline = AutoRollbackPipeline()
         # pipeline.rollback(commit_sha=verification.commit_sha)
     

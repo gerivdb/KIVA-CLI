@@ -14,13 +14,13 @@ from typing import Dict, List, Optional, Tuple
 
 HAS_KVCACHE = False
 try:
-    from tools.core.kvcache_manager import KVCacheManager
+    from kiva_cli.core.kvcache_manager import KVCacheManager
     HAS_KVCACHE = True
 except ImportError:
     pass
 
 # EnvGuard Integration - ITAD Pattern
-from tools.core.env_guard import env_guard
+from kiva_cli.core.env_guard import env_guard
 
 
 class RepoInfo:

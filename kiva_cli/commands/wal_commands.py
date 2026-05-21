@@ -24,7 +24,6 @@ try:
     )
 except ImportError:
     # Fallback import
-    sys.path.insert(0, str(Path(__file__).parent.parent.parent))
     from kiva_cli.core.global_wal_manager import (
         GlobalWALManager,
         ValidationState,

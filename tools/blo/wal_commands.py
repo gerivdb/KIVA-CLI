@@ -6,7 +6,7 @@ import click
 import json
 from datetime import datetime, timedelta
 from tabulate import tabulate
-from tools.core.global_wal_manager import (
+from kiva_cli.core.global_wal_manager import (
     GlobalWALManager, EventType, Severity, ValidationState
 )
 
