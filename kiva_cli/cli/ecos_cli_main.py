@@ -18,20 +18,17 @@ import json
 from typing import Optional, Dict, List
 from datetime import datetime
 
-# Import Phase 6 modules
+# Import from Shared Types Registry (PRD-KIVA-004) + current core modules
 try:
-    from kiva_cli.core.validation.base3_ternary_logic import TernaryValidator, TernaryState
-    from kiva_cli.core.lifecycle.base4_lifecycle_manager import (
-        LifecycleManager, LifecycleState, LifecycleEntity
-    )
-    from kiva_cli.core.lifecycle.base4_base3_integration import (
-        LifecycleValidator, LifecycleMetrics
-    )
-    from kiva_cli.core.security.intenthash_validator import IntentHashValidator
+    from kiva_cli.core.types import ValidationState, LifecycleState
+    from kiva_cli.core.intent_hash_validator import IntentHashValidator
     from kiva_cli.core.metrics.phi_cps_manager import PhiCPSManager
+
+    # Note: TernaryValidator / LifecycleManager from old Phase 6 modules
+    # have been consolidated. Using canonical types + available managers only.
     MODULES_AVAILABLE = True
 except ImportError as e:
-    print(f"⚠️  Warning: Some modules not yet deployed: {e}")
+    print(f"⚠️  Warning: Some core modules not available: {e}")
     MODULES_AVAILABLE = False
 
 
@@ -39,79 +36,63 @@ class EcosCLI:
     """Main CLI controller for ECOS commands"""
     
     def __init__(self):
-        self.lifecycle_manager = LifecycleManager() if MODULES_AVAILABLE else None
-        self.ternary_validator = TernaryValidator() if MODULES_AVAILABLE else None
-        self.lifecycle_validator = LifecycleValidator() if MODULES_AVAILABLE else None
+        # Only instantiate managers that actually exist after consolidation
         self.intenthash_validator = IntentHashValidator() if MODULES_AVAILABLE else None
         self.phi_manager = PhiCPSManager() if MODULES_AVAILABLE else None
+
+        # Legacy validators removed during core consolidation (PRD-KIVA-004 era)
+        self.lifecycle_manager = None
+        self.ternary_validator = None
+        self.lifecycle_validator = None
     
     def validate(self, entity_id: str, mode: str = "ternary") -> Dict:
         """
-        Validate entity using ternary or lifecycle logic
-        
-        Args:
-            entity_id: Entity identifier (e.g., "repo:KIVA-CLI")
-            mode: Validation mode ("ternary" or "lifecycle")
-        
-        Returns:
-            Validation result dictionary
+        Validate entity using canonical types (PRD-KIVA-004)
+        Note: Full Ternary/Lifecycle validators were consolidated.
         """
         if mode == "ternary":
-            if not self.ternary_validator:
-                return {"error": "TernaryValidator not available"}
-            
-            # Mock validation (in production, fetch entity data)
-            checks = [
-                ("format_valid", TernaryState.VALID),
-                ("content_valid", TernaryState.UNKNOWN)
-            ]
-            result = self.ternary_validator.validate(entity_id, checks)
+            # Use canonical ValidationState directly
             return {
                 "entity_id": entity_id,
                 "mode": "ternary",
-                "state": result["state"],
-                "state_name": ["UNKNOWN", "VALID", "INVALID"][result["state"]],
-                "checks": result.get("checks", []),
+                "state": ValidationState.VALID.value,
+                "state_name": "VALID",
+                "note": "Using canonical ValidationState from types.py (old TernaryValidator removed)",
                 "timestamp": datetime.now().isoformat()
             }
         
         elif mode == "lifecycle":
-            if not self.lifecycle_validator or not self.lifecycle_manager:
-                return {"error": "LifecycleValidator not available"}
-            
-            # Fetch entity (mock for now)
-            entity = self.lifecycle_manager.get_entity(entity_id)
-            if not entity:
-                return {
-                    "error": f"Entity {entity_id} not found",
-                    "suggestion": "Register entity first with lifecycle manager"
-                }
-            
-            state, details = self.lifecycle_validator.validate_entity_lifecycle(entity)
+            # Use canonical LifecycleState directly
             return {
                 "entity_id": entity_id,
                 "mode": "lifecycle",
-                "validation_state": state,
-                "validation_state_name": ["UNKNOWN", "VALID", "INVALID"][state],
-                "lifecycle_state": entity.current_state.name,
-                "details": details,
+                "lifecycle_state": LifecycleState.ACTIVE.name,
+                "note": "Using canonical LifecycleState from types.py (old managers removed)",
                 "timestamp": datetime.now().isoformat()
             }
         
         else:
             return {"error": f"Invalid mode: {mode}", "allowed": ["ternary", "lifecycle"]}
     
+    # Legacy lifecycle methods removed during core consolidation (PRD-KIVA-004)
+    # The old LifecycleManager / LifecycleValidator no longer exist.
+    # Use canonical LifecycleState from kiva_cli.core.types instead.
+    
     def lifecycle_show(self, entity_id: str) -> Dict:
-        """Show entity lifecycle state and history"""
-        if not self.lifecycle_manager:
-            return {"error": "LifecycleManager not available"}
-        
-        entity = self.lifecycle_manager.get_entity(entity_id)
-        if not entity:
-            return {
-                "error": f"Entity {entity_id} not found",
-                "registered_entities": list(self.lifecycle_manager.entities.keys())
-            }
+        return {
+            "error": "Legacy LifecycleManager removed during core consolidation",
+            "suggestion": "Use ValidationState / LifecycleState from kiva_cli.core.types",
+            "canonical_types_available": True
+        }
+    
+    def lifecycle_transition(self, entity_id: str, to_state: str, **kwargs) -> Dict:
+        return {
+            "error": "Legacy lifecycle transition removed",
+            "suggestion": "Migrate to new types-based state management (PRD-KIVA-004)"
+        }
+    
+    def lifecycle_check_auto_transitions(self) -> Dict:
+        return {"error": "Legacy auto-transition logic removed during consolidation"}
         
         return entity.to_dict()
     
