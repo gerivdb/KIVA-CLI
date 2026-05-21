@@ -122,34 +122,3 @@ def status(deployment_id: str):
             click.echo(f"  {key}: {value}")
     else:
         click.secho(f"❌ Deployment not found: {deployment_id}", fg='red', err=True)
-
-
-# ========================================
-# Python-callable functions (for test_kiva_cli.py)
-# ========================================
-
-def deploy_project(project, environment, validate=False):
-    """Deploy a project. Returns dict with status."""
-    if validate:
-        if not validate_config(project):
-            return {"status": "FAILED", "message": "Validation failed"}
-    try:
-        result = execute_deployment(project, environment)
-        return result
-    except Exception as e:
-        return {"status": "FAILED", "error": str(e)}
-
-
-def check_deployment_status(deployment_id):
-    """Check deployment status. Returns dict with status."""
-    return {"status": "SUCCESS", "deployment_id": deployment_id}
-
-
-def execute_deployment(project, environment):
-    """Execute a deployment. Returns dict with status."""
-    return {"status": "SUCCESS", "deployment_id": "dep-123"}
-
-
-def validate_config(project):
-    """Validate deployment config. Returns True if valid."""
-    return True

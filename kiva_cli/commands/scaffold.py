@@ -156,21 +156,3 @@ def list_templates():
 
 if __name__ == "__main__":
     scaffold_group()
-
-
-# ========================================
-# Python-callable functions (for test_kiva_cli.py)
-# ========================================
-
-def scaffold_service(name, template, output_dir, options=None):
-    """Scaffold a service. Returns dict with status."""
-    from pathlib import Path
-    service_path = Path(output_dir) / name
-    service_path.mkdir(parents=True, exist_ok=True)
-    (service_path / "README.md").write_text(f"# {name}\n", encoding="utf-8")
-    return {"status": "SUCCESS", "name": name, "template": template, "path": str(service_path)}
-
-
-def list_templates():
-    """List available templates. Returns dict with status and templates list."""
-    return {"status": "SUCCESS", "templates": ["fastapi", "react", "go-service", "rust"]}
