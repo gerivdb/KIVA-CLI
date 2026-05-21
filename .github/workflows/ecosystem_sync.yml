@@ -125,7 +125,23 @@ jobs:
           else
             echo "ℹ️ No changes to commit in ECOYSTEM"
           fi
-      
+
+      - name: NEXUS Sync v2 — Reconcile (dry-run)
+        id: nexus_sync
+        run: |
+          python -m kiva_cli.commands.cicd_commands nexus-sync --dry-run
+        env:
+          ECOS_ROOT: ${{ vars.ECOS_ROOT || 'D:/DO/WEB' }}
+        continue-on-error: true
+
+      - name: Upload reconciliation report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nexus-reconciliation-${{ github.run_id }}
+          path: D:/DO/WEB/TOOLS/L0-CANON/NEXUS/reports/reconciliation_*.md
+          if-no-files-found: ignore
+
       - name: Upload sync report
         if: steps.sync.outputs.sync_success == 'true'
         uses: actions/upload-artifact@v4
