@@ -21,6 +21,7 @@ from datetime import datetime
 from enum import Enum
 import subprocess
 import hashlib
+import warnings
 
 try:
     from .global_wal_manager import GlobalWALManager, WALEvent
@@ -32,74 +33,41 @@ except ImportError:
     from intent_hash_validator import IntentHashValidator, ValidationResult
     from phi_cps_calculator import PhiCPSCalculator
 
+# =============================================================================
+# SHARED TYPES REGISTRY (PRD-KIVA-004)
+# Use canonical definitions from the single source of truth.
+# Local definitions below are deprecated and will be removed.
+# =============================================================================
+from .types import (
+    ValidationState,
+    LifecycleState,
+    FrameworkType,
+    ProjectConfig as _CanonicalProjectConfig,
+    DeploymentResult as _CanonicalDeploymentResult,
+)
 
-# ========================================
-# BASE-3 TERNARY VALIDATION STATES
-# ========================================
-
-class ValidationState(Enum):
-    """Base-3 ternary semantic validation."""
-    UNKNOWN = 0   # Pending validation
-    VALID = 1     # Validated successfully
-    INVALID = -1  # Failed validation
-
-
-# ========================================
-# BASE-4 LIFECYCLE STATES
-# ========================================
-
-class LifecycleState(Enum):
-    """Base-4 project lifecycle management."""
-    GENESIS = 0       # Project created
-    ACTIVE = 1        # In active development
-    DEPRECATED = 2    # Marked for retirement
-    ARCHIVED = 3      # Archived/read-only
-
-
-# ========================================
-# PROJECT FRAMEWORK TYPES
-# ========================================
-
-class FrameworkType(Enum):
-    """Supported project framework templates."""
-    FASTAPI = "fastapi"
-    REACT = "react"
-    GO_SERVICE = "go_service"
-    PYTHON_LIB = "python_lib"
-    DOCKER_COMPOSE = "docker_compose"
-    LXC_CONTAINER = "lxc_container"
+# Temporary backward-compat aliases (will emit DeprecationWarning in future)
+# All new code MUST import directly from kiva_cli.core.types
+warnings.warn(
+    "project_manager.py still defines local ValidationState/LifecycleState/FrameworkType. "
+    "Migrate to `from kiva_cli.core.types import ...` (PRD-KIVA-004).",
+    DeprecationWarning,
+    stacklevel=2
+)
 
 
 # ========================================
 # DATA STRUCTURES
 # ========================================
 
-@dataclass
-class ProjectConfig:
-    """Project configuration metadata."""
-    name: str
-    framework: str
-    repo_path: Path
-    lifecycle_state: str = "GENESIS"
-    validation_state: str = "UNKNOWN"
-    intent_hash: Optional[str] = None
-    phi_cps_delta: float = 0.0
-    created_at: str = ""
-    updated_at: str = ""
-    dependencies: List[str] = None
-    deployment_targets: List[str] = None
-
-    def __post_init__(self):
-        if self.dependencies is None:
-            self.dependencies = []
-        if self.deployment_targets is None:
-            self.deployment_targets = []
-        if not self.created_at:
-            self.created_at = datetime.now().isoformat()
-        self.updated_at = datetime.now().isoformat()
+# Canonical types from Shared Types Registry (PRD-KIVA-004)
+from .types import ProjectConfig
 
 # Alias for backward compatibility
 ProjectTemplate = ProjectConfig
+
+# Note: ProjectConfig now uses proper enum types (LifecycleState / ValidationState)
+# instead of raw strings. Migration of call sites is in progress.
 
 
 @dataclass
