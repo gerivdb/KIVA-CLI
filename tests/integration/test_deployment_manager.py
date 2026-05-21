@@ -11,7 +11,7 @@ from kiva_cli.managers.deployment_manager import DeploymentManager
 class TestDeploymentManagerIntegration:
     """Integration tests for DeploymentManager."""
     
-    def test_deploy_project(self, temp_workspace, mock_ecos_cli):
+    def test_deploy_project(self, temp_workspace, mock_ecos_cli, temp_deployments_dir):
         """Test deploying project."""
         # Create project first
         project_manager = ProjectManager(workspace_root=temp_workspace)
@@ -22,7 +22,7 @@ class TestDeploymentManagerIntegration:
         project_path = Path(init_result["project_path"])
         
         # Deploy
-        deployment_manager = DeploymentManager()
+        deployment_manager = DeploymentManager(deployments_dir=temp_deployments_dir)
         result = deployment_manager.deploy(
             project_path=project_path,
             environment="staging",
@@ -102,22 +102,24 @@ class TestDeploymentManagerIntegration:
         assert result["total_count"] == 3
         assert len(result["deployments"]) == 3
     
-    def test_list_deployments_filtered(self, temp_workspace, mock_ecos_cli):
+    def test_list_deployments_filtered(self, temp_workspace, mock_ecos_cli, temp_deployments_dir):
         """Test listing deployments with filters."""
         project_manager = ProjectManager(workspace_root=temp_workspace)
-        deployment_manager = DeploymentManager()
+        deployment_manager = DeploymentManager(deployments_dir=temp_deployments_dir)
         
-        # Create deployments
-        for env in ["staging", "staging", "production"]:
+        # Create deployments with unique names
+        envs = ["staging", "staging", "production"]
+        for i, env in enumerate(envs):
             init_result = project_manager.init_project(
-                name=f"project-{env}",
+                name=f"project-{i}-{env}",
                 template="fastapi",
             )
-            deployment_manager.deploy(
-                project_path=Path(init_result["project_path"]),
-                environment=env,
-                target="k8s-cluster-1",
-            )
+            if init_result["status"] == "SUCCESS":
+                deployment_manager.deploy(
+                    project_path=Path(init_result["project_path"]),
+                    environment=env,
+                    target="k8s-cluster-1",
+                )
         
         # Filter by environment
         result = deployment_manager.list_deployments(environment="staging")

@@ -13,6 +13,7 @@ from typing import Dict, List, Optional
 from unittest.mock import Mock, patch, MagicMock
 import tempfile
 import shutil
+from datetime import datetime
 
 # Test fixtures and utilities
 
@@ -54,9 +55,9 @@ def sample_ecos_root():
     }
 
 @pytest.fixture
-def wal_database(temp_dir):
-    """Create test WAL database"""
-    db_path = Path(temp_dir) / "test_wal.db"
+def wal_database(tmp_path):
+    """Create test WAL database."""
+    db_path = tmp_path / "test_wal.db"
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
     
