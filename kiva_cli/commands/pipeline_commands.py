@@ -86,6 +86,18 @@ def _parallel_group_index(step_name: str, parallel_groups: list) -> str:
     return "SEQ"
 
 
+def _resolve_topo_order(steps) -> list[str]:
+    """Return step names in topological order using graphlib if available."""
+    try:
+        from graphlib import TopologicalSorter
+        graph = {s.name: set(s.depends_on) for s in steps}
+        ts = TopologicalSorter(graph)
+        return list(ts.static_order())
+    except ImportError:
+        # Fallback: declaration order (no graphlib on Python < 3.9)
+        return [s.name for s in steps]
+
+
 # ---------------------------------------------------------------------------
 # Group
 # ---------------------------------------------------------------------------
@@ -287,7 +299,17 @@ def pipeline_show(name: str, no_when: bool, no_groups: bool):
 @click.option("--dry-run", is_flag=True, default=False, help="Simulate execution without running commands.")
 @click.option("--verbose", "-v", is_flag=True, default=False, help="Show stdout/stderr per step.")
 @click.option("--ci", is_flag=True, default=False, help="Force CI-safe mode (no interactive prompts).")
-def pipeline_run(name: str, dry_run: bool, verbose: bool, ci: bool):
+@click.option(
+    "--from", "-f", "from_step",
+    default=None,
+    metavar="STEP",
+    help=(
+        "Resume execution from STEP (inclusive). "
+        "All preceding steps are marked SKIPPED(resumed from <step>). "
+        "Compatible with --dry-run and --verbose."
+    ),
+)
+def pipeline_run(name: str, dry_run: bool, verbose: bool, ci: bool, from_step: Optional[str]):
     """Execute a pipeline by NAME.
 
     Steps run in topological order. Behaviour on non-zero exit
@@ -296,6 +318,14 @@ def pipeline_run(name: str, dry_run: bool, verbose: bool, ci: bool):
       warn     -- log warning, continue
       continue -- silently skip and continue
       notify   -- emit WAL alert, continue
+
+    Use --from STEP to resume a previously failed pipeline from a named step.
+    Steps before STEP are shown as SKIPPED(resumed from <step>) in the output.
+
+    Examples:
+      kiva pipeline run build
+      kiva pipeline run build --from deploy
+      kiva pipeline run build -f test --dry-run
     """
     if ci:
         os.environ["KIVA_CI"] = "1"
@@ -312,9 +342,90 @@ def pipeline_run(name: str, dry_run: bool, verbose: bool, ci: bool):
         raise SystemExit(1)
 
     from kiva_cli.core.pipeline_runner import run_pipeline
+    from kiva_cli.core.pipeline_types import Pipeline, StepResult
 
+    # ------------------------------------------------------------------
+    # --from: resolve topo order, validate step name, split pipeline
+    # ------------------------------------------------------------------
+    skipped_prefix: list[StepResult] = []
+
+    if from_step is not None:
+        topo_order = _resolve_topo_order(p.steps)
+        step_names = [s.name for s in p.steps]
+
+        if from_step not in step_names:
+            click.echo(
+                f"[ERROR] --from: step '{from_step}' not found in pipeline '{name}'.\n"
+                f"        Available steps: {', '.join(step_names)}",
+                err=True,
+            )
+            raise SystemExit(1)
+
+        # Build prefix = all steps that appear before from_step in topo order
+        prefix_names: set[str] = set()
+        for sname in topo_order:
+            if sname == from_step:
+                break
+            prefix_names.add(sname)
+
+        # Pre-inject SKIPPED StepResult for each prefix step (declaration order)
+        import time
+        for s in p.steps:
+            if s.name in prefix_names:
+                skipped_prefix.append(
+                    StepResult(
+                        step_name=s.name,
+                        status="SKIPPED",
+                        exit_code=0,
+                        stdout="",
+                        stderr="",
+                        duration_s=0.0,
+                        skip_reason=f"resumed from {from_step}",
+                    )
+                )
+
+        # Build suffix pipeline (steps NOT in prefix)
+        suffix_steps = [s for s in p.steps if s.name not in prefix_names]
+        p = Pipeline(
+            name=p.name,
+            version=p.version,
+            description=p.description,
+            nexus_status=p.nexus_status,
+            steps=suffix_steps,
+            parallel_groups=p.parallel_groups,
+            on_failure=getattr(p, "on_failure", "abort"),
+            max_workers=getattr(p, "max_workers", 4),
+        )
+
+        click.echo(
+            f"[--from] Resuming '{name}' from step '{from_step}' "
+            f"({len(skipped_prefix)} step(s) skipped)."
+        )
+
+    # ------------------------------------------------------------------
+    # Run the (possibly suffixed) pipeline
+    # ------------------------------------------------------------------
     result = run_pipeline(p, dry_run=dry_run, verbose=verbose)
 
+    # Merge: skipped prefix first, then actual results
+    if skipped_prefix:
+        merged_steps = skipped_prefix + list(result.steps)
+        result = type(result)(
+            pipeline_name=result.pipeline_name,
+            status=result.status,
+            steps=merged_steps,
+            intent_hash=result.intent_hash,
+            duration_s=result.duration_s,
+            **{
+                k: getattr(result, k)
+                for k in ("parallel_groups_executed", "total_parallel_wall_clock", "total_retries_used")
+                if hasattr(result, k)
+            },
+        )
+
+    # ------------------------------------------------------------------
+    # Display
+    # ------------------------------------------------------------------
     click.echo("")
     click.echo(f"Pipeline '{result.pipeline_name}' finished: {result.status}")
     click.echo(f"intent_hash : {result.intent_hash}")
@@ -328,6 +439,9 @@ def pipeline_run(name: str, dry_run: bool, verbose: bool, ci: bool):
     click.echo("")
     click.echo(f"total_retries_used: {getattr(result, 'total_retries_used', 0)}")
 
+    # Re-bind p for the full step list display (original load for meta lookup)
+    original_steps = {s.name: s for s in load_pipeline(_find_yaml(name)).steps}
+
     click.echo("")
     click.echo(f"{'Step':<24} {'Status':<10} {'Duration':>8}  {'Group':<6}  {'Retry':>5}  {'Skipped reason / Command'}")
     click.echo("-" * 100)
@@ -335,12 +449,11 @@ def pipeline_run(name: str, dry_run: bool, verbose: bool, ci: bool):
         cmd_hint = ""
         grp = "SEQ"
         retry = 0
-        for s in p.steps:
-            if s.name == sr.step_name:
-                cmd_hint = s.command[:34]
-                grp = _parallel_group_index(s.name, p.parallel_groups)
-                retry = s.retry
-                break
+        if sr.step_name in original_steps:
+            s = original_steps[sr.step_name]
+            cmd_hint = s.command[:34]
+            grp = _parallel_group_index(s.name, p.parallel_groups)
+            retry = s.retry
 
         # KIVA-011: show skip_reason instead of command for SKIPPED steps
         if sr.status == "SKIPPED" and sr.skip_reason:
