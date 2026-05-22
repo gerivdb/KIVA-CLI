@@ -24,6 +24,9 @@ from kiva_cli.core.parallel_executor import (
     validate_parallel_groups,
 )
 
+# KIVA-011: when: condition evaluation
+from kiva_cli.core.condition_evaluator import evaluate_when
+
 
 # ---------------------------------------------------------------------------
 # WAL helper (soft-import: KIVA-CLI may run without WAL in minimal envs)
@@ -53,6 +56,43 @@ def _phi_delta_record(step_name: str, duration_s: float, status: str) -> None:
         PhiTracker().record(label=f"pipeline.step.{step_name}", value=duration_s, unit="s", status=status)
     except Exception:
         pass
+
+
+# ---------------------------------------------------------------------------
+# KIVA-011: when: condition helpers
+# ---------------------------------------------------------------------------
+
+def _build_when_context(step: Step, result: PipelineResult, dry_run: bool) -> dict:
+    """Build the evaluation context for a step's `when:` expression."""
+    last_status = "SUCCESS"
+    if result.steps:
+        last_status = result.steps[-1].status
+
+    return {
+        "env": dict(os.environ),
+        "dry_run": dry_run,
+        "last_status": last_status,
+        "parallel_groups_executed": result.parallel_groups_executed,
+    }
+
+
+def _run_step_with_when_check(
+    step: Step, dry_run: bool, verbose: bool, result: PipelineResult
+) -> StepResult:
+    """Run the step only if its `when:` condition passes (KIVA-011).
+
+    Returns a SKIPPED StepResult (with skip_reason) if the condition is false.
+    """
+    if step.when and step.when.strip():
+        context = _build_when_context(step, result, dry_run)
+        if not evaluate_when(step.when, context):
+            return StepResult(
+                step_name=step.name,
+                status="SKIPPED",
+                skip_reason=f"condition not met: {step.when}",
+            )
+
+    return _run_step_with_retry(step, dry_run=dry_run, verbose=verbose)
 
 
 # ---------------------------------------------------------------------------
@@ -301,7 +341,7 @@ def run_pipeline(
             group_steps = [s for s in steps if s.name in set(group_names)]
 
             def _run_one(s: Step) -> StepResult:
-                return _run_step_with_retry(s, dry_run=dry_run, verbose=verbose)
+                return _run_step_with_when_check(s, dry_run=dry_run, verbose=verbose, result=result)
 
             group_res = parallel_executor.run_group(gidx, group_steps, _run_one)
 
@@ -332,7 +372,7 @@ def run_pipeline(
         # --- Normal sequential step (or already-processed group member) ---
         click.echo(f"  >> {step.name} ...", nl=False)
 
-        sr = _run_step_with_retry(step, dry_run=dry_run, verbose=verbose)
+        sr = _run_step_with_when_check(step, dry_run=dry_run, verbose=verbose, result=result)
         result.steps.append(sr)
         result.total_retries_used += max(0, sr.attempts - 1)
         _phi_delta_record(step.name, sr.duration_s, sr.status)
