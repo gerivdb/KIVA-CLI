@@ -126,12 +126,17 @@ jobs:
             echo "ℹ️ No changes to commit in ECOYSTEM"
           fi
 
-      - name: NEXUS Sync v2 — Reconcile (dry-run)
+      # KIVA-006/007 — NEXUS Sync Agent v2 (dry-run, CI-safe)
+      # ⚠️  --chain is intentionally absent: AutoChainManager requires a local NEXUS
+      #     checkout which is not present on the ubuntu-latest runner.
+      #     HAS_AUTOCHAIN will always be False here → subprocess fallback.
+      #     To use --chain, run `kiva cicd nexus-sync --chain` locally.
+      - name: NEXUS Sync v2 — Reconcile (dry-run, no --chain)
         id: nexus_sync
         run: |
           python -m kiva_cli.commands.cicd_commands nexus-sync --dry-run
         env:
-          ECOS_ROOT: ${{ vars.ECOS_ROOT || 'D:/DO/WEB' }}
+          ECOS_ROOT: ${{ vars.ECOS_ROOT || '/tmp/ecos' }}
         continue-on-error: true
 
       - name: Upload reconciliation report
@@ -139,7 +144,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: nexus-reconciliation-${{ github.run_id }}
-          path: D:/DO/WEB/TOOLS/L0-CANON/NEXUS/reports/reconciliation_*.md
+          # Report lands in the NEXUS reports/ dir relative to the runner workspace
+          # (absent on CI → if-no-files-found: ignore keeps the step green)
+          path: /tmp/ecos/L0-CANON/NEXUS/reports/reconciliation_*.md
           if-no-files-found: ignore
 
       - name: Upload sync report
