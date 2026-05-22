@@ -1,10 +1,10 @@
-"""KIVA-008 — kiva pipeline commands (Sprint 2+3).
+"""KIVA-009 Sprint 4 — kiva pipeline commands (enriched show + run stats).
 
 Group: kiva pipeline
 Commands:
   list                  List discovered pipeline YAML definitions
   validate <name>       Validate DAG (cycle check + schema)
-  show <name>           Show detailed step table for a pipeline
+  show <name>           Show detailed step table (with when: + parallel_groups)
   run <name>            Execute a pipeline (subprocess per step)
   history               Show last N PIPELINE_RUN WAL events
 """
@@ -54,6 +54,77 @@ def _status_icon(status: str) -> str:
     return icons.get(status, f"[{status}]")
 
 
+def _when_summary(when_list: list) -> str:
+    """Produce a compact human-readable summary of a step's when: conditions.
+
+    Examples:
+      env:SKIP_TESTS!=true
+      file_exists:src/
+      phi_cps:BLO<2.0
+      expr:(custom)
+      env:ENV=prod + file_exists:src/   (AND, multiple conditions)
+    """
+    if not when_list:
+        return "-"
+
+    parts: list[str] = []
+    for w in when_list:
+        t = getattr(w, "type", "?")
+        if t == "env":
+            var = getattr(w, "var", "") or ""
+            eq = getattr(w, "equals", None)
+            neq = getattr(w, "not_equals", None)
+            if eq is not None:
+                parts.append(f"env:{var}={eq}")
+            elif neq is not None:
+                parts.append(f"env:{var}!={neq}")
+            else:
+                parts.append(f"env:{var}")
+        elif t == "file_exists":
+            path = getattr(w, "path", "") or ""
+            parts.append(f"file_exists:{path}")
+        elif t == "file_changed":
+            path = getattr(w, "path", "") or ""
+            since = getattr(w, "since_seconds", None)
+            s = f"file_changed:{path}"
+            if since is not None:
+                s += f"<{since}s"
+            parts.append(s)
+        elif t == "phi_cps":
+            repo = getattr(w, "repo", "") or ""
+            op = getattr(w, "op", "") or ""
+            val = getattr(w, "value", "")
+            op_sym = {"lt": "<", "gt": ">", "lte": "<=", "gte": ">=", "eq": "=="}.get(op, op)
+            parts.append(f"phi_cps:{repo}{op_sym}{val}")
+        elif t == "step_output":
+            step = getattr(w, "step", "") or ""
+            ec = getattr(w, "exit_code", None)
+            sc = getattr(w, "stdout_contains", None)
+            s = f"step:{step}"
+            if ec is not None:
+                s += f"[rc={ec}]"
+            if sc:
+                s += f"[~{sc[:10]}]"
+            parts.append(s)
+        elif t == "expr":
+            expr = getattr(w, "expr", "") or ""
+            parts.append(f"expr:{expr[:12]}…" if len(expr) > 12 else f"expr:{expr}")
+        else:
+            parts.append(t)
+
+    summary = " + ".join(parts)
+    # Truncate to 28 chars for table column
+    return summary[:27] + "…" if len(summary) > 28 else summary
+
+
+def _parallel_group_index(step_name: str, parallel_groups: list[list[str]]) -> str:
+    """Return 'P<idx>' if step_name is in a parallel group, else 'SEQ'."""
+    for idx, group in enumerate(parallel_groups):
+        if step_name in group:
+            return f"P{idx}"
+    return "SEQ"
+
+
 # ---------------------------------------------------------------------------
 # Group
 # ---------------------------------------------------------------------------
@@ -96,7 +167,8 @@ def pipeline_list():
     for y in yamls:
         try:
             p = load_pipeline(y)
-            click.echo(f"  {p.name:<24} {len(p.steps)} steps   {p.description[:60]}")
+            pg_hint = f"  [{len(p.parallel_groups)} group(s)]" if p.parallel_groups else ""
+            click.echo(f"  {p.name:<24} {len(p.steps)} steps{pg_hint}   {p.description[:52]}")
         except Exception as exc:
             click.echo(f"  {y.stem:<24} [PARSE ERROR] {exc}")
 
@@ -135,13 +207,19 @@ def pipeline_validate(name: str):
 
 
 # ---------------------------------------------------------------------------
-# show
+# show  (Sprint 4 — enriched)
 # ---------------------------------------------------------------------------
 
 @pipeline_cli.command("show")
 @click.argument("name")
-def pipeline_show(name: str):
-    """Show detailed step table for a pipeline (Sprint 3)."""
+@click.option("--no-when", is_flag=True, default=False, help="Hide when: column.")
+@click.option("--no-groups", is_flag=True, default=False, help="Hide parallel groups section.")
+def pipeline_show(name: str, no_when: bool, no_groups: bool):
+    """Show detailed step table for a pipeline.
+
+    Displays when: conditions per step and parallel_groups layout.
+    Use --no-when / --no-groups to suppress those sections.
+    """
     path = _find_yaml(name)
     if path is None:
         click.echo(f"[ERROR] Pipeline not found: '{name}'", err=True)
@@ -153,18 +231,91 @@ def pipeline_show(name: str):
         click.echo(f"[ERROR] {exc}", err=True)
         raise SystemExit(1)
 
+    has_parallel = bool(p.parallel_groups)
+    has_when = any(getattr(s, "when", []) for s in p.steps)
+
+    # ── Header ──────────────────────────────────────────────────────────────
     click.echo(f"Pipeline : {p.name}")
     click.echo(f"Version  : {p.version}")
     click.echo(f"Status   : {p.nexus_status}")
     if p.description:
         click.echo(f"Desc     : {p.description}")
+    click.echo(f"Failure  : {getattr(p, 'on_failure', 'abort')} (pipeline default)")
+    if has_parallel:
+        workers = getattr(p, "max_workers", 4)
+        click.echo(f"Parallel : {len(p.parallel_groups)} group(s) — max_workers={workers}")
     click.echo("")
-    click.echo(f"{'#':<4} {'Step':<24} {'Command':<36} {'on_failure':<10} {'Depends on'}")
-    click.echo("-" * 90)
+
+    # ── Step table ──────────────────────────────────────────────────────────
+    show_when_col = has_when and not no_when
+    show_group_col = has_parallel and not no_groups
+
+    # Column widths
+    W_IDX = 4
+    W_NAME = 24
+    W_CMD = 34
+    W_FAIL = 9
+    W_DEP = 20
+    W_GROUP = 6   # "GROUP"
+    W_WHEN = 30   # "WHEN"
+
+    # Build header
+    header = f"{'#':<{W_IDX}} {'Step':<{W_NAME}} {'Command':<{W_CMD}} {'Failure':<{W_FAIL}} {'Depends on':<{W_DEP}}"
+    if show_group_col:
+        header += f" {'GROUP':<{W_GROUP}}"
+    if show_when_col:
+        header += f" {'WHEN':<{W_WHEN}}"
+    sep_len = len(header)
+    click.echo(header)
+    click.echo("─" * sep_len)
+
     for i, s in enumerate(p.steps, 1):
         deps = ", ".join(s.depends_on) if s.depends_on else "-"
-        cmd = s.command[:34] + ".." if len(s.command) > 36 else s.command
-        click.echo(f"{i:<4} {s.name:<24} {cmd:<36} {s.on_failure:<10} {deps}")
+        if len(deps) > W_DEP:
+            deps = deps[:W_DEP - 2] + ".."
+        cmd = s.command
+        if len(cmd) > W_CMD:
+            cmd = cmd[:W_CMD - 2] + ".."
+
+        row = (
+            f"{i:<{W_IDX}} "
+            f"{s.name:<{W_NAME}} "
+            f"{cmd:<{W_CMD}} "
+            f"{s.on_failure:<{W_FAIL}} "
+            f"{deps:<{W_DEP}}"
+        )
+        if show_group_col:
+            grp = _parallel_group_index(s.name, p.parallel_groups)
+            row += f" {grp:<{W_GROUP}}"
+        if show_when_col:
+            when_list = getattr(s, "when", []) or []
+            row += f" {_when_summary(when_list):<{W_WHEN}}"
+
+        # Dim sequential non-group steps slightly by marking them
+        click.echo(row)
+
+        # Show description as sub-line if present
+        if s.description:
+            indent = " " * (W_IDX + 1 + W_NAME + 1)
+            desc = s.description[:W_CMD + W_FAIL + W_DEP + W_GROUP + W_WHEN]
+            click.echo(f"{indent}↳ {desc}")
+
+    # ── Parallel groups section ──────────────────────────────────────────────
+    if has_parallel and not no_groups:
+        click.echo("")
+        click.echo("Parallel groups")
+        click.echo("─" * 50)
+        for idx, group in enumerate(p.parallel_groups):
+            members = "  ".join(f"{m}" for m in group)
+            click.echo(f"  P{idx}  ║  {members}")
+        workers = getattr(p, "max_workers", 4)
+        click.echo(f"       max_workers = {workers}")
+        click.echo("")
+        # Sequential steps (not in any group)
+        all_in_groups = {name for grp in p.parallel_groups for name in grp}
+        seq_steps = [s.name for s in p.steps if s.name not in all_in_groups]
+        if seq_steps:
+            click.echo(f"  SEQ  ║  {chr(10).join(seq_steps)}")
 
 
 # ---------------------------------------------------------------------------
@@ -199,7 +350,6 @@ def pipeline_run(name: str, dry_run: bool, verbose: bool, ci: bool):
         click.echo(f"[ERROR] Failed to parse pipeline '{name}': {exc}", err=True)
         raise SystemExit(1)
 
-    # Import runner here to keep boot-time import cost zero when not used
     from kiva_cli.core.pipeline_runner import run_pipeline
 
     result = run_pipeline(p, dry_run=dry_run, verbose=verbose)
@@ -208,17 +358,26 @@ def pipeline_run(name: str, dry_run: bool, verbose: bool, ci: bool):
     click.echo(f"Pipeline '{result.pipeline_name}' finished: {result.status}")
     click.echo(f"intent_hash : {result.intent_hash}")
     click.echo(f"duration    : {result.duration_s:.2f}s")
+
+    # Sprint 4: parallel stats footer
+    pg_exec = getattr(result, "parallel_groups_executed", 0)
+    if pg_exec > 0:
+        wall = getattr(result, "total_parallel_wall_clock", 0.0)
+        click.echo(f"parallel    : {pg_exec} group(s) ran — wall_clock={wall:.2f}s")
+
     click.echo("")
-    click.echo(f"{'Step':<24} {'Status':<10} {'Duration':>8}  Command")
-    click.echo("-" * 80)
+    click.echo(f"{'Step':<24} {'Status':<10} {'Duration':>8}  {'Group':<6}  Command")
+    click.echo("-" * 88)
     for sr in result.steps:
         cmd_hint = ""
+        grp = "SEQ"
         for s in p.steps:
             if s.name == sr.step_name:
-                cmd_hint = s.command[:36]
+                cmd_hint = s.command[:34]
+                grp = _parallel_group_index(s.name, p.parallel_groups)
                 break
         click.echo(
-            f"{sr.step_name:<24} {_status_icon(sr.status):<10} {sr.duration_s:>7.2f}s  {cmd_hint}"
+            f"{sr.step_name:<24} {_status_icon(sr.status):<10} {sr.duration_s:>7.2f}s  {grp:<6}  {cmd_hint}"
         )
         if verbose and (sr.stdout or sr.stderr):
             if sr.stdout:
@@ -237,7 +396,7 @@ def pipeline_run(name: str, dry_run: bool, verbose: bool, ci: bool):
 @pipeline_cli.command("history")
 @click.option("--limit", "-n", default=20, show_default=True, help="Max WAL events to show.")
 def pipeline_history(limit: int):
-    """Show last N PIPELINE_RUN events from WAL (Sprint 3)."""
+    """Show last N PIPELINE_RUN events from WAL."""
     try:
         from kiva_cli.core.global_wal_manager import GlobalWALManager
         wal = GlobalWALManager()
