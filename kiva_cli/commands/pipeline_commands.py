@@ -6,6 +6,7 @@ Commands:
   validate <name>       Validate DAG (cycle check + schema)
   show <name>           Show detailed step table (with when: + parallel_groups)
   run <name>            Execute a pipeline (subprocess per step)
+  run --steps           Ad-hoc execution via AutoChainManager (KIVA-008)
   history               Show last N PIPELINE_RUN WAL events
 """
 from __future__ import annotations
@@ -18,6 +19,7 @@ import click
 
 from kiva_cli.core.pipeline_loader import detect_cycles, load_pipeline
 from kiva_cli.core.pipeline_types import HAS_PIPELINE
+from kiva_cli.core.auto_chain_manager import get_auto_chain_manager
 
 
 # ---------------------------------------------------------------------------
@@ -112,6 +114,13 @@ def pipeline_cli():
 
     Override pipeline directory: KIVA_PIPELINES_DIR env var.
     CI mode (no interactive prompts): KIVA_CI=1 env var.
+
+    Commands:
+      list        List discovered pipeline YAML definitions
+      validate    Validate DAG (cycle check + schema)
+      show        Show detailed step table
+      run         Execute a pipeline (or ad-hoc --steps chain)
+      history     Show last N PIPELINE_RUN WAL events
     """
     if not HAS_PIPELINE:
         click.echo("[pipeline] Feature disabled (KIVA_HAS_PIPELINE=0). Aborting.", err=True)
@@ -291,11 +300,20 @@ def pipeline_show(name: str, no_when: bool, no_groups: bool):
 
 
 # ---------------------------------------------------------------------------
-# run
+# run  (KIVA-008: --steps ad-hoc mode + --from resume mode)
 # ---------------------------------------------------------------------------
 
 @pipeline_cli.command("run")
-@click.argument("name")
+@click.argument("name", required=False, default=None)
+@click.option(
+    "--steps", "steps_list",
+    default=None,
+    metavar="CMD1,CMD2,...",
+    help=(
+        "Ad-hoc comma-separated list of shell commands to chain. "
+        "Runs via AutoChainManager (KIVA-008). Mutually exclusive with NAME."
+    ),
+)
 @click.option("--dry-run", is_flag=True, default=False, help="Simulate execution without running commands.")
 @click.option("--verbose", "-v", is_flag=True, default=False, help="Show stdout/stderr per step.")
 @click.option("--ci", is_flag=True, default=False, help="Force CI-safe mode (no interactive prompts).")
@@ -306,30 +324,89 @@ def pipeline_show(name: str, no_when: bool, no_groups: bool):
     help=(
         "Resume execution from STEP (inclusive). "
         "All preceding steps are marked SKIPPED(resumed from <step>). "
-        "Compatible with --dry-run and --verbose."
+        "Compatible with --dry-run and --verbose. Not applicable with --steps."
     ),
 )
-def pipeline_run(name: str, dry_run: bool, verbose: bool, ci: bool, from_step: Optional[str]):
-    """Execute a pipeline by NAME.
+def pipeline_run(
+    name: Optional[str],
+    steps_list: Optional[str],
+    dry_run: bool,
+    verbose: bool,
+    ci: bool,
+    from_step: Optional[str],
+):
+    """Execute a pipeline by NAME, or run an ad-hoc chain with --steps.
 
-    Steps run in topological order. Behaviour on non-zero exit
-    is controlled by each step's on_failure field:
+    \b
+    NAMED PIPELINE MODE:
+      kiva pipeline run build
+      kiva pipeline run build --from deploy
+      kiva pipeline run build -f test --dry-run
+
+    \b
+    AD-HOC MODE (--steps):
+      kiva pipeline run --steps "echo hello","echo world"
+      kiva pipeline run --steps "pytest tests/","mypy src/" --dry-run
+      kiva pipeline run --steps "step1","step2","step3" --verbose
+
+    \b
+    Step on_failure behaviour (named pipelines):
       abort    (default) -- stop immediately
       warn     -- log warning, continue
       continue -- silently skip and continue
       notify   -- emit WAL alert, continue
-
-    Use --from STEP to resume a previously failed pipeline from a named step.
-    Steps before STEP are shown as SKIPPED(resumed from <step>) in the output.
-
-    Examples:
-      kiva pipeline run build
-      kiva pipeline run build --from deploy
-      kiva pipeline run build -f test --dry-run
     """
     if ci:
         os.environ["KIVA_CI"] = "1"
 
+    # ------------------------------------------------------------------
+    # Validate mutual exclusivity
+    # ------------------------------------------------------------------
+    if steps_list and name:
+        click.echo("[ERROR] --steps and NAME are mutually exclusive. Use one or the other.", err=True)
+        raise SystemExit(1)
+
+    if not steps_list and name is None:
+        click.echo("[ERROR] Provide a pipeline NAME or use --steps for ad-hoc execution.", err=True)
+        raise SystemExit(1)
+
+    # ==================================================================
+    # AD-HOC MODE via AutoChainManager
+    # ==================================================================
+    if steps_list:
+        if from_step:
+            click.echo("[WARN] --from is not applicable in --steps ad-hoc mode. Ignored.")
+
+        steps = [s.strip() for s in steps_list.split(",") if s.strip()]
+        if not steps:
+            click.echo("[ERROR] --steps requires at least one non-empty command.", err=True)
+            raise SystemExit(1)
+
+        _manager = get_auto_chain_manager()
+        result = _manager.run_adhoc(steps, dry_run=dry_run, verbose=verbose)
+
+        click.echo("")
+        click.echo(f"Ad-hoc chain finished: {result.status}  ({len(steps)} step(s))")
+        click.echo(f"{'Step':<4} {'Command':<40} {'Status':<10} {'Duration':>8}")
+        click.echo("-" * 70)
+        for i, sr in enumerate(result.steps, 1):
+            cmd_hint = steps[i - 1][:38] if i <= len(steps) else sr.step_name
+            click.echo(
+                f"{i:<4} {cmd_hint:<40} {_status_icon(sr.status):<10} {sr.duration_s:>7.2f}s"
+            )
+            if verbose and (sr.stdout or sr.stderr):
+                if sr.stdout:
+                    click.echo(f"     stdout: {sr.stdout[:200]}")
+                if sr.stderr:
+                    click.echo(f"     stderr: {sr.stderr[:200]}")
+
+        if result.status == "FAILED":
+            raise SystemExit(1)
+        return
+
+    # ==================================================================
+    # NAMED PIPELINE MODE (with optional --from)
+    # ==================================================================
     path = _find_yaml(name)
     if path is None:
         click.echo(f"[ERROR] Pipeline not found: '{name}' in {_pipelines_dir()}", err=True)
@@ -369,7 +446,7 @@ def pipeline_run(name: str, dry_run: bool, verbose: bool, ci: bool, from_step: O
             prefix_names.add(sname)
 
         # Pre-inject SKIPPED StepResult for each prefix step (declaration order)
-        import time
+        import time  # noqa: F401 (used indirectly via pipeline_runner)
         for s in p.steps:
             if s.name in prefix_names:
                 skipped_prefix.append(
