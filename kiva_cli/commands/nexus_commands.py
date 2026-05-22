@@ -4,6 +4,7 @@ Groupe : kiva nexus
 Sous-groupes / commandes :
   kiva nexus tracking init <REPO> [--path PATH] [--dry-run]
   kiva nexus drift check   [--repo REPO] [--since HOURS] [--phi-only] [--status-scan]
+  kiva nexus sync          [--dry-run] [--repo PATH] [--skip-watchdog]
 
 Extensions futures :
   kiva nexus status <REPO>
@@ -14,6 +15,7 @@ from __future__ import annotations
 
 import hashlib
 import os
+import subprocess
 import sys
 import time
 from datetime import datetime, timezone, timedelta
@@ -189,7 +191,8 @@ def nexus_cli():
 
     Commandes disponibles :
       tracking init <REPO>   Initialise .nexus/TRACKING.md + STATUS.yaml
-      drift check            Détecte les dérives φ-CPS et les alertes WAL
+      drift check            Détecte les dérives phi-CPS et les alertes WAL
+      sync                   Enchaîne les 5 scripts du weekly sync NEXUS
 
     Extensions futures :
       status <REPO>          Affiche l'état NEXUS d'un repo
@@ -614,6 +617,156 @@ def _confirm_prune(targets: list) -> bool:
         return answer.strip().lower() in ("y", "yes", "o", "oui")
     except (click.Abort, EOFError):
         return False
+
+
+# ---------------------------------------------------------------------------
+# kiva nexus sync  — NEXUS Weekly Sync (remplace GHA nexus-weekly-sync)
+# IntentHash: 0xKIVA_NEXUS_SYNC_LOCAL
+# GHA volontairement désactivé (budget) — exécution locale via Task Scheduler
+# ---------------------------------------------------------------------------
+
+_NEXUS_ROOT_DEFAULT = _L0_CANON_ROOT / "NEXUS"
+
+_NEXUS_SYNC_PIPELINE = [
+    {
+        "name":   "nexus_sync",
+        "script": "tools/nexus_sync.py",
+        "args":   ["--generate"],
+        "label":  "[1/5] Sync registre NEXUS",
+        "fatal":  True,
+    },
+    {
+        "name":   "nexus_changelog_gen",
+        "script": "tools/nexus_changelog_gen.py",
+        "args":   [],
+        "label":  "[2/5] Changelog",
+        "fatal":  True,
+    },
+    {
+        "name":   "nexus_readme_gen",
+        "script": "tools/nexus_readme_gen.py",
+        "args":   [],
+        "label":  "[3/5] README",
+        "fatal":  True,
+    },
+    {
+        "name":   "nexus_validate",
+        "script": "tools/nexus_validate.py",
+        "args":   ["--check", "drift", "--create-issues"],
+        "label":  "[4/5] Validation + drift",
+        "fatal":  True,
+    },
+    {
+        "name":   "nexus_watchdog",
+        "script": "tools/nexus_watchdog.py",
+        "args":   ["--create-issues"],
+        "label":  "[5/5] Watchdog intégrité",
+        "fatal":  False,  # continue-on-error intentionnel (identique au GHA)
+    },
+]
+
+
+def _run_sync_step(
+    step: dict,
+    nexus_root: Path,
+    dry_run: bool,
+    python_exe: str,
+) -> bool:
+    """Exécute un step du pipeline sync. Retourne True si OK (ou non-fatal)."""
+    script = nexus_root / step["script"]
+    cmd    = [python_exe, str(script)] + step["args"]
+    tag    = "DRY-RUN" if dry_run else "RUN"
+
+    click.echo(f"\n  {step['label']}")
+    click.echo(f"  [{tag}] {' '.join(str(c) for c in cmd)}")
+
+    if dry_run:
+        click.secho("  -> skipped (dry-run)", fg="yellow")
+        return True
+
+    if not script.exists():
+        click.secho(f"  [ERROR] script introuvable : {script}", fg="red")
+        return not step["fatal"]
+
+    result = subprocess.run(cmd, text=True)
+
+    if result.returncode != 0:
+        if step["fatal"]:
+            click.secho(f"  [FATAL] exit {result.returncode} — pipeline interrompu", fg="red")
+            return False
+        click.secho(
+            f"  [WARN] exit {result.returncode} — non-fatal, pipeline continue", fg="yellow"
+        )
+
+    return True
+
+
+@nexus_cli.command(name="sync")
+@click.option("--dry-run",       is_flag=True, help="Simule sans exécuter aucun script.")
+@click.option("--repo",          default=None, type=click.Path(), help="Chemin NEXUS (défaut: L0-CANON/NEXUS).")
+@click.option("--skip-watchdog", is_flag=True, help="Saute l'étape 5 (nexus_watchdog).")
+@click.option("--python",        default=sys.executable, help="Interpréteur Python (défaut: courant).")
+def nexus_sync(dry_run: bool, repo: Optional[str], skip_watchdog: bool, python: str):
+    """Enchaîne les 5 scripts du weekly sync NEXUS en local.
+
+    Remplace le workflow GHA nexus-weekly-sync (désactivé volontairement —
+    coût GitHub Actions). Conçu pour Task Scheduler Windows (lundi 6h).
+
+    Pipeline exécuté :
+
+      1. nexus_sync.py --generate
+
+      2. nexus_changelog_gen.py
+
+      3. nexus_readme_gen.py
+
+      4. nexus_validate.py --check drift --create-issues
+
+      5. nexus_watchdog.py --create-issues   [continue-on-error]
+
+    Exemples :
+
+      kiva nexus sync
+
+      kiva nexus sync --dry-run
+
+      kiva nexus sync --repo D:\\DO\\WEB\\TOOLS\\L0-CANON\\NEXUS
+    """
+    nexus_root = Path(repo) if repo else _NEXUS_ROOT_DEFAULT
+
+    click.secho("\n" + "=" * 56, fg="cyan", bold=True)
+    click.secho("  KIVA — nexus sync", fg="cyan", bold=True)
+    click.secho(f"  Repo  : {nexus_root}", fg="cyan")
+    click.secho(f"  Mode  : {'DRY-RUN' if dry_run else 'LIVE'}", fg="cyan")
+    click.secho(f"  Start : {_now_iso()}", fg="cyan")
+    click.secho("=" * 56 + "\n", fg="cyan", bold=True)
+
+    if not dry_run and not nexus_root.is_dir():
+        click.secho(f"[ERROR] NEXUS root introuvable : {nexus_root}", fg="red")
+        sys.exit(1)
+
+    steps   = [s for s in _NEXUS_SYNC_PIPELINE if not (skip_watchdog and s["name"] == "nexus_watchdog")]
+    success = 0
+    failed: list[str] = []
+
+    for step in steps:
+        ok = _run_sync_step(step, nexus_root, dry_run, python)
+        if ok:
+            success += 1
+        else:
+            failed.append(step["name"])
+            break
+
+    click.echo("\n" + "=" * 56)
+    if not failed:
+        click.secho(f"  NEXUS SYNC OK — {success}/{len(steps)} steps", fg="green", bold=True)
+        sys.exit(0)
+    else:
+        click.secho(
+            f"  NEXUS SYNC FAILED — {success}/{len(steps)} steps | Echec: {failed}",
+            fg="red", bold=True,
+        )
+        sys.exit(1)
 
 
 # ---------------------------------------------------------------------------
