@@ -19,7 +19,7 @@ def cicd_cli():
     - Configure self-hosted runners
     - Run CI pipelines locally
     - Check pipeline status
-    - Run NEXUS Sync Agent v2 (dry-run or live)
+    - Run NEXUS Sync Agent v2 (dry-run or live, classic or declarative chain)
     """
     pass
 
@@ -103,29 +103,56 @@ def status(repo_path: str):
     metavar='REPO',
     help='Filtrer sur un repo spécifique (ex: KIVA-CLI)',
 )
+@click.option(
+    '--chain',
+    is_flag=True,
+    default=False,
+    help='Utilise le moteur déclaratif AutoChainManager de NEXUS (KIVA-007). '
+         'Fallback automatique vers le mode classique si NEXUS absent.',
+)
 @click.pass_context
-def nexus_sync(ctx: click.Context, dry_run: bool, repo: str | None) -> None:
+def nexus_sync(ctx: click.Context, dry_run: bool, repo: str | None, chain: bool) -> None:
     """
-    Lance le NEXUS Sync Agent v2 depuis KIVA-CLI (PRD-KIVA-006).
+    Lance le NEXUS Sync Agent v2 depuis KIVA-CLI (PRD-KIVA-006/007).
 
     Par défaut, effectue un dry-run qui génère un rapport markdown
     sans modifier quoi que ce soit.
 
+    Modes d'exécution:
+        Classique (KIVA-006) : subprocess direct vers NEXUS sync_agent_v2.py
+        Déclaratif (KIVA-007): moteur AutoChainManager (--chain, requis NEXUS local)
+
     Exemples:
         kiva cicd nexus-sync --dry-run
         kiva cicd nexus-sync --dry-run --repo KIVA-CLI
-        kiva cicd nexus-sync  # dry-run activé par défaut
+        kiva cicd nexus-sync --chain --dry-run
     """
-    from kiva_cli.core.nexus_sync_orchestrator import NexusSyncOrchestrator
+    from kiva_cli.core.nexus_sync_orchestrator import (
+        NexusSyncOrchestrator,
+        HAS_AUTOCHAIN,
+    )
 
     orch = NexusSyncOrchestrator()
-    mode = "(dry-run) " if dry_run else ""
-    click.echo(click.style(f"🔄 NEXUS Sync v2 {mode}en cours...", fg="cyan"))
+    mode_label = "(dry-run) " if dry_run else ""
 
-    result = orch.run(dry_run=dry_run, repo_filter=repo)
+    if chain:
+        if not HAS_AUTOCHAIN:
+            click.echo(
+                click.style(
+                    "⚠️  AutoChainManager non disponible (NEXUS absent ou non importable). "
+                    "Fallback vers le mode classique.",
+                    fg="yellow",
+                ),
+                err=True,
+            )
+        click.echo(click.style(f"🔗 NEXUS Sync v2 {mode_label}[chain] en cours...", fg="cyan"))
+        result = orch.run_chain(dry_run=dry_run, repo_filter=repo)
+    else:
+        click.echo(click.style(f"🔄 NEXUS Sync v2 {mode_label}en cours...", fg="cyan"))
+        result = orch.run(dry_run=dry_run, repo_filter=repo)
 
     if result.success:
-        click.echo(click.style(f"✅ Sync {mode}terminé", fg="green"))
+        click.echo(click.style(f"✅ Sync {mode_label}terminé", fg="green"))
         if result.report_path:
             click.echo(f"📄 Rapport : {result.report_path}")
         if result.stdout:
