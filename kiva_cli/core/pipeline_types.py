@@ -7,6 +7,7 @@ Changelog:
   Sprint 1 (KIVA-008): Step, Pipeline, StepResult, PipelineResult baseline.
   Sprint 2 (KIVA-009): WhenCondition, WhenEvaluationResult added to Step.
   Sprint 3 (KIVA-009): PipelineResult.parallel_groups_executed / total_parallel_wall_clock.
+  KIVA-011: Step.when changed to str expression; StepResult.skip_reason added.
 """
 from __future__ import annotations
 
@@ -44,8 +45,9 @@ ConditionType = Literal["env", "file_exists", "file_changed", "phi_cps", "step_o
 
 @dataclass
 class WhenCondition:
-    """A single guard condition on a Step.
+    """A single guard condition on a Step (legacy structured path — KIVA-009).
 
+    For KIVA-011+, prefer the `when: str` expression on Step directly.
     Evaluated by condition_evaluator.ConditionEvaluator before the step runs.
     All conditions in a step's `when` list must pass (AND semantics).
     """
@@ -140,9 +142,14 @@ class Step:
     description: str = ""
     """Human-readable label shown in `kiva pipeline status`."""
 
-    when: List[WhenCondition] = field(default_factory=list)
-    """Guard conditions (F1 — KIVA-009). All must pass for the step to run.
-    Empty list = always run (default behaviour, backward-compatible).
+    when: str = ""
+    """Expression condition (KIVA-011). Python expression evaluated in AST sandbox.
+    Empty string = always run (default, backward-compatible).
+    Examples:
+      when: "last_status == 'SUCCESS'"
+      when: "not dry_run"
+      when: "parallel_groups_executed > 0 and env.get('CI') == '1'"
+    Evaluated by condition_evaluator.evaluate_when(step.when, context).
     """
 
 
@@ -198,6 +205,8 @@ class StepResult:
     error_message: str = ""
     attempts: int = 1
     """Number of execution attempts (1 + retries). KIVA-010."""
+    skip_reason: str = ""
+    """Reason why the step was SKIPPED (e.g. 'when condition not met: <expr>'). KIVA-011."""
 
 
 @dataclass
