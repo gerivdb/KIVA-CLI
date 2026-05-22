@@ -21,6 +21,13 @@ from typing import Optional
 
 import click
 
+# KIVA-012 S1 — Pipeline Registry
+from kiva_cli.core.pipeline_registry import (
+    PipelineRegistryStore,
+    discover_pipelines,
+    compute_schema_hash,
+)
+
 # ---------------------------------------------------------------------------
 # Chemins canoniques par défaut (L0-CANON sur D:\DO\WEB\TOOLS)
 # ---------------------------------------------------------------------------
@@ -187,6 +194,110 @@ def nexus_cli():
       reciprocity <REPO>     Calcule le score de réciprocité
     """
     pass
+
+
+# ---------------------------------------------------------------------------
+# Sous-groupe: kiva nexus pipeline   (KIVA-012 S1)
+# ---------------------------------------------------------------------------
+
+@nexus_cli.group(name="pipeline")
+def pipeline_cli():
+    """Gouvernance des pipelines KIVA (list, validate, show, history)."""
+    pass
+
+
+# ---------------------------------------------------------------------------
+# kiva nexus pipeline list
+# ---------------------------------------------------------------------------
+
+@pipeline_cli.command(name="list")
+@click.option(
+    "--pipelines-dir",
+    type=click.Path(exists=False, file_okay=False, path_type=Path),
+    default=None,
+    help="Répertoire contenant les *.yaml (défaut: .kiva/pipelines)",
+)
+@click.option("--json", "as_json", is_flag=True, default=False, help="Sortie JSON machine-readable")
+def pipeline_list(pipelines_dir: Path | None, as_json: bool):
+    """Liste les pipelines découverts avec métadonnées du registry."""
+    store = PipelineRegistryStore()
+    base = pipelines_dir
+    pipelines = discover_pipelines(base)
+
+    records = []
+    for p in pipelines:
+        name = p.stem
+        rec = store.get_record(name)
+        if rec is None:
+            # Créer un enregistrement minimal pour l'affichage
+            schema_h = compute_schema_hash(p)
+            rec = PipelineRecord(
+                name=name,
+                schema_hash=schema_h,
+                step_count=0,  # sera enrichi plus tard
+            )
+
+        records.append({
+            "name": rec.name,
+            "version": rec.version,
+            "nexus_status": rec.nexus_status,
+            "steps": rec.step_count,
+            "last_run": rec.last_run_at or "-",
+            "last_status": rec.last_status or "-",
+            "schema_hash": rec.schema_hash,
+        })
+
+    if as_json:
+        click.echo(json.dumps(records, indent=2, ensure_ascii=False))
+        return
+
+    if not records:
+        click.echo("Aucun pipeline trouvé dans .kiva/pipelines/")
+        return
+
+    click.echo("Nom              Ver  Statut   Steps  Dernier run          Statut run   Schema")
+    click.echo("-" * 90)
+    for r in records:
+        click.echo(
+            f"{r['name']:<16} {r['version']:<4} {r['nexus_status']:<8} "
+            f"{r['steps']:<6} {r['last_run']:<20} {r['last_status']:<12} {r['schema_hash']}"
+        )
+
+
+# ---------------------------------------------------------------------------
+# kiva nexus pipeline validate
+# ---------------------------------------------------------------------------
+
+@pipeline_cli.command(name="validate")
+@click.argument("name")
+def pipeline_validate(name: str):
+    """Valide le DAG et la structure d'un pipeline."""
+    from kiva_cli.core.pipeline_loader import load_pipeline, detect_cycles
+
+    # Cherche le fichier
+    candidates = discover_pipelines()
+    target = None
+    for p in candidates:
+        if p.stem == name:
+            target = p
+            break
+
+    if target is None:
+        click.echo(f"[FAIL] Pipeline '{name}' introuvable dans .kiva/pipelines/", err=True)
+        sys.exit(2)
+
+    try:
+        pipeline = load_pipeline(target)
+        cycles = detect_cycles(pipeline.steps)
+        if cycles:
+            click.echo(f"[FAIL] Cycles détectés : {cycles}", err=True)
+            sys.exit(1)
+
+        click.echo(f"[OK] {name} valide ({len(pipeline.steps)} steps, pas de cycle)")
+        sys.exit(0)
+    except Exception as exc:
+        click.echo(f"[FAIL] {name} : {exc}", err=True)
+        sys.exit(1)
 
 
 # ---------------------------------------------------------------------------
