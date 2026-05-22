@@ -42,6 +42,10 @@ def load_pipeline(path: str | Path) -> Pipeline:
             command: "kiva gate test"
             depends_on: [lint]
             on_failure: warn
+          - name: deploy
+            command: "kiva deploy --env prod"
+            depends_on: [test]
+            when: "last_status == 'SUCCESS' and not dry_run"
     """
     path = Path(path)
     if not path.exists():
@@ -100,6 +104,7 @@ def _parse_step(raw_step: dict) -> Step:
         timeout=raw_step.get("timeout"),
         retry=int(raw_step.get("retry", 0)),
         description=raw_step.get("description", ""),
+        when=str(raw_step.get("when") or ""),  # KIVA-011: empty string = always run
     )
 
 
