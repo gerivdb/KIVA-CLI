@@ -10,6 +10,7 @@ ECOS-CLI unified command-line interface for:
 - Path resolution (PathResolver)
 - Context management (ContextManager)
 - Entity path mapping (EntityPathMapper)
+- NEXUS governance (.nexus/ tracking per repo)
 """
 
 import sys
@@ -52,6 +53,7 @@ from kiva_cli.commands.kvcache_commands import kvcache_cli
 from kiva_cli.commands.zvec_commands import zvec_cli
 from kiva_cli.commands.epic_commands import epic_cli
 from kiva_cli.commands.gate_command import gate_cli
+from kiva_cli.commands.nexus_commands import nexus_cli
 
 
 @click.group()
@@ -85,6 +87,7 @@ def cli():
     - KVCache integration
     - zvec vector database
     - EPIC-centric development mode
+    - NEXUS governance (.nexus/ tracking per repo)
     """
     pass
 
@@ -115,6 +118,7 @@ cli.add_command(dashboard_cli, name="dashboard")
 cli.add_command(kvcache_cli, name="kvcache")
 cli.add_command(zvec_cli, name="zvec")
 cli.add_command(epic_cli, name="epic")
+cli.add_command(nexus_cli, name="nexus")
 
 
 def main():
