@@ -1,33 +1,114 @@
-# KIVA-008 — Pipeline example: BLO canonical build chain
-# Usage: kiva pipeline run build
-#        kiva pipeline run build --dry-run
-#        kiva pipeline validate build
+# .kiva/pipelines/build.yaml
+# Pipeline de build canonique — démonstration KIVA-011 + nexus drift check
+#
+# Usage:
+#   kiva pipeline show build
+#   kiva pipeline run build --dry-run
+#   kiva pipeline run build --verbose
+#   kiva pipeline validate build
+#
+# Features démontrées:
+#   - when: str  (KIVA-011) — conditions sur last_status, dry_run, env, parallel_groups_executed
+#   - on_failure: notify    — génère PIPELINE_ALERT dans le WAL (visible via kiva nexus drift check)
+#   - retry                 — unit-tests: 1 retry, publish: 2 retries
+#   - parallel_groups       — lint + typecheck en parallèle
+#   - depends_on            — DAG complet (8 steps)
 
 name: build
-description: "BLO canonical build: lint -> test -> nexus-check -> commit-verify"
-version: "1"
-nexus_status: DRAFT
+version: "1.0"
+description: "Build, lint, test, package — pipeline KIVA-011 demo"
+nexus_status: ACTIVE
+on_failure: abort
+max_workers: 2
 
+# ---------------------------------------------------------------------------
+# Groupes parallèles
+# lint et typecheck s'exécutent simultanément (après env-check)
+# ---------------------------------------------------------------------------
+parallel_groups:
+  - [lint, typecheck]
+
+# ---------------------------------------------------------------------------
+# Steps
+# ---------------------------------------------------------------------------
 steps:
+
+  # -- 1. Env check ----------------------------------------------------------
+  # Toujours exécuté (when vide = pas de condition = always run)
+  - name: env-check
+    description: "Vérifie que l'environnement Python est opérationnel"
+    command: python -m kiva_cli.kiva --version
+    on_failure: abort
+    retry: 0
+
+  # -- 2. Lint (parallèle avec typecheck) -----------------------------------
   - name: lint
-    command: "python -m py_compile kiva_cli/kiva.py"
-    description: "Syntax check entry point"
-    on_failure: abort
-
-  - name: test-unit
-    command: "python -m pytest tests/test_pipeline_chain.py -q --tb=short"
-    description: "Run KIVA-008 unit tests"
-    depends_on: [lint]
-    on_failure: abort
-
-  - name: nexus-check
-    command: "python -m kiva_cli.kiva nexus tracking init BLO --dry-run"
-    description: "Verify .nexus/ tracking init is idempotent (dry-run)"
-    depends_on: [lint]
+    description: "Flake8 sur kiva_cli/ (PEP8, max-line-length=120)"
+    command: python -m flake8 kiva_cli/ --max-line-length=120 --count
+    depends_on: [env-check]
     on_failure: warn
+    retry: 0
+    # Skippé si SKIP_LINT=1 est positionné dans l'environnement
+    when: "env.get('SKIP_LINT', '0') != '1'"
 
-  - name: commit-verify
-    command: "python -m kiva_cli.kiva --version"
-    description: "Confirm KIVA-CLI is importable after changes"
-    depends_on: [test-unit, nexus-check]
+  # -- 3. Typecheck (parallèle avec lint) -----------------------------------
+  - name: typecheck
+    description: "mypy sur kiva_cli/core/ (--ignore-missing-imports)"
+    command: python -m mypy kiva_cli/core/ --ignore-missing-imports
+    depends_on: [env-check]
+    on_failure: warn
+    retry: 0
+    # Skippé en dry-run — mypy est lent et inutile en simulation
+    when: "not dry_run"
+
+  # -- 4. Unit tests ---------------------------------------------------------
+  - name: unit-tests
+    description: "pytest tests/ -x (stop on first failure)"
+    command: python -m pytest tests/ -x -q
+    depends_on: [lint, typecheck]
     on_failure: abort
+    retry: 1
+    # Tourne si le pipeline n'est pas déjà en échec dur et hors dry-run
+    when: "last_status in ('SUCCESS', 'WARN') and not dry_run"
+
+  # -- 5. Coverage -----------------------------------------------------------
+  - name: coverage
+    description: "pytest --cov kiva_cli/ (rapport HTML dans htmlcov/)"
+    command: python -m pytest tests/ --cov=kiva_cli --cov-report=html -q
+    depends_on: [unit-tests]
+    on_failure: notify
+    retry: 0
+    # on_failure: notify — échouer la couverture génère un PIPELINE_ALERT dans le WAL
+    # => visible dans : kiva nexus drift check
+    when: "last_status == 'SUCCESS'"
+
+  # -- 6. Build package ------------------------------------------------------
+  - name: build-package
+    description: "python -m build — wheel + sdist dans dist/"
+    command: python -m build --wheel --sdist
+    depends_on: [unit-tests]
+    on_failure: abort
+    retry: 0
+    # Ne tourne pas en dry-run ni si KIVA_SKIP_BUILD=1
+    when: "not dry_run and env.get('KIVA_SKIP_BUILD', '0') != '1'"
+
+  # -- 7. Drift check (post-build) -------------------------------------------
+  - name: nexus-drift-check
+    description: "kiva nexus drift check — phi-CPS post-build (fenêtre 1h)"
+    command: python -m kiva_cli.kiva nexus drift check --phi-only --since 1
+    depends_on: [build-package]
+    on_failure: notify
+    retry: 0
+    # Tourne uniquement si le groupe parallèle lint+typecheck a bien exécuté
+    # et que le build n'est pas simulé
+    when: "parallel_groups_executed > 0 and not dry_run"
+
+  # -- 8. Publish (CI only) --------------------------------------------------
+  - name: publish
+    description: "twine upload dist/* — publication PyPI (CI uniquement)"
+    command: python -m twine upload dist/*
+    depends_on: [build-package, nexus-drift-check]
+    on_failure: notify
+    retry: 2
+    # Tourne SEULEMENT en CI + pipeline sain + pas de dry-run
+    when: "(env.get('CI') == '1' or env.get('KIVA_CI') == '1') and last_status == 'SUCCESS' and not dry_run"
