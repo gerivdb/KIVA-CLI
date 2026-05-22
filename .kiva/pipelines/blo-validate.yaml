@@ -1,0 +1,61 @@
+# blo-validate.yaml
+# BLO Validation Pipeline — KIVA-009 Sprint 2/3 prototype
+# Demonstrates: when: conditions + parallel_groups:
+# Source: gerivdb/KIVA-CLI@.kiva/pipelines/blo-validate.yaml
+
+name: blo-validate
+description: "BLO Backlog Orchestrator — validation pipeline (KIVA-009 prototype)"
+version: "1.0.0"
+max_workers: 3
+on_failure: warn
+
+steps:
+  - name: check-env
+    command: "python -c \"import sys; assert sys.version_info >= (3, 10), 'Python 3.10+ required'; print(f'Python {sys.version}')\""
+    description: "Verify runtime environment"
+
+  - name: lint
+    command: "python -m ruff check src/ --quiet || echo '[WARN] lint issues found'"
+    description: "Ruff static analysis"
+    depends_on: [check-env]
+    when:
+      type: file_exists
+      path: "src/"
+
+  - name: test-unit
+    command: "python -m pytest tests/ -q --tb=short --ignore=tests/integration 2>&1 | tail -5"
+    description: "Unit test suite"
+    depends_on: [check-env]
+    when:
+      type: env
+      var: SKIP_TESTS
+      not_equals: "true"
+
+  - name: phi-check
+    command: "python -m kiva_cli.kiva phi-cps report BLO --format=short || echo '[INFO] phi-CPS unavailable, skipping'"
+    description: "phi-CPS health check"
+    depends_on: [check-env]
+    when:
+      type: phi_cps
+      repo: BLO
+      op: lt
+      value: 2.0
+
+  - name: nexus-tracking
+    command: "python -m kiva_cli.kiva nexus tracking init BLO --dry-run"
+    description: "Verify .nexus/ tracking is initialised"
+    depends_on: [lint, test-unit]
+    when:
+      type: env
+      var: NEXUS_SYNC
+      equals: "true"
+
+parallel_groups:
+  - [lint, test-unit, phi-check]   # run concurrently after check-env
+  # nexus-tracking is sequential (has depends_on: [lint, test-unit])
+
+# Usage:
+#   kiva pipeline run blo-validate --dry-run -v
+#   kiva pipeline run blo-validate
+#   NEXUS_SYNC=true kiva pipeline run blo-validate
+#   SKIP_TESTS=true kiva pipeline run blo-validate
