@@ -418,4 +418,18 @@ def run_pipeline(
         },
     )
 
+    # KIVA-012 S2: Update pipeline registry (non-blocking)
+    try:
+        from kiva_cli.core.pipeline_registry import PipelineRegistryStore
+        store = PipelineRegistryStore()
+        store.record_run(
+            pipeline.name,
+            result.status,
+            result.duration_s,
+            result.intent_hash,
+        )
+    except Exception:
+        # Never block pipeline execution because of registry update
+        pass
+
     return result

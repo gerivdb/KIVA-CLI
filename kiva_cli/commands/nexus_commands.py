@@ -301,6 +301,89 @@ def pipeline_validate(name: str):
 
 
 # ---------------------------------------------------------------------------
+# kiva nexus pipeline show
+# ---------------------------------------------------------------------------
+
+@pipeline_cli.command(name="show")
+@click.argument("name")
+def pipeline_show(name: str):
+    """Affiche les métadonnées complètes d'un pipeline depuis le registry."""
+    store = PipelineRegistryStore()
+    rec = store.get_record(name)
+
+    if rec is None:
+        click.echo(f"Pipeline '{name}' inconnu dans le registry.", err=True)
+        # Try to see if the YAML exists at least
+        candidates = discover_pipelines()
+        if any(p.stem == name for p in candidates):
+            click.echo(f"  (Le fichier .kiva/pipelines/{name}.yaml existe mais n'a jamais été exécuté)")
+        return
+
+    click.echo(f"\n=== Pipeline: {rec.name} ===")
+    click.echo(f"  Version            : {rec.version}")
+    click.echo(f"  Nexus Status       : {rec.nexus_status}")
+    click.echo(f"  Schema Hash        : {rec.schema_hash}")
+    click.echo(f"  Steps              : {rec.step_count}")
+    click.echo(f"  Owner              : {rec.operational_owner}")
+    click.echo(f"  Registered         : {rec.registered_at or '-'}")
+    click.echo("")
+    click.echo("--- Runtime ---")
+    click.echo(f"  Last run           : {rec.last_run_at or '-'}")
+    click.echo(f"  Last status        : {rec.last_status or '-'}")
+    click.echo(f"  Last success       : {rec.last_success_at or '-'}")
+    click.echo(f"  Last intent hash   : {rec.last_intent_hash or '-'}")
+    click.echo(f"  Total runs         : {rec.total_runs}")
+    click.echo(f"  Success runs       : {rec.success_runs}")
+    rate = (rec.success_runs / rec.total_runs * 100) if rec.total_runs else 0.0
+    click.echo(f"  Success rate       : {rate:.1f}%")
+    click.echo(f"  Avg duration       : {rec.avg_duration_s:.2f}s")
+
+
+# ---------------------------------------------------------------------------
+# kiva nexus pipeline history
+# ---------------------------------------------------------------------------
+
+@pipeline_cli.command(name="history")
+@click.argument("name")
+@click.option("--limit", default=10, show_default=True, help="Nombre max d'exécutions à afficher")
+def pipeline_history(name: str, limit: int):
+    """Affiche l'historique des exécutions d'un pipeline depuis le WAL."""
+    try:
+        from kiva_cli.core.global_wal_manager import GlobalWALManager
+        wal = GlobalWALManager()
+    except Exception as exc:
+        click.echo(f"[ERROR] WAL inaccessible : {exc}", err=True)
+        return
+
+    try:
+        events = wal.query_events(event_type="PIPELINE_RUN", limit=limit * 2)  # overfetch then filter
+    except Exception as exc:
+        click.echo(f"[WARN] Impossible de requêter le WAL : {exc}")
+        return
+
+    # Filter client-side for this pipeline
+    relevant = []
+    for ev in events:
+        payload = ev.get("payload") or {}
+        if payload.get("pipeline_name") == name:
+            relevant.append(ev)
+            if len(relevant) >= limit:
+                break
+
+    if not relevant:
+        click.echo(f"Aucune exécution trouvée pour le pipeline '{name}'.")
+        return
+
+    click.echo(f"\n=== Historique {name} (dernières {len(relevant)}) ===")
+    for ev in relevant:
+        payload = ev.get("payload", {})
+        ts = ev.get("timestamp", "")
+        status = payload.get("status", "?")
+        dur = payload.get("duration_s", 0)
+        click.echo(f"  {ts}  {status:<10}  {dur:6.2f}s")
+
+
+# ---------------------------------------------------------------------------
 # nexus tracking
 # ---------------------------------------------------------------------------
 

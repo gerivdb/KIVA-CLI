@@ -29,6 +29,7 @@ class PipelineRecord:
     avg_duration_s: float = 0.0
     total_runs: int = 0
     success_runs: int = 0
+    last_success_at: Optional[str] = None  # ISO du dernier SUCCESS (pour S3 drift schema_hash)
     operational_owner: str = "gerivdb"
     registered_at: str = ""
 
@@ -125,6 +126,36 @@ class PipelineRegistryStore:
             self._save()
             return True
         return False
+
+    def record_run(
+        self,
+        name: str,
+        status: str,
+        duration_s: float,
+        intent_hash: str | None = None,
+    ) -> None:
+        """Update registry after a pipeline execution (non-blocking safe)."""
+        rec = self.get_record(name) or PipelineRecord(name=name)
+
+        rec.last_run_at = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+        rec.last_status = status
+        if intent_hash:
+            rec.last_intent_hash = intent_hash
+
+        rec.total_runs += 1
+        if status == "SUCCESS":
+            rec.success_runs += 1
+            rec.last_success_at = rec.last_run_at
+
+        # Incremental average
+        if rec.total_runs == 1:
+            rec.avg_duration_s = duration_s
+        else:
+            rec.avg_duration_s = (
+                (rec.avg_duration_s * (rec.total_runs - 1) + duration_s) / rec.total_runs
+            )
+
+        self.upsert_record(rec)
 
 
 # ---------------------------------------------------------------------------

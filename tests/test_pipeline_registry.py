@@ -54,6 +54,7 @@ class TestPipelineRecord:
         assert r.success_runs == 0
         assert r.avg_duration_s == 0.0
         assert r.operational_owner == "gerivdb"
+        assert r.last_success_at is None
 
     def test_success_rate_zero_runs(self):
         r = PipelineRecord(name="demo")
@@ -80,6 +81,7 @@ class TestPipelineRecord:
             avg_duration_s=12.5,
             total_runs=5,
             success_runs=4,
+            last_success_at="2026-05-22T06:00:00Z",
             registered_at="2026-05-01T00:00:00Z",
         )
         store_path = tmp_path / "registry.json"
@@ -99,6 +101,7 @@ class TestPipelineRecord:
         assert abs(loaded.avg_duration_s - r.avg_duration_s) < 1e-9
         assert loaded.total_runs == r.total_runs
         assert loaded.success_runs == r.success_runs
+        assert loaded.last_success_at == r.last_success_at
         assert loaded.operational_owner == r.operational_owner
         assert loaded.registered_at == r.registered_at
 
@@ -312,3 +315,47 @@ class TestDiscoverPipelines:
         (pipes_dir / "cwd-test.yaml").write_text("name: cwd\n", encoding="utf-8")
         found = discover_pipelines()
         assert any(p.name == "cwd-test.yaml" for p in found)
+
+
+# ---------------------------------------------------------------------------
+# record_run tests (AC-K12-5)
+# ---------------------------------------------------------------------------
+
+class TestRecordRun:
+    def test_record_run_success_increments_counters(self, tmp_path):
+        store = PipelineRegistryStore(store_path=tmp_path / "reg.json")
+        store.upsert_record(_make_record("build"))
+        store.record_run("build", status="SUCCESS", duration_s=10.0, intent_hash="abc123")
+        r = store.get_record("build")
+        assert r.total_runs == 1
+        assert r.success_runs == 1
+        assert r.last_status == "SUCCESS"
+        assert r.last_intent_hash == "abc123"
+        assert r.last_success_at is not None
+
+    def test_record_run_failure_no_last_success_update(self, tmp_path):
+        store = PipelineRegistryStore(store_path=tmp_path / "reg.json")
+        store.upsert_record(_make_record("build"))
+        store.record_run("build", status="FAILED", duration_s=5.0, intent_hash="xyz")
+        r = store.get_record("build")
+        assert r.total_runs == 1
+        assert r.success_runs == 0
+        assert r.last_status == "FAILED"
+        assert r.last_success_at is None  # pas de succès → pas de mise à jour
+
+    def test_record_run_rolling_avg(self, tmp_path):
+        store = PipelineRegistryStore(store_path=tmp_path / "reg.json")
+        store.upsert_record(_make_record("build"))
+        store.record_run("build", status="SUCCESS", duration_s=10.0, intent_hash="h1")
+        store.record_run("build", status="SUCCESS", duration_s=20.0, intent_hash="h2")
+        r = store.get_record("build")
+        # avg = 10 + (20 - 10) / 2 = 15.0
+        assert abs(r.avg_duration_s - 15.0) < 0.01
+
+    def test_record_run_unknown_pipeline_creates_record(self, tmp_path):
+        """record_run sur un pipeline inconnu doit créer l'entrée, pas lever."""
+        store = PipelineRegistryStore(store_path=tmp_path / "reg.json")
+        store.record_run("auto-created", status="SUCCESS", duration_s=3.0, intent_hash="h0")
+        r = store.get_record("auto-created")
+        assert r is not None
+        assert r.total_runs == 1

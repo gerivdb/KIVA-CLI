@@ -113,6 +113,7 @@ class PipelineRecord:
     avg_duration_s: float = 0.0
     total_runs: int = 0
     success_runs: int = 0
+    last_success_at: Optional[str] = None  # ISO du dernier SUCCESS (pour S3 drift)
     operational_owner: str = "gerivdb"
     registered_at: str = ""
 ```
