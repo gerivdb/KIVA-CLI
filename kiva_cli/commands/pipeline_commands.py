@@ -1,4 +1,4 @@
-"""KIVA-009 Sprint 4 — kiva pipeline commands (enriched show + run stats).
+"""KIVA-009 Sprint 4b — kiva pipeline commands (Windows cp1252 safe).
 
 Group: kiva pipeline
 Commands:
@@ -7,6 +7,9 @@ Commands:
   show <name>           Show detailed step table (with when: + parallel_groups)
   run <name>            Execute a pipeline (subprocess per step)
   history               Show last N PIPELINE_RUN WAL events
+
+Windows note: all box-drawing / Unicode chars replaced with ASCII
+equivalents so cp1252 / legacy PowerShell / cmd terminals work.
 """
 from __future__ import annotations
 
@@ -18,6 +21,16 @@ import click
 
 from kiva_cli.core.pipeline_loader import detect_cycles, load_pipeline
 from kiva_cli.core.pipeline_types import HAS_PIPELINE
+
+
+# ---------------------------------------------------------------------------
+# ASCII-safe decoration constants
+# All chars here MUST be in cp1252 / ASCII.  No Unicode box-drawing.
+# ---------------------------------------------------------------------------
+
+_SEP  = "-"   # table column separator  (was u2500 box-drawing dash)
+_PIPE = "|"   # group divider           (was u2551 double vertical)
+_ARROW = "->" # step description indent (was u21b3 downward arrow)
 
 
 # ---------------------------------------------------------------------------
@@ -57,7 +70,7 @@ def _status_icon(status: str) -> str:
 def _when_summary(when_list: list) -> str:
     """Produce a compact human-readable summary of a step's when: conditions.
 
-    Examples:
+    Examples (ASCII-safe, no ellipsis char):
       env:SKIP_TESTS!=true
       file_exists:src/
       phi_cps:BLO<2.0
@@ -108,13 +121,14 @@ def _when_summary(when_list: list) -> str:
             parts.append(s)
         elif t == "expr":
             expr = getattr(w, "expr", "") or ""
-            parts.append(f"expr:{expr[:12]}…" if len(expr) > 12 else f"expr:{expr}")
+            # ASCII-safe: use '..' instead of u2026
+            parts.append(f"expr:{expr[:12]}.." if len(expr) > 12 else f"expr:{expr}")
         else:
             parts.append(t)
 
     summary = " + ".join(parts)
-    # Truncate to 28 chars for table column
-    return summary[:27] + "…" if len(summary) > 28 else summary
+    # Truncate to 28 chars; ASCII-safe truncation marker '..'
+    return summary[:26] + ".." if len(summary) > 28 else summary
 
 
 def _parallel_group_index(step_name: str, parallel_groups: list[list[str]]) -> str:
@@ -207,7 +221,7 @@ def pipeline_validate(name: str):
 
 
 # ---------------------------------------------------------------------------
-# show  (Sprint 4 — enriched)
+# show  (Sprint 4b -- Windows cp1252 safe)
 # ---------------------------------------------------------------------------
 
 @pipeline_cli.command("show")
@@ -234,7 +248,7 @@ def pipeline_show(name: str, no_when: bool, no_groups: bool):
     has_parallel = bool(p.parallel_groups)
     has_when = any(getattr(s, "when", []) for s in p.steps)
 
-    # ── Header ──────────────────────────────────────────────────────────────
+    # -- Header ----------------------------------------------------------
     click.echo(f"Pipeline : {p.name}")
     click.echo(f"Version  : {p.version}")
     click.echo(f"Status   : {p.nexus_status}")
@@ -243,31 +257,34 @@ def pipeline_show(name: str, no_when: bool, no_groups: bool):
     click.echo(f"Failure  : {getattr(p, 'on_failure', 'abort')} (pipeline default)")
     if has_parallel:
         workers = getattr(p, "max_workers", 4)
-        click.echo(f"Parallel : {len(p.parallel_groups)} group(s) — max_workers={workers}")
+        # ASCII-safe: use ' -' instead of em-dash
+        click.echo(f"Parallel : {len(p.parallel_groups)} group(s) - max_workers={workers}")
     click.echo("")
 
-    # ── Step table ──────────────────────────────────────────────────────────
+    # -- Step table ------------------------------------------------------
     show_when_col = has_when and not no_when
     show_group_col = has_parallel and not no_groups
 
-    # Column widths
-    W_IDX = 4
+    W_IDX  = 4
     W_NAME = 24
-    W_CMD = 34
+    W_CMD  = 34
     W_FAIL = 9
-    W_DEP = 20
-    W_GROUP = 6   # "GROUP"
-    W_WHEN = 30   # "WHEN"
+    W_DEP  = 20
+    W_GROUP = 6
+    W_WHEN  = 30
 
-    # Build header
-    header = f"{'#':<{W_IDX}} {'Step':<{W_NAME}} {'Command':<{W_CMD}} {'Failure':<{W_FAIL}} {'Depends on':<{W_DEP}}"
+    header = (
+        f"{'#':<{W_IDX}} {'Step':<{W_NAME}} {'Command':<{W_CMD}} "
+        f"{'Failure':<{W_FAIL}} {'Depends on':<{W_DEP}}"
+    )
     if show_group_col:
         header += f" {'GROUP':<{W_GROUP}}"
     if show_when_col:
         header += f" {'WHEN':<{W_WHEN}}"
+
     sep_len = len(header)
     click.echo(header)
-    click.echo("─" * sep_len)
+    click.echo(_SEP * sep_len)  # ASCII '-' only
 
     for i, s in enumerate(p.steps, 1):
         deps = ", ".join(s.depends_on) if s.depends_on else "-"
@@ -291,31 +308,29 @@ def pipeline_show(name: str, no_when: bool, no_groups: bool):
             when_list = getattr(s, "when", []) or []
             row += f" {_when_summary(when_list):<{W_WHEN}}"
 
-        # Dim sequential non-group steps slightly by marking them
         click.echo(row)
 
-        # Show description as sub-line if present
         if s.description:
             indent = " " * (W_IDX + 1 + W_NAME + 1)
             desc = s.description[:W_CMD + W_FAIL + W_DEP + W_GROUP + W_WHEN]
-            click.echo(f"{indent}↳ {desc}")
+            click.echo(f"{indent}{_ARROW} {desc}")  # ASCII '->'
 
-    # ── Parallel groups section ──────────────────────────────────────────────
+    # -- Parallel groups section -----------------------------------------
     if has_parallel and not no_groups:
         click.echo("")
         click.echo("Parallel groups")
-        click.echo("─" * 50)
+        click.echo(_SEP * 50)  # ASCII '-' only
         for idx, group in enumerate(p.parallel_groups):
-            members = "  ".join(f"{m}" for m in group)
-            click.echo(f"  P{idx}  ║  {members}")
+            members = "  ".join(group)
+            click.echo(f"  P{idx}  {_PIPE}  {members}")  # ASCII '|'
         workers = getattr(p, "max_workers", 4)
         click.echo(f"       max_workers = {workers}")
         click.echo("")
-        # Sequential steps (not in any group)
-        all_in_groups = {name for grp in p.parallel_groups for name in grp}
+        all_in_groups = {n for grp in p.parallel_groups for n in grp}
         seq_steps = [s.name for s in p.steps if s.name not in all_in_groups]
         if seq_steps:
-            click.echo(f"  SEQ  ║  {chr(10).join(seq_steps)}")
+            for sn in seq_steps:
+                click.echo(f"  SEQ  {_PIPE}  {sn}")  # one per line, ASCII '|'
 
 
 # ---------------------------------------------------------------------------
@@ -359,15 +374,15 @@ def pipeline_run(name: str, dry_run: bool, verbose: bool, ci: bool):
     click.echo(f"intent_hash : {result.intent_hash}")
     click.echo(f"duration    : {result.duration_s:.2f}s")
 
-    # Sprint 4: parallel stats footer
+    # Sprint 4: parallel stats footer (ASCII-safe: ' -' not em-dash)
     pg_exec = getattr(result, "parallel_groups_executed", 0)
     if pg_exec > 0:
         wall = getattr(result, "total_parallel_wall_clock", 0.0)
-        click.echo(f"parallel    : {pg_exec} group(s) ran — wall_clock={wall:.2f}s")
+        click.echo(f"parallel    : {pg_exec} group(s) ran - wall_clock={wall:.2f}s")
 
     click.echo("")
     click.echo(f"{'Step':<24} {'Status':<10} {'Duration':>8}  {'Group':<6}  Command")
-    click.echo("-" * 88)
+    click.echo("-" * 88)  # plain ASCII
     for sr in result.steps:
         cmd_hint = ""
         grp = "SEQ"
