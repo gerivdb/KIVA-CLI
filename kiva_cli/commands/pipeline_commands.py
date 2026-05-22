@@ -264,6 +264,7 @@ def pipeline_show(name: str, no_when: bool, no_groups: bool):
     W_DEP = 20
     W_GROUP = 6   # "GROUP"
     W_WHEN = 30   # "WHEN"
+    W_RETRY = 6   # "RETRY"
 
     # Build header
     header = f"{'#':<{W_IDX}} {'Step':<{W_NAME}} {'Command':<{W_CMD}} {'Failure':<{W_FAIL}} {'Depends on':<{W_DEP}}"
@@ -271,6 +272,7 @@ def pipeline_show(name: str, no_when: bool, no_groups: bool):
         header += f" {'GROUP':<{W_GROUP}}"
     if show_when_col:
         header += f" {'WHEN':<{W_WHEN}}"
+    header += f" {'RETRY':<{W_RETRY}}"
     sep_len = len(header)
     click.echo(header)
     click.echo(_SEP * sep_len)
@@ -296,6 +298,7 @@ def pipeline_show(name: str, no_when: bool, no_groups: bool):
         if show_when_col:
             when_list = getattr(s, "when", []) or []
             row += f" {_when_summary(when_list):<{W_WHEN}}"
+        row += f" {s.retry:<{W_RETRY}}"
 
         # Dim sequential non-group steps slightly by marking them
         click.echo(row)
@@ -372,18 +375,23 @@ def pipeline_run(name: str, dry_run: bool, verbose: bool, ci: bool):
         click.echo(f"parallel    : {pg_exec} group(s) ran - wall_clock={wall:.2f}s")
 
     click.echo("")
-    click.echo(f"{'Step':<24} {'Status':<10} {'Duration':>8}  {'Group':<6}  Command")
-    click.echo("-" * 88)
+    click.echo(f"total_retries_used: {getattr(result, 'total_retries_used', 0)}")
+
+    click.echo("")
+    click.echo(f"{'Step':<24} {'Status':<10} {'Duration':>8}  {'Group':<6}  {'Retry':>5}  Command")
+    click.echo("-" * 95)
     for sr in result.steps:
         cmd_hint = ""
         grp = "SEQ"
+        retry = 0
         for s in p.steps:
             if s.name == sr.step_name:
                 cmd_hint = s.command[:34]
                 grp = _parallel_group_index(s.name, p.parallel_groups)
+                retry = s.retry
                 break
         click.echo(
-            f"{sr.step_name:<24} {_status_icon(sr.status):<10} {sr.duration_s:>7.2f}s  {grp:<6}  {cmd_hint}"
+            f"{sr.step_name:<24} {_status_icon(sr.status):<10} {sr.duration_s:>7.2f}s  {grp:<6}  {retry:>5}x  {cmd_hint}"
         )
         if verbose and (sr.stdout or sr.stderr):
             if sr.stdout:

@@ -91,6 +91,7 @@ def _parse_step(raw_step: dict) -> Step:
         on_failure=on_failure,
         env=dict(raw_step.get("env") or {}),
         timeout=raw_step.get("timeout"),
+        retry=int(raw_step.get("retry", 0)),
         description=raw_step.get("description", ""),
     )
 

@@ -130,6 +130,11 @@ class Step:
     timeout: Optional[int] = None
     """Maximum wall-clock seconds; None = no limit."""
 
+    retry: int = 0
+    """Number of automatic retries on failure (total attempts = retry + 1).
+    KIVA-010 S1.
+    """
+
     description: str = ""
     """Human-readable label shown in `kiva pipeline status`."""
 
@@ -189,6 +194,8 @@ class StepResult:
     stderr: str = ""
     duration_s: float = 0.0
     error_message: str = ""
+    attempts: int = 1
+    """Number of execution attempts (1 + retries). KIVA-010."""
 
 
 @dataclass
@@ -212,6 +219,10 @@ class PipelineResult:
     # F2 parallel stats — populated by pipeline_runner when parallel_groups ran
     parallel_groups_executed: int = 0
     total_parallel_wall_clock: float = 0.0
+
+    # KIVA-010 S1 — retry governance
+    total_retries_used: int = 0
+    """Total number of retry attempts used across the whole pipeline run."""
 
     @property
     def duration_s(self) -> float:

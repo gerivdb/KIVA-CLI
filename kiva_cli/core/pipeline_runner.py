@@ -125,6 +125,41 @@ def _run_step(step: Step, dry_run: bool = False, verbose: bool = False) -> StepR
 
 
 # ---------------------------------------------------------------------------
+# Retry wrapper (KIVA-010 S2)
+# ---------------------------------------------------------------------------
+
+def _run_step_with_retry(
+    step: Step, dry_run: bool = False, verbose: bool = False
+) -> StepResult:
+    """Execute a step with automatic retries.
+
+    Total attempts = step.retry + 1.
+    Returns as soon as a SUCCESS is obtained.
+    The returned StepResult.attempts contains the actual number of attempts made.
+    """
+    max_attempts = (step.retry or 0) + 1
+    last_result: StepResult | None = None
+
+    for attempt in range(1, max_attempts + 1):
+        result = _run_step(step, dry_run=dry_run, verbose=verbose)
+        result.attempts = attempt
+        last_result = result
+
+        if result.status == "SUCCESS":
+            return result
+
+        # If this was the last attempt, we return the failure
+        if attempt == max_attempts:
+            break
+
+        # Optional: could add a small sleep here in future (backoff)
+        # For now we retry immediately
+
+    assert last_result is not None
+    return last_result
+
+
+# ---------------------------------------------------------------------------
 # On-failure policy applicator (shared by sequential and parallel paths)
 # ---------------------------------------------------------------------------
 
@@ -256,7 +291,7 @@ def run_pipeline(
             group_steps = [s for s in steps if s.name in set(group_names)]
 
             def _run_one(s: Step) -> StepResult:
-                return _run_step(s, dry_run=dry_run, verbose=verbose)
+                return _run_step_with_retry(s, dry_run=dry_run, verbose=verbose)
 
             group_res = parallel_executor.run_group(gidx, group_steps, _run_one)
 
@@ -269,6 +304,7 @@ def run_pipeline(
                 raw = group_res.step_results.get(s.name)
                 sr = _to_step_result(raw, s.name)
                 result.steps.append(sr)
+                result.total_retries_used += max(0, sr.attempts - 1)
                 _phi_delta_record(s.name, sr.duration_s, sr.status)
 
                 click.echo(f"  >> {s.name} ...", nl=False)
@@ -286,8 +322,9 @@ def run_pipeline(
         # --- Normal sequential step (or already-processed group member) ---
         click.echo(f"  >> {step.name} ...", nl=False)
 
-        sr = _run_step(step, dry_run=dry_run, verbose=verbose)
+        sr = _run_step_with_retry(step, dry_run=dry_run, verbose=verbose)
         result.steps.append(sr)
+        result.total_retries_used += max(0, sr.attempts - 1)
         _phi_delta_record(step.name, sr.duration_s, sr.status)
 
         if sr.status in ("SUCCESS", "SKIPPED"):
