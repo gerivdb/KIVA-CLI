@@ -181,6 +181,85 @@ class TestRetryFeature:
         # s1: 1 retry, s2: 2 retries, s3: 0 retries
         assert result.total_retries_used == 3
 
+    def test_retry_on_timeout_counts_as_attempt(self):
+        """A timeout failure should be retried and count toward attempts + total_retries_used."""
+        steps = [_make_step("timeout_step", retry=1)]
+        pipeline = Pipeline(name="retry-timeout", steps=steps)
+
+        call_count = {"count": 0}
+
+        def _mock_run_step(step, dry_run=False, verbose=False):
+            call_count["count"] += 1
+            if call_count["count"] == 1:
+                # Simulate timeout on first attempt
+                return StepResult(
+                    step_name=step.name,
+                    status="FAILED",
+                    returncode=-1,
+                    error_message=f"Step '{step.name}' timed out after 5s",
+                    duration_s=5.0,
+                )
+            return _success(step.name)
+
+        with patch("kiva_cli.core.pipeline_runner._run_step", side_effect=_mock_run_step):
+            result = run_pipeline(pipeline, dry_run=False)
+
+        assert result.steps[0].status == "SUCCESS"
+        assert result.steps[0].attempts == 2
+        assert result.total_retries_used == 1
+
+    def test_on_failure_notify_emits_pipeline_alert_and_continues(self):
+        """on_failure=notify must emit PIPELINE_ALERT with {step, error, retry_attempts} and continue (no abort)."""
+        steps = [
+            _make_step("pre"),
+            _make_step("alert_step", retry=1, on_failure="notify"),
+            _make_step("post"),
+        ]
+        pipeline = Pipeline(name="notify-alert", steps=steps)
+
+        call_count = {"count": 0}
+
+        def _mock_run_step(step, dry_run=False, verbose=False):
+            call_count["count"] += 1
+            if step.name == "alert_step":
+                # Fail first, fail second (exhaust retries)
+                return _fail("alert_step")
+            return _success(step.name)
+
+        with patch("kiva_cli.core.pipeline_runner._run_step", side_effect=_mock_run_step):
+            with patch("kiva_cli.core.pipeline_runner._emit_wal_event") as mock_emit:
+                result = run_pipeline(pipeline, dry_run=False)
+
+        # Pipeline must continue (post step ran)
+        assert result.status == "PARTIAL"  # because of the FAILED notify step
+        assert result.steps[0].status == "SUCCESS"
+        assert result.steps[1].status == "FAILED"
+        assert result.steps[1].attempts == 2
+        assert result.steps[2].status == "SUCCESS"
+        assert result.total_retries_used == 1
+
+        # Exactly one PIPELINE_ALERT must have been emitted
+        # (robust to positional vs keyword calls: PIPELINE_RUN uses keywords)
+        def _get_event_type(c):
+            if getattr(c, "args", None):
+                return c.args[0]
+            return getattr(c, "kwargs", {}).get("event_type")
+
+        def _get_payload(c):
+            if getattr(c, "args", None) and len(c.args) > 1:
+                return c.args[1]
+            return getattr(c, "kwargs", {}).get("payload", {})
+
+        alert_calls = [c for c in mock_emit.call_args_list if _get_event_type(c) == "PIPELINE_ALERT"]
+        assert len(alert_calls) == 1
+        payload = _get_payload(alert_calls[0])
+        assert payload["step"] == "alert_step"
+        assert "boom" in payload["error"]
+        assert payload["retry_attempts"] == 2
+
+        # Also the final PIPELINE_RUN was emitted (standard)
+        assert any(_get_event_type(c) == "PIPELINE_RUN" for c in mock_emit.call_args_list)
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

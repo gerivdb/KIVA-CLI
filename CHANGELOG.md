@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — KIVA-010 S4 (close)
+- `on_failure: notify` — new policy in Step/Pipeline: emits `PIPELINE_ALERT` WAL event `{step, error, retry_attempts}` (distinct from PIPELINE_RUN) and continues like `warn`. Enables future `kiva nexus drift check` (AC-K10-7).
+- Loader + type system extended to accept `"notify"` (with validation).
+- Exhaustive retry tests: timeout-as-failure + retry, notify emission verification, parallel/sequential total_retries_used, success on Nth attempt (AC-K10-8).
+- Test surface: `test_pipeline_retry.py` now 8/8 (was 6); broader pipeline/parallel/retry matrix: 92 passed.
+
 ### Planned
 - Multi-repo orchestration via ECOS Gateway
 - Template hot-reload from external repos

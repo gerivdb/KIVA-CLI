@@ -57,6 +57,13 @@ def load_pipeline(path: str | Path) -> Pipeline:
     steps_unordered: List[Step] = [_parse_step(s) for s in raw_steps]
     ordered = resolve_order(steps_unordered)
 
+    # Validate pipeline-level on_failure (KIVA-010 S4)
+    pf = raw.get("on_failure", "abort")
+    if pf not in ("abort", "warn", "continue", "notify"):
+        raise ValueError(
+            f"Pipeline '{raw.get('name', path.stem)}': on_failure must be 'abort', 'warn', 'continue' or 'notify'; got '{pf}'."
+        )
+
     return Pipeline(
         name=raw.get("name", path.stem),
         steps=ordered,
@@ -65,7 +72,7 @@ def load_pipeline(path: str | Path) -> Pipeline:
         nexus_status=raw.get("nexus_status", "DRAFT"),
         parallel_groups=raw.get("parallel_groups") or [],
         max_workers=int(raw.get("max_workers", 4)),
-        on_failure=raw.get("on_failure", "abort"),
+        on_failure=pf,
         raw=raw,
     )
 
@@ -79,9 +86,9 @@ def _parse_step(raw_step: dict) -> Step:
         raise ValueError("Each pipeline step must have a non-empty 'name' field.")
 
     on_failure = raw_step.get("on_failure", "abort")
-    if on_failure not in ("abort", "warn", "continue"):
+    if on_failure not in ("abort", "warn", "continue", "notify"):
         raise ValueError(
-            f"Step '{name}': on_failure must be 'abort', 'warn', or 'continue'; got '{on_failure}'."
+            f"Step '{name}': on_failure must be 'abort', 'warn', 'continue' or 'notify'; got '{on_failure}'."
         )
 
     return Step(

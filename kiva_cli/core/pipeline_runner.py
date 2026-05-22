@@ -190,6 +190,16 @@ def _apply_on_failure(
             click.echo(f" FAILED ({sr.duration_s:.2f}s) [warn, continuing]")
             if sr.error_message:
                 click.echo(f"  [WARN] {sr.error_message}")
+    elif step.on_failure == "notify":
+        if click_echo:
+            click.echo(f" FAILED ({sr.duration_s:.2f}s) [notify, alert emitted]")
+            if sr.error_message:
+                click.echo(f"  [ALERT] {sr.error_message}")
+        _emit_wal_event(
+            "PIPELINE_ALERT",
+            {"step": sr.step_name, "error": sr.error_message, "retry_attempts": sr.attempts},
+        )
+        # continue with FAILED status (distinct WAL event for nexus drift check)
     else:  # "continue"
         if click_echo:
             click.echo(f" FAILED ({sr.duration_s:.2f}s) [continue, suppressed]")

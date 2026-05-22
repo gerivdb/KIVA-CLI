@@ -117,11 +117,13 @@ class Step:
     depends_on: List[str] = field(default_factory=list)
     """Names of steps that must complete successfully before this step runs."""
 
-    on_failure: Literal["abort", "warn", "continue"] = "abort"
+    on_failure: Literal["abort", "warn", "continue", "notify"] = "abort"
     """Behaviour when this step exits non-zero:
     - abort   : stop the whole pipeline immediately (default).
     - warn    : log a warning, mark step FAILED, continue remaining steps.
     - continue: silently swallow the error, treat step as SKIPPED.
+    - notify  : emit PIPELINE_ALERT WAL event (with step/error/retry_attempts),
+                keep FAILED status, continue (like warn). For nexus drift detection.
     """
 
     env: Dict[str, str] = field(default_factory=dict)
@@ -172,7 +174,7 @@ class Pipeline:
     max_workers: int = 4
     """F2 — thread pool cap for parallel groups (capped at cpu_count at runtime)."""
 
-    on_failure: Literal["abort", "warn", "continue"] = "abort"
+    on_failure: Literal["abort", "warn", "continue", "notify"] = "abort"
     """Pipeline-level default on_failure; overridden per-step."""
 
     raw: Dict[str, Any] = field(default_factory=dict)
