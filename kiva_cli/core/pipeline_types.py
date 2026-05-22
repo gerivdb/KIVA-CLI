@@ -1,7 +1,12 @@
-"""KIVA-008 — Pipeline chain types (Sprint 1).
+"""KIVA-009 — Pipeline chain types (Sprint 3).
 
 Dataclasses for Pipeline, Step, StepResult, PipelineResult.
-All runtime behaviour (execution, WAL events) lives in pipeline_manager.py (Sprint 2).
+All runtime behaviour (execution, WAL events) lives in pipeline_runner.py.
+
+Changelog:
+  Sprint 1 (KIVA-008): Step, Pipeline, StepResult, PipelineResult baseline.
+  Sprint 2 (KIVA-009): WhenCondition, WhenEvaluationResult added to Step.
+  Sprint 3 (KIVA-009): PipelineResult.parallel_groups_executed / total_parallel_wall_clock.
 """
 from __future__ import annotations
 
@@ -24,11 +29,75 @@ CI_SAFE: bool = os.environ.get("KIVA_CI", "") != ""
 if CI_SAFE:
     try:
         import click as _click
-
         _click.confirm = lambda msg, default=True, **kw: default  # type: ignore[assignment]
         _click.prompt = lambda msg, default=None, **kw: default  # type: ignore[assignment]
     except ImportError:
         pass
+
+
+# ---------------------------------------------------------------------------
+# When conditions (F1 — KIVA-009 Sprint 1/2)
+# ---------------------------------------------------------------------------
+
+ConditionType = Literal["env", "file_exists", "file_changed", "phi_cps", "step_output", "expr"]
+
+
+@dataclass
+class WhenCondition:
+    """A single guard condition on a Step.
+
+    Evaluated by condition_evaluator.ConditionEvaluator before the step runs.
+    All conditions in a step's `when` list must pass (AND semantics).
+    """
+
+    type: ConditionType
+    """Discriminator — selects the evaluation strategy."""
+
+    # --- env / step_output / phi_cps common fields ---
+    var: Optional[str] = None
+    """env: environment variable name to inspect."""
+    equals: Optional[str] = None
+    """env: expected value (skip step if env != equals)."""
+    not_equals: Optional[str] = None
+    """env: skip step if env == not_equals."""
+
+    # --- file_exists / file_changed ---
+    path: Optional[str] = None
+    """file_exists: path that must exist. file_changed: path to check mtime delta."""
+    since_seconds: Optional[float] = None
+    """file_changed: skip step if file mtime is older than this many seconds."""
+
+    # --- phi_cps ---
+    repo: Optional[str] = None
+    """phi_cps: repo identifier (e.g. 'BLO') looked up via WAL CPS store."""
+    op: Optional[Literal["lt", "gt", "lte", "gte", "eq"]] = None
+    """phi_cps: comparison operator."""
+    value: Optional[float] = None
+    """phi_cps: threshold to compare current CPS against."""
+
+    # --- step_output ---
+    step: Optional[str] = None
+    """step_output: name of the upstream step whose result to inspect."""
+    exit_code: Optional[int] = None
+    """step_output: expected exit code (None = any)."""
+    stdout_contains: Optional[str] = None
+    """step_output: required substring in upstream step stdout."""
+
+    # --- expr ---
+    expr: Optional[str] = None
+    """expr: Python expression string evaluated in AST sandbox.
+    Allowed names: env, files, steps, phi. No imports permitted.
+    """
+
+
+@dataclass
+class WhenEvaluationResult:
+    """Result of evaluating one WhenCondition."""
+
+    condition_type: ConditionType
+    passed: bool
+    reason: str = ""
+    """Human-readable explanation of why the condition passed or failed."""
 
 
 # ---------------------------------------------------------------------------
@@ -64,6 +133,11 @@ class Step:
     description: str = ""
     """Human-readable label shown in `kiva pipeline status`."""
 
+    when: List[WhenCondition] = field(default_factory=list)
+    """Guard conditions (F1 — KIVA-009). All must pass for the step to run.
+    Empty list = always run (default behaviour, backward-compatible).
+    """
+
 
 # ---------------------------------------------------------------------------
 # Pipeline
@@ -83,6 +157,18 @@ class Pipeline:
     version: str = "1"
     nexus_status: str = "DRAFT"
     """Informational only — authoritative status lives in .nexus/STATUS.yaml."""
+
+    parallel_groups: List[List[str]] = field(default_factory=list)
+    """F2 — KIVA-009 Sprint 2. Each inner list is a set of step names to run
+    concurrently. Validated at load time by validate_parallel_groups().
+    Steps NOT listed here are run sequentially in topological order.
+    """
+
+    max_workers: int = 4
+    """F2 — thread pool cap for parallel groups (capped at cpu_count at runtime)."""
+
+    on_failure: Literal["abort", "warn", "continue"] = "abort"
+    """Pipeline-level default on_failure; overridden per-step."""
 
     raw: Dict[str, Any] = field(default_factory=dict)
     """Original parsed YAML dict, preserved for debugging."""
@@ -107,7 +193,12 @@ class StepResult:
 
 @dataclass
 class PipelineResult:
-    """Aggregate outcome of a full pipeline run."""
+    """Aggregate outcome of a full pipeline run.
+
+    Sprint 3 additions (backward-compat, zero-default):
+      parallel_groups_executed  — number of parallel groups that ran.
+      total_parallel_wall_clock — cumulative wall-clock across all groups (seconds).
+    """
 
     pipeline_name: str
     intent_hash: str
@@ -117,6 +208,10 @@ class PipelineResult:
     steps: List[StepResult] = field(default_factory=list)
     started_at: float = field(default_factory=time.time)
     ended_at: Optional[float] = None
+
+    # F2 parallel stats — populated by pipeline_runner when parallel_groups ran
+    parallel_groups_executed: int = 0
+    total_parallel_wall_clock: float = 0.0
 
     @property
     def duration_s(self) -> float:
