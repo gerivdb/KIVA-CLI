@@ -1,16 +1,7 @@
-"""KIVA-009 -- pipeline_runner: group-aware walker + on_failure intra-group.
+"""KIVA-008 Sprint 3 — pipeline_runner: subprocess executor + on_failure logic + WAL.
 
 Public API:
     run_pipeline(pipeline, dry_run, verbose) -> PipelineResult
-
-Walker logic:
-    Steps execute in topological order (pipeline.steps).
-    When the first step of a parallel_group is encountered, the entire
-    group is dispatched to ParallelGroupExecutor, on_failure is applied
-    per member, and the group is marked processed.  Subsequent steps
-    that belong to the same group are skipped by the walker (already
-    appended via the group execution path).
-    Sequential steps (not in any group) follow the original logic.
 """
 from __future__ import annotations
 
@@ -18,8 +9,6 @@ import os
 import subprocess
 import time
 from typing import Optional
-
-import click
 
 from kiva_cli.core.pipeline_types import (
     CI_SAFE,
@@ -29,20 +18,28 @@ from kiva_cli.core.pipeline_types import (
     StepResult,
 )
 
+# Parallel execution (KIVA-009 F2 + on_failure intra-groupe)
+from kiva_cli.core.parallel_executor import (
+    ParallelGroupExecutor,
+    validate_parallel_groups,
+)
+
 
 # ---------------------------------------------------------------------------
-# WAL helper (soft-import)
+# WAL helper (soft-import: KIVA-CLI may run without WAL in minimal envs)
 # ---------------------------------------------------------------------------
 
 def _emit_wal_event(event_type: str, payload: dict) -> None:
+    """Append a WAL event if GlobalWALManager is available; silently skip otherwise."""
     try:
         from kiva_cli.core.global_wal_manager import GlobalWALManager
         wal = GlobalWALManager()
+        # Prefer append_event; fall back to log_event for older builds
         fn = getattr(wal, "append_event", None) or getattr(wal, "log_event", None)
         if fn:
             fn(event_type=event_type, payload=payload)
     except Exception:
-        pass
+        pass  # WAL is best-effort; never block pipeline execution
 
 
 # ---------------------------------------------------------------------------
@@ -50,14 +47,10 @@ def _emit_wal_event(event_type: str, payload: dict) -> None:
 # ---------------------------------------------------------------------------
 
 def _phi_delta_record(step_name: str, duration_s: float, status: str) -> None:
+    """Record step timing in phi_tracker if available."""
     try:
         from kiva_cli.core.phi_tracker import PhiTracker
-        PhiTracker().record(
-            label=f"pipeline.step.{step_name}",
-            value=duration_s,
-            unit="s",
-            status=status,
-        )
+        PhiTracker().record(label=f"pipeline.step.{step_name}", value=duration_s, unit="s", status=status)
     except Exception:
         pass
 
@@ -88,7 +81,9 @@ def _run_step(step: Step, dry_run: bool = False, verbose: bool = False) -> StepR
             duration_s=0.0,
         )
 
+    # Merge step env on top of current env
     env = {**os.environ, **step.env}
+
     try:
         proc = subprocess.run(
             step.command,
@@ -130,74 +125,60 @@ def _run_step(step: Step, dry_run: bool = False, verbose: bool = False) -> StepR
 
 
 # ---------------------------------------------------------------------------
-# on_failure helper (shared: sequential + parallel paths)
+# On-failure policy applicator (shared by sequential and parallel paths)
 # ---------------------------------------------------------------------------
 
 def _apply_on_failure(
     sr: StepResult,
     step: Step,
-    aborted: bool,
-    abort_reason: str,
-) -> tuple[bool, str]:
-    """Apply on_failure policy to a FAILED StepResult.
+    click_echo: bool = True,
+) -> bool:
+    """Apply the step's on_failure policy to a (possibly just-failed) StepResult.
 
-    Returns updated (aborted, abort_reason).
-    Mutates sr.status for 'continue' policy (FAILED -> SKIPPED).
-    Emits click output for visibility.
+    Returns True if the policy decided to abort the rest of the pipeline.
+    Mutates sr.status in the 'continue' case (FAILED -> SKIPPED).
     """
+    import click
+
     if sr.status != "FAILED":
-        click.echo(f" {sr.status} ({sr.duration_s:.2f}s)")
-        return aborted, abort_reason
+        return False
 
+    aborted = False
     if step.on_failure == "abort":
-        click.echo(f" FAILED ({sr.duration_s:.2f}s) -- ABORTING pipeline")
-        if sr.error_message:
-            click.echo(f"     {sr.error_message}", err=True)
-        return True, step.name
+        if click_echo:
+            click.echo(f" FAILED ({sr.duration_s:.2f}s) -- ABORTING pipeline")
+            if sr.error_message:
+                click.echo(f"     {sr.error_message}", err=True)
+        aborted = True
     elif step.on_failure == "warn":
-        click.echo(f" FAILED ({sr.duration_s:.2f}s) [warn, continuing]")
-        if sr.error_message:
-            click.echo(f"  [WARN] {sr.error_message}")
-        return aborted, abort_reason
-    else:  # continue
-        click.echo(f" FAILED ({sr.duration_s:.2f}s) [continue, suppressed]")
+        if click_echo:
+            click.echo(f" FAILED ({sr.duration_s:.2f}s) [warn, continuing]")
+            if sr.error_message:
+                click.echo(f"  [WARN] {sr.error_message}")
+    else:  # "continue"
+        if click_echo:
+            click.echo(f" FAILED ({sr.duration_s:.2f}s) [continue, suppressed]")
         sr.status = "SKIPPED"
-        return aborted, abort_reason
+
+    return aborted
 
 
-# ---------------------------------------------------------------------------
-# Parallel group executor (soft-import with sequential fallback)
-# ---------------------------------------------------------------------------
-
-def _run_group(
-    group_steps: list[Step],
-    step_map: dict[str, Step],
-    dry_run: bool,
-    verbose: bool,
-    max_workers: int,
-) -> tuple[list[StepResult], float]:
-    """Run a group of steps in parallel.
-
-    Returns (list[StepResult], wall_clock_seconds).
-    Falls back to sequential execution if ParallelGroupExecutor is unavailable.
-    """
-    t0 = time.monotonic()
-    try:
-        from kiva_cli.core.parallel_executor import ParallelGroupExecutor
-        executor = ParallelGroupExecutor(max_workers=max_workers)
-        step_results = executor.run_group(
-            steps=group_steps,
-            dry_run=dry_run,
-            verbose=verbose,
+def _to_step_result(raw: Any, default_name: str) -> StepResult:
+    """Normalize whatever the parallel executor returns (StepResult or error dict) into a StepResult."""
+    if isinstance(raw, StepResult):
+        return raw
+    if isinstance(raw, dict):
+        return StepResult(
+            step_name=raw.get("step_name", default_name),
+            status="FAILED" if raw.get("__error__") or raw.get("status") == "failed" else "SUCCESS",
+            returncode=raw.get("exit_code", raw.get("returncode", -1)),
+            stdout=raw.get("stdout", ""),
+            stderr=raw.get("stderr", ""),
+            duration_s=raw.get("duration", 0.0),
+            error_message=str(raw.get("exception", ""))[:200],
         )
-        wall = time.monotonic() - t0
-        return step_results, wall
-    except ImportError:
-        # Graceful fallback: run sequentially
-        results: list[StepResult] = []
-        for s in group_steps:
-            results.append(_run_step(s, dry_run=dry_run, verbose=verbose))
-        return results, time.monotonic() - t0
+    # Fallback
+    return StepResult(step_name=default_name, status="FAILED", error_message="unknown result type")
 
 
 # ---------------------------------------------------------------------------
@@ -211,14 +192,10 @@ def run_pipeline(
 ) -> PipelineResult:
     """Execute all steps of a Pipeline in topological order.
 
-    Group-aware walker:
-    - parallel_groups are dispatched to ParallelGroupExecutor.
-    - on_failure is applied per step result after group completion:
-        abort    -> pipeline ABORTED; all remaining steps SKIPPED.
-        warn     -> FAILED recorded, warning emitted, execution continues.
-        continue -> step SKIPPED silently, execution continues.
-    - Sequential steps (not in any group) use the original path.
-    - Graceful fallback to sequential if ParallelGroupExecutor missing.
+    Respects on_failure per step:
+    - abort    : stop pipeline; remaining steps are SKIPPED.
+    - warn     : mark FAILED, emit warning, continue.
+    - continue : mark SKIPPED, continue silently.
 
     Emits a PIPELINE_RUN WAL event on completion.
     Records phi_delta per step.
@@ -231,116 +208,100 @@ def run_pipeline(
         started_at=time.time(),
     )
 
-    # -- Build group index map ------------------------------------------------
-    # step_to_group_idx[step_name] = index into pipeline.parallel_groups
-    step_to_group_idx: dict[str, int] = {}
-    for idx, group in enumerate(pipeline.parallel_groups):
-        for name in group:
-            step_to_group_idx[name] = idx
+    import click  # hoisted to avoid repeated imports inside the walker
 
-    # step_map for O(1) lookup by name
-    step_map: dict[str, Step] = {s.name: s for s in pipeline.steps}
+    # Validate parallel_groups early (no-op if empty). Raises on conflicts.
+    if pipeline.parallel_groups:
+        validate_parallel_groups(pipeline.steps, pipeline.parallel_groups)
 
-    # Track which group indices have already been executed
+    # Build quick lookup: step_name -> (group_idx or None)
+    step_to_group: dict[str, int | None] = {}
+    for gidx, grp in enumerate(pipeline.parallel_groups):
+        for name in grp:
+            step_to_group[name] = gidx
+    # Steps not in any group stay None (sequential)
+
+    # Executor for parallel groups (only instantiated if needed)
+    parallel_executor = (
+        ParallelGroupExecutor(max_workers=pipeline.max_workers)
+        if pipeline.parallel_groups else None
+    )
     processed_groups: set[int] = set()
-    # Track which step names were handled via a group (skip in sequential path)
-    group_handled_steps: set[str] = set()
 
     aborted = False
     abort_reason = ""
-    max_workers = getattr(pipeline, "max_workers", 4)
 
-    # -- Walker ---------------------------------------------------------------
-    for step in pipeline.steps:
+    # === Group-aware execution walker (supports on_failure inside parallel groups) ===
+    steps = pipeline.steps
+    i = 0
+    n = len(steps)
 
-        # Skip steps already handled as part of a group
-        if step.name in group_handled_steps:
-            continue
+    while i < n:
+        step = steps[i]
 
-        # Skip with SKIPPED result if pipeline is aborted
         if aborted:
             result.steps.append(StepResult(
                 step_name=step.name,
                 status="SKIPPED",
                 error_message=f"Skipped due to abort: {abort_reason}",
             ))
+            i += 1
             continue
 
-        group_idx = step_to_group_idx.get(step.name)
+        gidx = step_to_group.get(step.name)
 
-        # -- Parallel group path ---------------------------------------------
-        if group_idx is not None and group_idx not in processed_groups:
-            group_names = pipeline.parallel_groups[group_idx]
-            group_steps = [step_map[n] for n in group_names if n in step_map]
+        if gidx is not None and gidx not in processed_groups and parallel_executor is not None:
+            # --- Execute entire parallel group at once ---
+            group_names = pipeline.parallel_groups[gidx]
+            group_steps = [s for s in steps if s.name in set(group_names)]
 
-            click.echo(f"  [P{group_idx}] Running {len(group_steps)} steps in parallel...")
+            def _run_one(s: Step) -> StepResult:
+                return _run_step(s, dry_run=dry_run, verbose=verbose)
 
-            step_results, wall_clock = _run_group(
-                group_steps=group_steps,
-                step_map=step_map,
-                dry_run=dry_run,
-                verbose=verbose,
-                max_workers=max_workers,
-            )
+            group_res = parallel_executor.run_group(gidx, group_steps, _run_one)
 
-            # Apply on_failure per member; collect results
-            for sr in step_results:
-                member_step = step_map.get(sr.step_name)
-                if member_step is None:
-                    result.steps.append(sr)
-                    continue
-
-                click.echo(f"    >> {sr.step_name} ...", nl=False)
-                _phi_delta_record(sr.step_name, sr.duration_s, sr.status)
-
-                if sr.status == "FAILED":
-                    aborted, abort_reason = _apply_on_failure(
-                        sr, member_step, aborted, abort_reason
-                    )
-                else:
-                    click.echo(f" {sr.status} ({sr.duration_s:.2f}s)")
-
-                result.steps.append(sr)
-
-            # Update parallel stats
+            # Record parallel stats on the PipelineResult
             result.parallel_groups_executed += 1
-            result.total_parallel_wall_clock += wall_clock
+            result.total_parallel_wall_clock += group_res.wall_clock_seconds
 
-            # Mark all group members as handled
-            processed_groups.add(group_idx)
-            for n in group_names:
-                group_handled_steps.add(n)
+            # Process every member: echo + phi + on_failure policy
+            for s in group_steps:
+                raw = group_res.step_results.get(s.name)
+                sr = _to_step_result(raw, s.name)
+                result.steps.append(sr)
+                _phi_delta_record(s.name, sr.duration_s, sr.status)
 
-            # If abort triggered inside the group, SKIP remaining group
-            # members that were not executed (already appended above)
-            if aborted:
-                # SKIP any group steps that were not returned by executor
-                executed_names = {sr.step_name for sr in step_results}
-                for n in group_names:
-                    if n not in executed_names:
-                        result.steps.append(StepResult(
-                            step_name=n,
-                            status="SKIPPED",
-                            error_message=f"Skipped due to group abort: {abort_reason}",
-                        ))
+                click.echo(f"  >> {s.name} ...", nl=False)
+                if sr.status in ("SUCCESS", "SKIPPED"):
+                    click.echo(f" {sr.status} ({sr.duration_s:.2f}s)")
+                else:
+                    if _apply_on_failure(sr, s):
+                        aborted = True
+                        abort_reason = s.name
 
-        # -- Sequential path -------------------------------------------------
-        elif group_idx is None:
-            click.echo(f"  >> {step.name} ...", nl=False)
-            sr = _run_step(step, dry_run=dry_run, verbose=verbose)
-            result.steps.append(sr)
-            _phi_delta_record(step.name, sr.duration_s, sr.status)
+            processed_groups.add(gidx)
+            i += len(group_steps)
+            continue
 
-            if sr.status == "FAILED":
-                aborted, abort_reason = _apply_on_failure(
-                    sr, step, aborted, abort_reason
-                )
-            else:
-                click.echo(f" {sr.status} ({sr.duration_s:.2f}s)")
+        # --- Normal sequential step (or already-processed group member) ---
+        click.echo(f"  >> {step.name} ...", nl=False)
 
-    # -- Final status --------------------------------------------------------
+        sr = _run_step(step, dry_run=dry_run, verbose=verbose)
+        result.steps.append(sr)
+        _phi_delta_record(step.name, sr.duration_s, sr.status)
+
+        if sr.status in ("SUCCESS", "SKIPPED"):
+            click.echo(f" {sr.status} ({sr.duration_s:.2f}s)")
+        else:
+            if _apply_on_failure(sr, step):
+                aborted = True
+                abort_reason = step.name
+
+        i += 1
+
     result.ended_at = time.time()
 
+    # Determine final status
     statuses = {sr.status for sr in result.steps}
     if aborted or "ABORTED" in statuses:
         result.status = "ABORTED"
@@ -349,7 +310,7 @@ def run_pipeline(
     else:
         result.status = "SUCCESS"
 
-    # -- WAL -----------------------------------------------------------------
+    # Emit WAL
     _emit_wal_event(
         event_type="PIPELINE_RUN",
         payload={
@@ -358,7 +319,6 @@ def run_pipeline(
             "status": result.status,
             "duration_s": round(result.duration_s, 3),
             "dry_run": dry_run,
-            "parallel_groups_executed": result.parallel_groups_executed,
             "steps": [
                 {
                     "name": sr.step_name,

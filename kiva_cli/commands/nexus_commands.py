@@ -257,7 +257,7 @@ def tracking_init(repo: str, repo_path: Optional[str], dry_run: bool):
         (status_file, status_content, "STATUS.yaml"),
     ]:
         if fpath.exists():
-            click.echo(f"  ⚠️  {label} existe déjà — non écrasé. Utilisez --force pour forcer.")
+            click.echo(f"  ⚠️  {label} existe déjà - non écrasé. Utilisez --force pour forcer.")
         else:
             fpath.write_text(content, encoding="utf-8")
             click.echo(f"  ✅ {label} créé : {fpath}")

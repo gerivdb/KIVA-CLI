@@ -29,6 +29,12 @@ except ImportError:
     )
 
 
+# ASCII-safe replacements (cp1252 / Windows console compatibility)
+_SEP   = "-"   # table separator (was ─ U+2500)
+_PIPE  = "|"   # group divider     (was ║ U+2551)
+_ARROW = "->"  # step description  (was ↳ U+21B3)
+
+
 @click.group(name='project')
 def project_cli():
     """
@@ -86,7 +92,7 @@ def scaffold_project(name: str, framework: str, deps: tuple, workspace: Optional
     framework_enum = FrameworkType(framework)
     
     click.echo(f"\n🏗️  Scaffolding project '{name}' [framework={framework}]")
-    click.echo("─" * 60)
+    click.echo(_SEP * 60)
     
     success, config, message = pm.scaffold_project(
         name=name,
@@ -167,7 +173,7 @@ def deploy_project(name: str, target: str, dry_run: bool, workspace: Optional[st
     mode_str = "[DRY-RUN] " if dry_run else ""
     
     click.echo(f"\n🚀 {mode_str}Deploying '{name}' to '{target}'")
-    click.echo("─" * 60)
+    click.echo(_SEP * 60)
     
     result = pm.deploy_project(
         project_name=name,
@@ -388,7 +394,7 @@ def lifecycle_transition(name: str, new_state: str, workspace: Optional[str]):
     new_state_enum = LifecycleState[new_state]
     
     click.echo(f"\n🔄 Transitioning '{name}' to {new_state}")
-    click.echo("─" * 60)
+    click.echo(_SEP * 60)
     
     success, message = pm.transition_lifecycle(name, new_state_enum)
     

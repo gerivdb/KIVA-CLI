@@ -34,6 +34,12 @@ except ImportError:
     )
 
 
+# ASCII-safe replacements (cp1252 / Windows console compatibility)
+_SEP   = "-"   # table separator (was ─ U+2500)
+_PIPE  = "|"   # group divider     (was ║ U+2551)
+_ARROW = "->"  # step description  (was ↳ U+21B3)
+
+
 @click.group(name='wal')
 def wal_cli():
     """
@@ -322,7 +328,7 @@ def verify_chain(intent_hash: str, parent: Optional[str]):
     wal = GlobalWALManager()
     
     click.echo(f"\n🔗 INTENTHASH CHAIN VERIFICATION")
-    click.echo("─" * 60)
+    click.echo(_SEP * 60)
     
     is_valid, message = wal.validate_chain(
         intent_hash=intent_hash,
@@ -456,7 +462,7 @@ def export_audit(output_path: str, format: str):
     output_file = Path(output_path)
     
     click.echo(f"\n💾 Exporting audit trail to {output_file}")
-    click.echo("─" * 60)
+    click.echo(_SEP * 60)
     
     success = wal.export_audit(
         output_path=output_file,

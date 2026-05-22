@@ -63,6 +63,9 @@ def load_pipeline(path: str | Path) -> Pipeline:
         description=raw.get("description", ""),
         version=str(raw.get("version", "1")),
         nexus_status=raw.get("nexus_status", "DRAFT"),
+        parallel_groups=raw.get("parallel_groups") or [],
+        max_workers=int(raw.get("max_workers", 4)),
+        on_failure=raw.get("on_failure", "abort"),
         raw=raw,
     )
 
