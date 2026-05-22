@@ -1,0 +1,33 @@
+# KIVA-008 — Pipeline example: BLO canonical build chain
+# Usage: kiva pipeline run build
+#        kiva pipeline run build --dry-run
+#        kiva pipeline validate build
+
+name: build
+description: "BLO canonical build: lint -> test -> nexus-check -> commit-verify"
+version: "1"
+nexus_status: DRAFT
+
+steps:
+  - name: lint
+    command: "python -m py_compile kiva_cli/kiva.py"
+    description: "Syntax check entry point"
+    on_failure: abort
+
+  - name: test-unit
+    command: "python -m pytest tests/test_pipeline_chain.py -q --tb=short"
+    description: "Run KIVA-008 unit tests"
+    depends_on: [lint]
+    on_failure: abort
+
+  - name: nexus-check
+    command: "python -m kiva_cli.kiva nexus tracking init BLO --dry-run"
+    description: "Verify .nexus/ tracking init is idempotent (dry-run)"
+    depends_on: [lint]
+    on_failure: warn
+
+  - name: commit-verify
+    command: "python -m kiva_cli.kiva --version"
+    description: "Confirm KIVA-CLI is importable after changes"
+    depends_on: [test-unit, nexus-check]
+    on_failure: abort
