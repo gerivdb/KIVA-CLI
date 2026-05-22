@@ -119,6 +119,60 @@ class PipelineRegistryStore:
 
         return orphans
 
+    def compute_drift_report(
+        self,
+        pipelines_root: Optional[Path] = None,
+    ) -> list[dict]:
+        """Compare schema_hash registry vs YAML courant pour chaque pipeline.
+
+        Retourne une liste de dicts avec les clés :
+          name, registry_hash, current_hash, drifted, last_success_at, yaml_path
+        """
+        if pipelines_root is None:
+            pipelines_root = Path.cwd()
+
+        yamls = {p.stem: p for p in discover_pipelines(pipelines_root)}
+        report = []
+
+        for name, yaml_path in yamls.items():
+            try:
+                current_hash = compute_schema_hash(yaml_path)
+            except Exception:
+                current_hash = "ERROR"
+
+            rec = self.get_record(name)
+            registry_hash = rec.schema_hash if rec else None
+            last_success = rec.last_success_at if rec else None
+
+            drifted = (
+                registry_hash is not None
+                and registry_hash != current_hash
+                and current_hash != "ERROR"
+            )
+
+            report.append({
+                "name": name,
+                "registry_hash": registry_hash or "UNREGISTERED",
+                "current_hash": current_hash,
+                "drifted": drifted,
+                "last_success_at": last_success or "-",
+                "yaml_path": str(yaml_path),
+            })
+
+        # Pipelines dans le registry mais sans YAML (supprimés ?)
+        for rec in self.list_records():
+            if rec.name not in yamls:
+                report.append({
+                    "name": rec.name,
+                    "registry_hash": rec.schema_hash,
+                    "current_hash": "MISSING",
+                    "drifted": True,
+                    "last_success_at": rec.last_success_at or "-",
+                    "yaml_path": "MISSING",
+                })
+
+        return sorted(report, key=lambda x: (not x["drifted"], x["name"]))
+
     def delete_record(self, name: str) -> bool:
         """Delete a record if it exists. Returns True if deleted."""
         if name in self._data:

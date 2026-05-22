@@ -359,3 +359,84 @@ class TestRecordRun:
         r = store.get_record("auto-created")
         assert r is not None
         assert r.total_runs == 1
+
+
+# ---------------------------------------------------------------------------
+# compute_drift_report tests (S3)
+# ---------------------------------------------------------------------------
+
+class TestComputeDriftReport:
+    def test_no_yaml_no_records_empty(self, tmp_path):
+        store = PipelineRegistryStore(store_path=tmp_path / "reg.json")
+        report = store.compute_drift_report(pipelines_root=tmp_path)
+        assert report == []
+
+    def test_stable_pipeline_no_drift(self, tmp_path):
+        pipes_dir = tmp_path / ".kiva" / "pipelines"
+        pipes_dir.mkdir(parents=True)
+        yaml_path = pipes_dir / "build.yaml"
+        yaml_path.write_text("name: build\nsteps: []\n", encoding="utf-8")
+
+        store = PipelineRegistryStore(store_path=tmp_path / "reg.json")
+        hash_now = compute_schema_hash(yaml_path)
+        rec = PipelineRecord(name="build", schema_hash=hash_now, total_runs=1)
+        store.upsert_record(rec)
+
+        report = store.compute_drift_report(pipelines_root=tmp_path)
+        assert len(report) == 1
+        assert report[0]["drifted"] is False
+        assert report[0]["current_hash"] == hash_now
+
+    def test_drifted_pipeline_detected(self, tmp_path):
+        pipes_dir = tmp_path / ".kiva" / "pipelines"
+        pipes_dir.mkdir(parents=True)
+        yaml_path = pipes_dir / "build.yaml"
+        yaml_path.write_text("name: build\nsteps: []\n", encoding="utf-8")
+
+        store = PipelineRegistryStore(store_path=tmp_path / "reg.json")
+        rec = PipelineRecord(name="build", schema_hash="0000000000000000", total_runs=3)
+        store.upsert_record(rec)
+
+        report = store.compute_drift_report(pipelines_root=tmp_path)
+        assert len(report) == 1
+        assert report[0]["drifted"] is True
+        assert report[0]["registry_hash"] == "0000000000000000"
+
+    def test_missing_yaml_reported_as_drift(self, tmp_path):
+        """Pipeline dans le registry mais YAML supprimé → drifted=True, current=MISSING."""
+        store = PipelineRegistryStore(store_path=tmp_path / "reg.json")
+        rec = PipelineRecord(name="ghost", schema_hash="aabbccdd11223344", total_runs=5)
+        store.upsert_record(rec)
+
+        report = store.compute_drift_report(pipelines_root=tmp_path)
+        ghost = next((r for r in report if r["name"] == "ghost"), None)
+        assert ghost is not None
+        assert ghost["drifted"] is True
+        assert ghost["current_hash"] == "MISSING"
+
+    def test_unregistered_yaml_not_drifted(self, tmp_path):
+        """YAML présent mais jamais exécuté → drifted=False (pas de hash référence)."""
+        pipes_dir = tmp_path / ".kiva" / "pipelines"
+        pipes_dir.mkdir(parents=True)
+        (pipes_dir / "new.yaml").write_text("name: new\nsteps: []\n", encoding="utf-8")
+
+        store = PipelineRegistryStore(store_path=tmp_path / "reg.json")
+        report = store.compute_drift_report(pipelines_root=tmp_path)
+        assert len(report) == 1
+        assert report[0]["drifted"] is False
+        assert report[0]["registry_hash"] == "UNREGISTERED"
+
+    def test_drifted_pipelines_sorted_first(self, tmp_path):
+        """Les pipelines driftés remontent en tête du report."""
+        pipes_dir = tmp_path / ".kiva" / "pipelines"
+        pipes_dir.mkdir(parents=True)
+        for name in ("alpha", "beta", "gamma"):
+            (pipes_dir / f"{name}.yaml").write_text(f"name: {name}\n", encoding="utf-8")
+
+        store = PipelineRegistryStore(store_path=tmp_path / "reg.json")
+        # Seul beta est drifté
+        store.upsert_record(PipelineRecord(name="beta", schema_hash="0000000000000000", total_runs=2))
+
+        report = store.compute_drift_report(pipelines_root=tmp_path)
+        assert report[0]["name"] == "beta"
+        assert report[0]["drifted"] is True

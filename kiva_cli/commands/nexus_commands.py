@@ -384,6 +384,85 @@ def pipeline_history(name: str, limit: int):
 
 
 # ---------------------------------------------------------------------------
+# kiva nexus pipeline drift   (KIVA-012 S3)
+# ---------------------------------------------------------------------------
+
+@pipeline_cli.command(name="drift")
+@click.option(
+    "--pipelines-dir",
+    type=click.Path(exists=False, file_okay=False, path_type=Path),
+    default=None,
+    help="Répertoire racine contenant .kiva/pipelines/ (défaut: cwd)",
+)
+@click.option("--json", "as_json", is_flag=True, default=False, help="Sortie JSON machine-readable")
+@click.option("--fail-on-drift", is_flag=True, default=False, help="Exit 1 si au moins un drift détecté")
+def pipeline_drift(pipelines_dir: Path | None, as_json: bool, fail_on_drift: bool):
+    """Détecte les dérives de schema_hash (YAML courant vs dernier run SUCCESS).
+
+    Compare le schema_hash enregistré lors du dernier SUCCESS avec
+    le hash calculé sur le YAML courant. Un drift = le YAML a changé
+    depuis le dernier run réussi.
+
+    Exit codes :
+      0 = aucun drift
+      1 = au moins un drift détecté (avec --fail-on-drift)
+      2 = store ou YAML inaccessible
+    """
+    import json as json_mod
+
+    try:
+        store = PipelineRegistryStore()
+    except Exception as exc:
+        click.echo(f"[ERROR] Store inaccessible : {exc}", err=True)
+        sys.exit(2)
+
+    try:
+        report = store.compute_drift_report(pipelines_root=pipelines_dir)
+    except Exception as exc:
+        click.echo(f"[ERROR] compute_drift_report() : {exc}", err=True)
+        sys.exit(2)
+
+    if as_json:
+        click.echo(json_mod.dumps(report, indent=2, ensure_ascii=False))
+        if fail_on_drift and any(r["drifted"] for r in report):
+            sys.exit(1)
+        return
+
+    drifted = [r for r in report if r["drifted"]]
+    stable = [r for r in report if not r["drifted"]]
+
+    click.echo(f"\n=== kiva nexus pipeline drift ===")
+    click.echo(f"  Pipelines scannés : {len(report)}")
+    click.echo(f"  Driftés           : {len(drifted)}")
+    click.echo(f"  Stables           : {len(stable)}")
+    click.echo("")
+
+    if drifted:
+        click.echo("--- Dérives détectées ---")
+        for r in drifted:
+            click.echo(f"  [DRIFT] {r['name']}")
+            click.echo(f"          registry : {r['registry_hash']}")
+            click.echo(f"          current  : {r['current_hash']}")
+            click.echo(f"          dernier SUCCESS : {r['last_success_at']}")
+            click.echo(f"          yaml     : {r['yaml_path']}")
+        click.echo("")
+
+    if stable:
+        click.echo("--- Stables ---")
+        for r in stable:
+            click.echo(f"  [OK]    {r['name']}  hash={r['current_hash']}  last_success={r['last_success_at']}")
+        click.echo("")
+
+    if not drifted:
+        click.echo("[OK] Aucun drift détecté — tous les pipelines sont stables.")
+    else:
+        click.echo(f"[!!] {len(drifted)} pipeline(s) drifté(s) — relancer ou mettre à jour le registry.")
+
+    if fail_on_drift and drifted:
+        sys.exit(1)
+
+
+# ---------------------------------------------------------------------------
 # nexus tracking
 # ---------------------------------------------------------------------------
 
@@ -659,7 +738,24 @@ def drift_check(
             click.echo("  (aucun .nexus/STATUS.yaml trouvé dans L0-CANON / L1-ACTIVE)")
         click.echo("")
 
-    # -- 4. Résumé final -----------------------------------------------------
+    # -- 4. Pipeline schema drift (S3) ----------------------------------------
+    click.echo("--- Pipeline schema drift ---")
+    try:
+        store = PipelineRegistryStore()
+        pdrift = store.compute_drift_report()
+        pd_count = sum(1 for r in pdrift if r["drifted"])
+        if pd_count:
+            click.echo(f"  [!!] {pd_count} pipeline(s) avec schema_hash drifté :")
+            for r in pdrift:
+                if r["drifted"]:
+                    click.echo(f"       - {r['name']}  (last_success={r['last_success_at']})")
+        else:
+            click.echo(f"  [OK] {len(pdrift)} pipeline(s) stables (aucun schema drift)")
+    except Exception as exc:
+        click.echo(f"  [WARN] Pipeline drift check indisponible : {exc}")
+    click.echo("")
+
+    # -- 5. Résumé final -------------------------------------------------------
     click.echo("--- Résumé ---")
     if exceeded:
         click.echo("  [!!] DRIFT phi-CPS detecte — verifier les deltas et les pipelines recents")
