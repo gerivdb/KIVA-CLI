@@ -12,6 +12,9 @@ import time
 from pathlib import Path
 
 import pytest
+from click.testing import CliRunner
+
+from kiva_cli.commands.nexus_commands import pipeline_prune
 
 from kiva_cli.core.pipeline_registry import (
     PipelineRecord,
@@ -440,3 +443,102 @@ class TestComputeDriftReport:
         report = store.compute_drift_report(pipelines_root=tmp_path)
         assert report[0]["name"] == "beta"
         assert report[0]["drifted"] is True
+
+
+# ---------------------------------------------------------------------------
+# S4 — kiva nexus pipeline prune (CLI tests)
+# ---------------------------------------------------------------------------
+
+class TestPipelinePruneCLI:
+    def test_dry_run_no_deletion(self, tmp_path, monkeypatch):
+        """--dry-run ne supprime rien."""
+        monkeypatch.setattr(
+            "kiva_cli.commands.nexus_commands.PipelineRegistryStore",
+            lambda: _make_store_with_orphan(tmp_path),
+        )
+        runner = CliRunner()
+        result = runner.invoke(pipeline_prune, ["--dry-run"])
+        assert result.exit_code == 0
+        assert "DRY-RUN" in result.output
+        # Le record doit toujours exister
+        store = _make_store_with_orphan(tmp_path)  # recharge depuis disque
+        assert store.get_record("orphan-never-run") is not None
+
+    def test_force_deletes_orphan(self, tmp_path, monkeypatch):
+        """--force supprime sans prompt."""
+        store_path = tmp_path / "reg.json"
+        store = PipelineRegistryStore(store_path=store_path)
+        store.upsert_record(PipelineRecord(name="orphan-never-run", total_runs=0))
+
+        monkeypatch.setattr(
+            "kiva_cli.commands.nexus_commands.PipelineRegistryStore",
+            lambda: PipelineRegistryStore(store_path=store_path),
+        )
+        runner = CliRunner()
+        result = runner.invoke(pipeline_prune, ["--force"])
+        assert result.exit_code == 0
+        assert "Supprimé" in result.output
+
+        reloaded = PipelineRegistryStore(store_path=store_path)
+        assert reloaded.get_record("orphan-never-run") is None
+
+    def test_no_orphans_clean_message(self, tmp_path, monkeypatch):
+        """Registry sans orphelin → message propre, exit 0."""
+        store_path = tmp_path / "reg.json"
+        store = PipelineRegistryStore(store_path=store_path)
+        now_iso = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+        store.upsert_record(PipelineRecord(
+            name="healthy", total_runs=5, operational_owner="gerivdb", last_run_at=now_iso
+        ))
+        monkeypatch.setattr(
+            "kiva_cli.commands.nexus_commands.PipelineRegistryStore",
+            lambda: PipelineRegistryStore(store_path=store_path),
+        )
+        runner = CliRunner()
+        result = runner.invoke(pipeline_prune, ["--dry-run"])
+        assert result.exit_code == 0
+        assert "propre" in result.output.lower() or "aucun" in result.output.lower()
+
+    def test_name_filter_targets_specific(self, tmp_path, monkeypatch):
+        """--name cible un pipeline spécifique même non-orphelin."""
+        store_path = tmp_path / "reg.json"
+        store = PipelineRegistryStore(store_path=store_path)
+        store.upsert_record(PipelineRecord(name="target", total_runs=10))
+        store.upsert_record(PipelineRecord(name="keep", total_runs=10))
+
+        monkeypatch.setattr(
+            "kiva_cli.commands.nexus_commands.PipelineRegistryStore",
+            lambda: PipelineRegistryStore(store_path=store_path),
+        )
+        runner = CliRunner()
+        result = runner.invoke(pipeline_prune, ["--name", "target", "--force"])
+        assert result.exit_code == 0
+
+        reloaded = PipelineRegistryStore(store_path=store_path)
+        assert reloaded.get_record("target") is None
+        assert reloaded.get_record("keep") is not None
+
+    def test_json_output_dry_run(self, tmp_path, monkeypatch):
+        """--json --dry-run retourne du JSON parseable."""
+        import json as json_mod
+        store_path = tmp_path / "reg.json"
+        PipelineRegistryStore(store_path=store_path).upsert_record(
+            PipelineRecord(name="orphan-json", total_runs=0)
+        )
+        monkeypatch.setattr(
+            "kiva_cli.commands.nexus_commands.PipelineRegistryStore",
+            lambda: PipelineRegistryStore(store_path=store_path),
+        )
+        runner = CliRunner()
+        result = runner.invoke(pipeline_prune, ["--json", "--dry-run"])
+        assert result.exit_code == 0
+        data = json_mod.loads(result.output)
+        assert isinstance(data, list)
+        assert data[0]["name"] == "orphan-json"
+        assert data[0]["would_delete"] is False
+
+
+def _make_store_with_orphan(tmp_path: Path) -> "PipelineRegistryStore":
+    store = PipelineRegistryStore(store_path=tmp_path / "reg.json")
+    store.upsert_record(PipelineRecord(name="orphan-never-run", total_runs=0))
+    return store

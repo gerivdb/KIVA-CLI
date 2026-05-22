@@ -15,6 +15,7 @@ from __future__ import annotations
 import hashlib
 import os
 import sys
+import time
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from typing import Optional
@@ -23,6 +24,7 @@ import click
 
 # KIVA-012 S1 — Pipeline Registry
 from kiva_cli.core.pipeline_registry import (
+    PipelineRecord,
     PipelineRegistryStore,
     discover_pipelines,
     compute_schema_hash,
@@ -202,7 +204,7 @@ def nexus_cli():
 
 @nexus_cli.group(name="pipeline")
 def pipeline_cli():
-    """Gouvernance des pipelines KIVA (list, validate, show, history)."""
+    """Gouvernance des pipelines KIVA (list, validate, show, history, drift, prune)."""
     pass
 
 
@@ -460,6 +462,158 @@ def pipeline_drift(pipelines_dir: Path | None, as_json: bool, fail_on_drift: boo
 
     if fail_on_drift and drifted:
         sys.exit(1)
+
+
+# ---------------------------------------------------------------------------
+# kiva nexus pipeline prune   (KIVA-012 S4)
+# ---------------------------------------------------------------------------
+
+@pipeline_cli.command(name="prune")
+@click.option(
+    "--dry-run",
+    is_flag=True,
+    default=False,
+    help="Affiche les orphelins sans les supprimer.",
+)
+@click.option(
+    "--force",
+    is_flag=True,
+    default=False,
+    help="Supprime sans confirmation interactive.",
+)
+@click.option(
+    "--name",
+    "names",
+    multiple=True,
+    help="Supprime uniquement les pipelines spécifiés (répétable).",
+)
+@click.option("--json", "as_json", is_flag=True, default=False, help="Sortie JSON machine-readable.")
+def pipeline_prune(dry_run: bool, force: bool, names: tuple[str, ...], as_json: bool):
+    """Supprime les pipelines orphelins du registry.
+
+    Un pipeline est orphelin si :
+      - total_runs == 0 (jamais exécuté)
+      - operational_owner manquant
+      - dernier run > 30 jours
+
+    Modes :
+      kiva nexus pipeline prune --dry-run         → aperçu uniquement
+      kiva nexus pipeline prune                   → confirmation interactive
+      kiva nexus pipeline prune --force           → suppression directe
+      kiva nexus pipeline prune --name build      → cible spécifique
+
+    Exit codes :
+      0 = OK (rien à supprimer ou suppression réussie)
+      1 = annulé par l'utilisateur
+      2 = store inaccessible
+    """
+    import json as json_mod
+
+    try:
+        store = PipelineRegistryStore()
+    except Exception as exc:
+        click.echo(f"[ERROR] Store inaccessible : {exc}", err=True)
+        sys.exit(2)
+
+    # -- Déterminer les cibles -----------------------------------------------
+    if names:
+        # Mode ciblé : prune uniquement les noms explicites
+        targets = []
+        for n in names:
+            rec = store.get_record(n)
+            if rec is None:
+                click.echo(f"[WARN] Pipeline '{n}' introuvable dans le registry.", err=True)
+            else:
+                targets.append(rec)
+    else:
+        # Mode auto : tous les orphelins
+        targets = store.find_orphans()
+
+    # -- Sortie JSON ---------------------------------------------------------
+    if as_json:
+        payload = [
+            {
+                "name": r.name,
+                "total_runs": r.total_runs,
+                "last_run_at": r.last_run_at,
+                "operational_owner": r.operational_owner,
+                "nexus_status": r.nexus_status,
+                "would_delete": not dry_run,
+            }
+            for r in targets
+        ]
+        click.echo(json_mod.dumps(payload, indent=2, ensure_ascii=False))
+        if not dry_run and targets and (force or _confirm_prune(targets)):
+            for r in targets:
+                store.delete_record(r.name)
+        return
+
+    # -- Affichage -----------------------------------------------------------
+    click.echo(f"\n=== kiva nexus pipeline prune {'(DRY-RUN)' if dry_run else ''} ===")
+
+    if not targets:
+        click.echo("  Aucun pipeline orphelin trouvé — registry propre.")
+        return
+
+    click.echo(f"\n  {len(targets)} pipeline(s) orphelin(s) :\n")
+    click.echo(f"  {'Nom':<20} {'Runs':>6}  {'Dernier run':<22}  {'Owner':<16}  Raison")
+    click.echo("  " + "-" * 82)
+    for r in targets:
+        reason = _orphan_reason(r)
+        last_run = r.last_run_at or "-"
+        click.echo(
+            f"  {r.name:<20} {r.total_runs:>6}  {last_run:<22}  {r.operational_owner or '(none)':<16}  {reason}"
+        )
+    click.echo("")
+
+    if dry_run:
+        click.echo(f"  [DRY-RUN] {len(targets)} entrée(s) seraient supprimées. Relancer sans --dry-run pour confirmer.")
+        return
+
+    # -- Confirmation / suppression ------------------------------------------
+    if not force:
+        if not _confirm_prune(targets):
+            click.echo("  Annulé.")
+            sys.exit(1)
+
+    deleted = 0
+    for r in targets:
+        if store.delete_record(r.name):
+            click.echo(f"  [OK] Supprimé : {r.name}")
+            deleted += 1
+        else:
+            click.echo(f"  [WARN] Déjà absent : {r.name}")
+
+    click.echo(f"\n  [DONE] {deleted}/{len(targets)} entrée(s) supprimée(s) du registry.")
+
+
+def _orphan_reason(rec: PipelineRecord) -> str:
+    """Retourne la raison principale pour laquelle un record est orphelin."""
+    if rec.total_runs == 0:
+        return "jamais exécuté"
+    if not rec.operational_owner or rec.operational_owner.strip() == "":
+        return "pas d'owner"
+    if rec.last_run_at:
+        try:
+            last = time.mktime(time.strptime(rec.last_run_at, "%Y-%m-%dT%H:%M:%SZ"))
+            stale_days = int((time.time() - last) / 86400)
+            return f"inactif depuis {stale_days}j"
+        except ValueError:
+            return "date invalide"
+    return "inconnu"
+
+
+def _confirm_prune(targets: list) -> bool:
+    """Confirmation interactive avant suppression."""
+    try:
+        answer = click.prompt(
+            f"  Supprimer {len(targets)} entrée(s) ? [y/N]",
+            default="N",
+            show_default=False,
+        )
+        return answer.strip().lower() in ("y", "yes", "o", "oui")
+    except (click.Abort, EOFError):
+        return False
 
 
 # ---------------------------------------------------------------------------
