@@ -11,6 +11,7 @@ ECOS-CLI unified command-line interface for:
 - Context management (ContextManager)
 - Entity path mapping (EntityPathMapper)
 - NEXUS governance (.nexus/ tracking per repo)
+- Pipeline chain execution (KIVA-008)
 """
 
 import sys
@@ -54,6 +55,7 @@ from kiva_cli.commands.zvec_commands import zvec_cli
 from kiva_cli.commands.epic_commands import epic_cli
 from kiva_cli.commands.gate_command import gate_cli
 from kiva_cli.commands.nexus_commands import nexus_cli
+from kiva_cli.commands.pipeline_commands import pipeline_cli
 
 
 @click.group()
@@ -88,6 +90,7 @@ def cli():
     - zvec vector database
     - EPIC-centric development mode
     - NEXUS governance (.nexus/ tracking per repo)
+    - Pipeline chain execution (KIVA-008: DAG, on_failure, WAL, phi_delta)
     """
     pass
 
@@ -119,6 +122,7 @@ cli.add_command(kvcache_cli, name="kvcache")
 cli.add_command(zvec_cli, name="zvec")
 cli.add_command(epic_cli, name="epic")
 cli.add_command(nexus_cli, name="nexus")
+cli.add_command(pipeline_cli, name="pipeline")
 
 
 def main():
