@@ -4,7 +4,6 @@ Groupe : kiva nexus
 Sous-groupes / commandes :
   kiva nexus tracking init <REPO> [--path PATH] [--dry-run]
   kiva nexus drift check   [--repo REPO] [--since HOURS] [--phi-only] [--status-scan]
-  kiva nexus sync          [--dry-run] [--repo PATH] [--skip-watchdog]
 
 Extensions futures :
   kiva nexus status <REPO>
@@ -191,8 +190,8 @@ def nexus_cli():
 
     Commandes disponibles :
       tracking init <REPO>   Initialise .nexus/TRACKING.md + STATUS.yaml
-      drift check            Détecte les dérives phi-CPS et les alertes WAL
-      sync                   Enchaîne les 5 scripts du weekly sync NEXUS
+      drift check            Détecte les dérives φ-CPS et les alertes WAL
+      sync                   Enchaîne les 5 scripts du weekly sync NEXUS (remplace GHA)
 
     Extensions futures :
       status <REPO>          Affiche l'état NEXUS d'un repo
@@ -732,6 +731,7 @@ def nexus_sync(dry_run: bool, repo: Optional[str], skip_watchdog: bool, python: 
 
       kiva nexus sync --repo D:\\DO\\WEB\\TOOLS\\L0-CANON\\NEXUS
     """
+    import subprocess as _sp
     nexus_root = Path(repo) if repo else _NEXUS_ROOT_DEFAULT
 
     click.secho("\n" + "=" * 56, fg="cyan", bold=True)
@@ -757,7 +757,7 @@ def nexus_sync(dry_run: bool, repo: Optional[str], skip_watchdog: bool, python: 
             failed.append(step["name"])
             break
 
-    click.echo("\n" + "=" * 56)
+    click.echo("\n" + "═" * 56)
     if not failed:
         click.secho(f"  NEXUS SYNC OK — {success}/{len(steps)} steps", fg="green", bold=True)
         sys.exit(0)
@@ -1071,3 +1071,12 @@ def drift_check(
     if not exceeded and (not alert_count or alert_count == 0):
         click.echo("  [OK] Aucune derive detectee dans la fenetre analysee")
     click.echo("")
+
+
+# ---------------------------------------------------------------------------
+# kiva nexus sync   (P0.3 — local replacement for disabled GHA weekly sync)
+# ---------------------------------------------------------------------------
+from .nexus_sync_command import nexus_sync_cmd
+
+nexus_cli.add_command(nexus_sync_cmd)
+

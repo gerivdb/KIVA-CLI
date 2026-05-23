@@ -6,7 +6,6 @@ Commands:
   validate <name>       Validate DAG (cycle check + schema)
   show <name>           Show detailed step table (with when: + parallel_groups)
   run <name>            Execute a pipeline (subprocess per step)
-  run --steps           Ad-hoc execution via AutoChainManager (KIVA-008)
   history               Show last N PIPELINE_RUN WAL events
 """
 from __future__ import annotations
@@ -17,9 +16,9 @@ from typing import Optional
 
 import click
 
-from kiva_cli.core.pipeline_loader import detect_cycles, load_pipeline
-from kiva_cli.core.pipeline_types import HAS_PIPELINE
-from kiva_cli.core.auto_chain_manager import get_auto_chain_manager
+from kiva_cli.core.pipeline_loader import detect_cycles, load_pipeline, resolve_order
+from kiva_cli.core.pipeline_types import HAS_PIPELINE, StepResult
+from kiva_cli.core.auto_chain_manager import AutoChainManager, get_auto_chain_manager
 
 
 # ---------------------------------------------------------------------------
@@ -32,6 +31,9 @@ DEFAULT_PIPELINES_DIR = Path(".kiva") / "pipelines"
 _SEP   = "-"   # table separator
 _PIPE  = "|"
 _ARROW = "->"  # step description
+
+# High-level orchestrator (PRD-KIVA-008)
+_manager = get_auto_chain_manager()
 
 
 def _pipelines_dir() -> Path:
@@ -88,18 +90,6 @@ def _parallel_group_index(step_name: str, parallel_groups: list) -> str:
     return "SEQ"
 
 
-def _resolve_topo_order(steps) -> list[str]:
-    """Return step names in topological order using graphlib if available."""
-    try:
-        from graphlib import TopologicalSorter
-        graph = {s.name: set(s.depends_on) for s in steps}
-        ts = TopologicalSorter(graph)
-        return list(ts.static_order())
-    except ImportError:
-        # Fallback: declaration order (no graphlib on Python < 3.9)
-        return [s.name for s in steps]
-
-
 # ---------------------------------------------------------------------------
 # Group
 # ---------------------------------------------------------------------------
@@ -114,13 +104,6 @@ def pipeline_cli():
 
     Override pipeline directory: KIVA_PIPELINES_DIR env var.
     CI mode (no interactive prompts): KIVA_CI=1 env var.
-
-    Commands:
-      list        List discovered pipeline YAML definitions
-      validate    Validate DAG (cycle check + schema)
-      show        Show detailed step table
-      run         Execute a pipeline (or ad-hoc --steps chain)
-      history     Show last N PIPELINE_RUN WAL events
     """
     if not HAS_PIPELINE:
         click.echo("[pipeline] Feature disabled (KIVA_HAS_PIPELINE=0). Aborting.", err=True)
@@ -133,24 +116,22 @@ def pipeline_cli():
 
 @pipeline_cli.command("list")
 def pipeline_list():
-    """List all pipeline YAML definitions discovered in .kiva/pipelines/."""
-    base = _pipelines_dir()
-    if not base.exists():
-        click.echo(f"No pipelines directory found: {base}")
-        click.echo("Create .kiva/pipelines/ and add YAML definitions to get started.")
+    """List all named declarative pipelines (KIVA-008)."""
+    names = _manager.list_pipelines()
+    if not names:
+        click.echo("No pipelines found.")
+        click.echo(f"Add YAML files in {_manager.pipelines_dir}")
         return
 
-    yamls = sorted(base.glob("*.yaml")) + sorted(base.glob("*.yml"))
-    if not yamls:
-        click.echo(f"No pipeline definitions found in {base}")
-        return
-
-    click.echo(f"Pipelines in {base}:")
-    for y in yamls:
+    click.echo(f"Available pipelines ({len(names)}):")
+    for name in names:
         try:
-            p = load_pipeline(y)
-            pg_hint = f"  [{len(p.parallel_groups)} group(s)]" if p.parallel_groups else ""
-            click.echo(f"  {p.name:<24} {len(p.steps)} steps{pg_hint}   {p.description[:52]}")
+            p = _manager.get_pipeline(name)
+            pg_hint = f"  [{len(getattr(p, 'parallel_groups', []))} group(s)]" if getattr(p, 'parallel_groups', None) else ""
+            desc = getattr(p, 'description', '') or ''
+            click.echo(f"  {name:<24} {len(p.steps)} steps{pg_hint}   {desc[:52]}")
+        except Exception as e:
+            click.echo(f"  {name:<24} [ERROR] {e}")
         except Exception as exc:
             click.echo(f"  {y.stem:<24} [PARSE ERROR] {exc}")
 
@@ -162,30 +143,18 @@ def pipeline_list():
 @pipeline_cli.command("validate")
 @click.argument("name")
 def pipeline_validate(name: str):
-    """Validate a pipeline DAG: schema check + cycle detection.
-
-    NAME is the pipeline stem (e.g. 'build' for .kiva/pipelines/build.yaml).
-    """
-    path = _find_yaml(name)
-    if path is None:
-        click.echo(f"[ERROR] Pipeline not found: '{name}' in {_pipelines_dir()}", err=True)
+    """Validate a named declarative pipeline (KIVA-008)."""
+    result = _manager.validate(name)
+    if not result.valid:
+        click.echo(f"[FAIL] Pipeline '{name}' is invalid:", err=True)
+        for e in result.errors:
+            click.echo(f"  - {e}", err=True)
         raise SystemExit(1)
 
-    try:
-        p = load_pipeline(path)
-    except Exception as exc:
-        click.echo(f"[ERROR] Failed to parse pipeline '{name}': {exc}", err=True)
-        raise SystemExit(1)
-
-    cycles = detect_cycles(p.steps)
-    if cycles:
-        click.echo(f"[FAIL] Pipeline '{name}' has a dependency cycle: {cycles}", err=True)
-        raise SystemExit(1)
-
-    click.echo(f"[OK] Pipeline '{name}' is valid ({len(p.steps)} steps)")
-    for s in p.steps:
-        deps = f"  <- {', '.join(s.depends_on)}" if s.depends_on else ""
-        when_hint = f"  when: {s.when[:30]}" if s.when else ""
+    click.echo(f"[OK] Pipeline '{name}' is valid.")
+    if result.warnings:
+        for w in result.warnings:
+            click.echo(f"  [WARN] {w}")
         click.echo(f"  {s.name:<24} on_failure={s.on_failure:<8}{deps}{when_hint}")
 
 
@@ -300,209 +269,106 @@ def pipeline_show(name: str, no_when: bool, no_groups: bool):
 
 
 # ---------------------------------------------------------------------------
-# run  (KIVA-008: --steps ad-hoc mode + --from resume mode)
+# run
 # ---------------------------------------------------------------------------
 
 @pipeline_cli.command("run")
 @click.argument("name", required=False, default=None)
-@click.option(
-    "--steps", "steps_list",
-    default=None,
-    metavar="CMD1,CMD2,...",
-    help=(
-        "Ad-hoc comma-separated list of shell commands to chain. "
-        "Runs via AutoChainManager (KIVA-008). Mutually exclusive with NAME."
-    ),
-)
+@click.option("--steps", "steps_list", default=None, help="Comma-separated list of shell commands for ad-hoc execution (KIVA-007 compatibility).")
 @click.option("--dry-run", is_flag=True, default=False, help="Simulate execution without running commands.")
 @click.option("--verbose", "-v", is_flag=True, default=False, help="Show stdout/stderr per step.")
 @click.option("--ci", is_flag=True, default=False, help="Force CI-safe mode (no interactive prompts).")
-@click.option(
-    "--from", "-f", "from_step",
-    default=None,
-    metavar="STEP",
-    help=(
-        "Resume execution from STEP (inclusive). "
-        "All preceding steps are marked SKIPPED(resumed from <step>). "
-        "Compatible with --dry-run and --verbose. Not applicable with --steps."
-    ),
-)
-def pipeline_run(
-    name: Optional[str],
-    steps_list: Optional[str],
-    dry_run: bool,
-    verbose: bool,
-    ci: bool,
-    from_step: Optional[str],
-):
-    """Execute a pipeline by NAME, or run an ad-hoc chain with --steps.
+@click.option("--from", "-f", "from_step", default=None, help="Resume execution from this step (previous steps are marked SKIPPED).")
+def pipeline_run(name: Optional[str], steps_list: Optional[str], dry_run: bool, verbose: bool, ci: bool, from_step: Optional[str]):
+    """Execute a pipeline by NAME.
 
-    \b
-    NAMED PIPELINE MODE:
-      kiva pipeline run build
-      kiva pipeline run build --from deploy
-      kiva pipeline run build -f test --dry-run
+    Steps run in topological order. Behaviour on non-zero exit
+    is controlled by each step's on_failure field.
 
-    \b
-    AD-HOC MODE (--steps):
-      kiva pipeline run --steps "echo hello","echo world"
-      kiva pipeline run --steps "pytest tests/","mypy src/" --dry-run
-      kiva pipeline run --steps "step1","step2","step3" --verbose
-
-    \b
-    Step on_failure behaviour (named pipelines):
-      abort    (default) -- stop immediately
-      warn     -- log warning, continue
-      continue -- silently skip and continue
-      notify   -- emit WAL alert, continue
+    Use --from / -f to resume a previous run from a specific step.
+    All steps before the target are reported as SKIPPED with reason
+    "resumed from <step>".
     """
     if ci:
         os.environ["KIVA_CI"] = "1"
 
-    # ------------------------------------------------------------------
-    # Validate mutual exclusivity
-    # ------------------------------------------------------------------
-    if steps_list and name:
-        click.echo("[ERROR] --steps and NAME are mutually exclusive. Use one or the other.", err=True)
-        raise SystemExit(1)
-
-    if not steps_list and name is None:
-        click.echo("[ERROR] Provide a pipeline NAME or use --steps for ad-hoc execution.", err=True)
-        raise SystemExit(1)
-
-    # ==================================================================
-    # AD-HOC MODE via AutoChainManager
-    # ==================================================================
+    # --- KIVA-008: ad-hoc mode via --steps (KIVA-007 compatibility) ---
     if steps_list:
-        if from_step:
-            click.echo("[WARN] --from is not applicable in --steps ad-hoc mode. Ignored.")
-
         steps = [s.strip() for s in steps_list.split(",") if s.strip()]
         if not steps:
-            click.echo("[ERROR] --steps requires at least one non-empty command.", err=True)
+            click.echo("[ERROR] --steps requires at least one command", err=True)
             raise SystemExit(1)
 
-        _manager = get_auto_chain_manager()
         result = _manager.run_adhoc(steps, dry_run=dry_run, verbose=verbose)
 
-        click.echo("")
-        click.echo(f"Ad-hoc chain finished: {result.status}  ({len(steps)} step(s))")
-        click.echo(f"{'Step':<4} {'Command':<40} {'Status':<10} {'Duration':>8}")
-        click.echo("-" * 70)
-        for i, sr in enumerate(result.steps, 1):
-            cmd_hint = steps[i - 1][:38] if i <= len(steps) else sr.step_name
-            click.echo(
-                f"{i:<4} {cmd_hint:<40} {_status_icon(sr.status):<10} {sr.duration_s:>7.2f}s"
-            )
-            if verbose and (sr.stdout or sr.stderr):
-                if sr.stdout:
-                    click.echo(f"     stdout: {sr.stdout[:200]}")
-                if sr.stderr:
-                    click.echo(f"     stderr: {sr.stderr[:200]}")
-
+        # Minimal reporting for ad-hoc mode
+        click.echo(f"\nAd-hoc chain finished: {result.status}")
+        for sr in result.steps:
+            click.echo(f"  {sr.step_name:<30} {_status_icon(sr.status)}")
         if result.status == "FAILED":
             raise SystemExit(1)
-        return
-
-    # ==================================================================
-    # NAMED PIPELINE MODE (with optional --from)
-    # ==================================================================
-    path = _find_yaml(name)
-    if path is None:
-        click.echo(f"[ERROR] Pipeline not found: '{name}' in {_pipelines_dir()}", err=True)
-        raise SystemExit(1)
-
-    try:
-        p = load_pipeline(path)
-    except Exception as exc:
-        click.echo(f"[ERROR] Failed to parse pipeline '{name}': {exc}", err=True)
-        raise SystemExit(1)
-
-    from kiva_cli.core.pipeline_runner import run_pipeline
-    from kiva_cli.core.pipeline_types import Pipeline, StepResult
-
-    # ------------------------------------------------------------------
-    # --from: resolve topo order, validate step name, split pipeline
-    # ------------------------------------------------------------------
-    skipped_prefix: list[StepResult] = []
-
-    if from_step is not None:
-        topo_order = _resolve_topo_order(p.steps)
-        step_names = [s.name for s in p.steps]
-
-        if from_step not in step_names:
-            click.echo(
-                f"[ERROR] --from: step '{from_step}' not found in pipeline '{name}'.\n"
-                f"        Available steps: {', '.join(step_names)}",
-                err=True,
-            )
+        return  # done for ad-hoc case
+    # --- end ad-hoc ---
+        if name is None:
+            click.echo("[ERROR] Either provide a pipeline NAME or use --steps", err=True)
             raise SystemExit(1)
 
-        # Build prefix = all steps that appear before from_step in topo order
-        prefix_names: set[str] = set()
-        for sname in topo_order:
-            if sname == from_step:
-                break
-            prefix_names.add(sname)
+        path = _find_yaml(name)
+        if path is None:
+            click.echo(f"[ERROR] Pipeline not found: '{name}' in {_pipelines_dir()}", err=True)
+            raise SystemExit(1)
 
-        # Pre-inject SKIPPED StepResult for each prefix step (declaration order)
-        import time  # noqa: F401 (used indirectly via pipeline_runner)
-        for s in p.steps:
-            if s.name in prefix_names:
-                skipped_prefix.append(
+        try:
+            p = load_pipeline(path)
+        except Exception as exc:
+            click.echo(f"[ERROR] Failed to parse pipeline '{name}': {exc}", err=True)
+            raise SystemExit(1)
+
+    # --- KIVA-008: --from support (resume execution) ---
+    pre_skipped_results: list[StepResult] = []
+
+    if from_step:
+        try:
+            ordered = resolve_order(p.steps)
+            step_names = [s.name for s in ordered]
+
+            if from_step not in step_names:
+                click.echo(f"[ERROR] Step '{from_step}' not found in pipeline '{name}'", err=True)
+                raise SystemExit(1)
+
+            start_idx = step_names.index(from_step)
+
+            # Pre-build skipped results for the prefix
+            for s in ordered[:start_idx]:
+                pre_skipped_results.append(
                     StepResult(
                         step_name=s.name,
                         status="SKIPPED",
-                        exit_code=0,
-                        stdout="",
-                        stderr="",
-                        duration_s=0.0,
                         skip_reason=f"resumed from {from_step}",
+                        duration_s=0.0,
                     )
                 )
 
-        # Build suffix pipeline (steps NOT in prefix)
-        suffix_steps = [s for s in p.steps if s.name not in prefix_names]
-        p = Pipeline(
-            name=p.name,
-            version=p.version,
-            description=p.description,
-            nexus_status=p.nexus_status,
-            steps=suffix_steps,
-            parallel_groups=p.parallel_groups,
-            on_failure=getattr(p, "on_failure", "abort"),
-            max_workers=getattr(p, "max_workers", 4),
-        )
+            # Create a temporary pipeline with only the suffix steps
+            # (avoids mutating the original p)
+            from dataclasses import replace
+            suffix_steps = ordered[start_idx:]
+            p_to_run = replace(p, steps=suffix_steps)
 
-        click.echo(
-            f"[--from] Resuming '{name}' from step '{from_step}' "
-            f"({len(skipped_prefix)} step(s) skipped)."
-        )
+        except Exception as e:
+            click.echo(f"[ERROR] Failed to process --from {from_step}: {e}", err=True)
+            raise SystemExit(1)
+    else:
+        p_to_run = p
 
-    # ------------------------------------------------------------------
-    # Run the (possibly suffixed) pipeline
-    # ------------------------------------------------------------------
-    result = run_pipeline(p, dry_run=dry_run, verbose=verbose)
+    from kiva_cli.core.pipeline_runner import run_pipeline
 
-    # Merge: skipped prefix first, then actual results
-    if skipped_prefix:
-        merged_steps = skipped_prefix + list(result.steps)
-        result = type(result)(
-            pipeline_name=result.pipeline_name,
-            status=result.status,
-            steps=merged_steps,
-            intent_hash=result.intent_hash,
-            duration_s=result.duration_s,
-            **{
-                k: getattr(result, k)
-                for k in ("parallel_groups_executed", "total_parallel_wall_clock", "total_retries_used")
-                if hasattr(result, k)
-            },
-        )
+    result = run_pipeline(p_to_run, dry_run=dry_run, verbose=verbose)
 
-    # ------------------------------------------------------------------
-    # Display
-    # ------------------------------------------------------------------
+    # Merge pre-skipped results at the beginning
+    if pre_skipped_results:
+        result.steps = pre_skipped_results + list(result.steps)
+
     click.echo("")
     click.echo(f"Pipeline '{result.pipeline_name}' finished: {result.status}")
     click.echo(f"intent_hash : {result.intent_hash}")
@@ -516,9 +382,6 @@ def pipeline_run(
     click.echo("")
     click.echo(f"total_retries_used: {getattr(result, 'total_retries_used', 0)}")
 
-    # Re-bind p for the full step list display (original load for meta lookup)
-    original_steps = {s.name: s for s in load_pipeline(_find_yaml(name)).steps}
-
     click.echo("")
     click.echo(f"{'Step':<24} {'Status':<10} {'Duration':>8}  {'Group':<6}  {'Retry':>5}  {'Skipped reason / Command'}")
     click.echo("-" * 100)
@@ -526,11 +389,12 @@ def pipeline_run(
         cmd_hint = ""
         grp = "SEQ"
         retry = 0
-        if sr.step_name in original_steps:
-            s = original_steps[sr.step_name]
-            cmd_hint = s.command[:34]
-            grp = _parallel_group_index(s.name, p.parallel_groups)
-            retry = s.retry
+        for s in p.steps:
+            if s.name == sr.step_name:
+                cmd_hint = s.command[:34]
+                grp = _parallel_group_index(s.name, p.parallel_groups)
+                retry = s.retry
+                break
 
         # KIVA-011: show skip_reason instead of command for SKIPPED steps
         if sr.status == "SKIPPED" and sr.skip_reason:
