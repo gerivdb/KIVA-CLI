@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-audit_orphan_branches.py — BRGS L5: Orphan branch audit module for KIVA-CLI
+audit_orphan_branches.py - BRGS L5: Orphan branch audit module for KIVA-CLI
 
 Scans all repositories in the governance manifest for orphan branches:
   - Branches containing files in forbidden paths (wrong repo)
@@ -20,7 +20,7 @@ import subprocess
 import sys
 from dataclasses import dataclass, field
 from datetime import datetime
-from enum import Path
+from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -33,9 +33,9 @@ except ImportError:
     HAS_YAML = False
 
 
-# ─── Data classes ─────────────────────────────────────────────────────────────
+# --- Data classes ---
 
-class OrphanReason(str):
+class OrphanReason(str, Enum):
     """Reason a branch is considered orphaned."""
     FORBIDDEN_PATH = "FORBIDDEN_PATH"
     WRONG_PREFIX = "WRONG_PREFIX"
@@ -73,12 +73,12 @@ class AuditSummary:
     errors: List[str] = field(default_factory=list)
 
 
-# ─── Manifest loading ────────────────────────────────────────────────────────
+# --- Manifest loading ---
 
 def load_manifest(manifest_path: str) -> Dict[str, Any]:
     """Load and parse the governance manifest."""
     if not HAS_YAML:
-        click.echo("Error: PyYAML required — pip install pyyaml", err=True)
+        click.echo("Error: PyYAML required - pip install pyyaml", err=True)
         sys.exit(1)
 
     path = Path(manifest_path)
@@ -101,7 +101,7 @@ def get_repo_config(manifest: Dict, repo_name: str) -> Optional[Dict]:
     return repos.get(repo_name)
 
 
-# ─── Git operations ──────────────────────────────────────────────────────────
+# --- Git operations ---
 
 def run_git(repo_path: str, args: List[str], timeout: int = 30) -> Tuple[int, str, str]:
     """Run a git command and return (returncode, stdout, stderr)."""
@@ -126,7 +126,6 @@ def get_remote_branches(repo_path: str) -> List[str]:
     """Get list of remote branches (without 'origin/' prefix)."""
     rc, stdout, _ = run_git(repo_path, ["branch", "-r", "--no-merged", "origin/main"])
     if rc != 0:
-        # Fallback: get all remote branches
         rc, stdout, _ = run_git(repo_path, ["branch", "-r"])
 
     branches = []
@@ -146,7 +145,6 @@ def get_branch_files(repo_path: str, branch_name: str) -> List[str]:
         ["diff", "--name-only", f"origin/main...origin/{branch_name}"],
     )
     if rc != 0 or not stdout:
-        # Fallback: try with two-dot
         rc, stdout, _ = run_git(
             repo_path,
             ["diff", "--name-only", f"origin/main..origin/{branch_name}"],
@@ -177,7 +175,7 @@ def is_branch_merged(repo_path: str, branch_name: str) -> bool:
     return rc == 0
 
 
-# ─── Audit logic ─────────────────────────────────────────────────────────────
+# --- Audit logic ---
 
 def audit_repo(
     repo_name: str,
@@ -195,10 +193,9 @@ def audit_repo(
     if not Path(repo_path).exists():
         return orphans
 
-    # Fetch remote branches
     rc, _, _ = run_git(repo_path, ["fetch", "origin", "--prune"], timeout=60)
     if rc != 0:
-        click.echo(f"  ⚠️  Could not fetch {repo_name}, using local refs")
+        click.echo(f"  [WARN] Could not fetch {repo_name}, using local refs")
 
     branches = get_remote_branches(repo_path)
 
@@ -216,7 +213,6 @@ def audit_repo(
                         violated.append(f)
 
             if violated:
-                # Determine redirect target
                 redirect_target = ""
                 for fp, target in redirect_map.items():
                     fp_prefix = fp.rstrip("/")
@@ -229,23 +225,23 @@ def audit_repo(
 
                 detail = f"Branch '{branch_name}' contains {len(violated)} file(s) in forbidden paths"
                 if redirect_target:
-                    detail += f" — belongs to {redirect_target}"
+                    detail += f" - belongs to {redirect_target}"
 
                 orphans.append(OrphanBranch(
                     repo_name=repo_name,
                     repo_path=repo_path,
                     branch_name=branch_name,
-                    reason="FORBIDDEN_PATH",
+                    reason=OrphanReason.FORBIDDEN_PATH,
                     details=detail,
                     last_commit_date=last_date,
                     last_commit_author=last_author,
-                    files_violated=violated[:10],  # Cap at 10 for readability
+                    files_violated=violated[:10],
                     suggested_action=f"Move to {redirect_target}" if redirect_target else "Review and prune",
                     prune_command=f"git push origin --delete {branch_name}",
                 ))
-                continue  # Skip other checks if already flagged
+                continue
 
-        # Check 2: Wrong prefix (only if allowed_prefixes defined)
+        # Check 2: Wrong prefix
         if allowed_prefixes and branch_name not in ("main", "dev"):
             prefix_ok = False
             for p in allowed_prefixes:
@@ -259,7 +255,7 @@ def audit_repo(
                     repo_name=repo_name,
                     repo_path=repo_path,
                     branch_name=branch_name,
-                    reason="WRONG_PREFIX",
+                    reason=OrphanReason.WRONG_PREFIX,
                     details=f"Branch '{branch_name}' does not match allowed prefixes: {', '.join(allowed_prefixes)}",
                     last_commit_date=last_date,
                     last_commit_author=last_author,
@@ -274,7 +270,7 @@ def audit_repo(
                 repo_name=repo_name,
                 repo_path=repo_path,
                 branch_name=branch_name,
-                reason="MERGED_NOT_DELETED",
+                reason=OrphanReason.MERGED_NOT_DELETED,
                 details=f"Branch '{branch_name}' is merged into main but not deleted",
                 last_commit_date=last_date,
                 last_commit_author=last_author,
@@ -283,7 +279,7 @@ def audit_repo(
             ))
             continue
 
-        # Check 4: Stale (older than stale_days)
+        # Check 4: Stale
         if last_date:
             try:
                 commit_date = datetime.fromisoformat(last_date.replace(" ", "T"))
@@ -293,7 +289,7 @@ def audit_repo(
                         repo_name=repo_name,
                         repo_path=repo_path,
                         branch_name=branch_name,
-                        reason="STALE",
+                        reason=OrphanReason.STALE,
                         details=f"Branch '{branch_name}' is {age_days} days old (last commit: {last_date})",
                         last_commit_date=last_date,
                         last_commit_author=last_author,
@@ -306,67 +302,65 @@ def audit_repo(
     return orphans
 
 
-# ─── Report generation ───────────────────────────────────────────────────────
+# --- Report generation ---
 
 def generate_report(summary: AuditSummary, output_path: str) -> str:
     """Generate a Markdown audit report."""
     lines = []
-    lines.append(f"# BRGS Audit — Orphan Branches Report")
-    lines.append(f"")
+    lines.append("# BRGS Audit - Orphan Branches Report")
+    lines.append("")
     lines.append(f"**Scan Date**: {summary.scan_date}")
     lines.append(f"**Repos Scanned**: {summary.repos_scanned}")
     lines.append(f"**Branches Scanned**: {summary.branches_scanned}")
     lines.append(f"**Orphans Found**: {summary.orphans_found}")
-    lines.append(f"")
-    lines.append(f"## Summary")
-    lines.append(f"")
-    lines.append(f"| Reason | Count |")
-    lines.append(f"|--------|-------|")
+    lines.append("")
+    lines.append("## Summary")
+    lines.append("")
+    lines.append("| Reason | Count |")
+    lines.append("|--------|-------|")
     lines.append(f"| Forbidden Paths | {summary.forbidden_path_count} |")
     lines.append(f"| Wrong Prefix | {summary.wrong_prefix_count} |")
     lines.append(f"| Merged Not Deleted | {summary.merged_not_deleted_count} |")
     lines.append(f"| Stale (>90 days) | {summary.stale_count} |")
-    lines.append(f"")
+    lines.append("")
 
     if summary.errors:
-        lines.append(f"## Errors")
-        lines.append(f"")
+        lines.append("## Errors")
+        lines.append("")
         for err in summary.errors:
-            lines.append(f"- ⚠️  {err}")
-        lines.append(f"")
+            lines.append(f"- [WARN] {err}")
+        lines.append("")
 
-    # Group orphans by repo
     by_repo: Dict[str, List[OrphanBranch]] = {}
     for o in summary.orphans:
         by_repo.setdefault(o.repo_name, []).append(o)
 
     for repo_name, repo_orphans in sorted(by_repo.items()):
         lines.append(f"## {repo_name} ({len(repo_orphans)} orphan(s))")
-        lines.append(f"")
+        lines.append("")
 
         for o in repo_orphans:
-            lines.append(f"### `{o.branch_name}` — {o.reason}")
-            lines.append(f"")
+            lines.append(f"### `{o.branch_name}` - {o.reason}")
+            lines.append("")
             lines.append(f"- **Details**: {o.details}")
             if o.last_commit_date:
                 lines.append(f"- **Last Commit**: {o.last_commit_date} by {o.last_commit_author}")
             if o.files_violated:
-                lines.append(f"- **Violated Files**:")
+                lines.append("- **Violated Files**:")
                 for f in o.files_violated:
                     lines.append(f"  - `{f}`")
             lines.append(f"- **Suggested Action**: {o.suggested_action}")
             lines.append(f"- **Command**: `{o.prune_command}`")
-            lines.append(f"")
+            lines.append("")
 
-    # Bulk prune commands
-    lines.append(f"## Bulk Prune Commands")
-    lines.append(f"")
-    lines.append(f"```bash")
+    lines.append("## Bulk Prune Commands")
+    lines.append("")
+    lines.append("```bash")
     for o in summary.orphans:
-        if o.reason in ("FORBIDDEN_PATH", "MERGED_NOT_DELETED", "STALE"):
+        if o.reason in (OrphanReason.FORBIDDEN_PATH, OrphanReason.MERGED_NOT_DELETED, OrphanReason.STALE):
             lines.append(f"cd {o.repo_path} && {o.prune_command}")
-    lines.append(f"```")
-    lines.append(f"")
+    lines.append("```")
+    lines.append("")
 
     report = "\n".join(lines)
 
@@ -376,7 +370,7 @@ def generate_report(summary: AuditSummary, output_path: str) -> str:
     return report
 
 
-# ─── Click command ───────────────────────────────────────────────────────────
+# --- Click command ---
 
 @click.group()
 def audit():
@@ -431,19 +425,22 @@ def audit_orphan_branches(
     """Scan all repositories for orphan branches.
 
     Finds branches that:
-    \b
+
     - Contain files in forbidden paths (wrong repo)
     - Don't follow the naming convention
     - Are merged but not deleted
     - Are stale (>90 days old)
 
     Example:
-        kiva audit orphan-branches --config D:\\DO\\WEB\\TOOLS\\L0-CANON\\GOVERNANCE-HUB\\multi-repo-governance.yaml
+
+        kiva audit orphan-branches --config D:\\\\DO\\\\WEB\\\\TOOLS\\\\L0-CANON\\\\GOVERNANCE-HUB\\\\multi-repo-governance.yaml
+
         kiva audit orphan-branches --config manifest.yaml --repos DevTools,ECOS-CLI
+
         kiva audit orphan-branches --config manifest.yaml --stale-days 30 --json-output results.json
     """
     click.echo("=" * 60)
-    click.echo("  BRGS L5 — Orphan Branch Audit")
+    click.echo("  BRGS L5 - Orphan Branch Audit")
     click.echo("=" * 60)
     click.echo("")
 
@@ -455,12 +452,10 @@ def audit_orphan_branches(
         click.echo("Error: No branch_routing.repositories found in manifest", err=True)
         sys.exit(1)
 
-    # Filter repos if specified
     if repo_filter:
         filter_names = [n.strip() for n in repo_filter.split(",")]
         repos_config = {k: v for k, v in repos_config.items() if k in filter_names}
 
-    # Determine output path
     if not output_path:
         now = datetime.now()
         week = now.isocalendar()[1]
@@ -475,11 +470,11 @@ def audit_orphan_branches(
 
     for repo_name, repo_config in repos_config.items():
         local_path = repo_config.get("local_path", "")
-        click.echo(f"── {repo_name} ({local_path}) ──")
+        click.echo(f"-- {repo_name} ({local_path}) --")
 
         if not local_path or not Path(local_path).exists():
             msg = f"Skipped {repo_name}: path not found ({local_path})"
-            click.echo(f"  ⚠️  {msg}")
+            click.echo(f"  [WARN] {msg}")
             summary.errors.append(msg)
             continue
 
@@ -492,21 +487,19 @@ def audit_orphan_branches(
         )
 
         summary.orphans.extend(orphans)
-        click.echo(f"  Found {len(orphans)} orphan branch(es)")
+        click.echo("  Found {} orphan branch(es)".format(len(orphans)))
         click.echo("")
 
-    # Compute summary stats
     summary.orphans_found = len(summary.orphans)
-    summary.forbidden_path_count = sum(1 for o in summary.orphans if o.reason == "FORBIDDEN_PATH")
-    summary.wrong_prefix_count = sum(1 for o in summary.orphans if o.reason == "WRONG_PREFIX")
-    summary.merged_not_deleted_count = sum(1 for o in summary.orphans if o.reason == "MERGED_NOT_DELETED")
-    summary.stale_count = sum(1 for o in summary.orphans if o.reason == "STALE")
+    summary.forbidden_path_count = sum(1 for o in summary.orphans if o.reason == OrphanReason.FORBIDDEN_PATH)
+    summary.wrong_prefix_count = sum(1 for o in summary.orphans if o.reason == OrphanReason.WRONG_PREFIX)
+    summary.merged_not_deleted_count = sum(1 for o in summary.orphans if o.reason == OrphanReason.MERGED_NOT_DELETED)
+    summary.stale_count = sum(1 for o in summary.orphans if o.reason == OrphanReason.STALE)
 
-    # Generate report
     report = generate_report(summary, output_path)
 
     click.echo("=" * 60)
-    click.echo(f"  RESULTS")
+    click.echo("  RESULTS")
     click.echo("=" * 60)
     click.echo(f"  Repos Scanned    : {summary.repos_scanned}")
     click.echo(f"  Orphans Found    : {summary.orphans_found}")
@@ -516,11 +509,10 @@ def audit_orphan_branches(
     click.echo(f"    Stale          : {summary.stale_count}")
     if summary.errors:
         click.echo(f"  Errors           : {len(summary.errors)}")
-    click.echo(f"")
+    click.echo("")
     click.echo(f"  Report: {output_path}")
     click.echo("=" * 60)
 
-    # Optional JSON output
     if json_output_path:
         json_data = {
             "scan_date": summary.scan_date,
