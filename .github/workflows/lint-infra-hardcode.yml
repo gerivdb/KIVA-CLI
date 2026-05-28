@@ -1,0 +1,35 @@
+name: Lint — No hardcoded infra values
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  hardcode-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check no Ubuntu-XX.XX hardcoded in Python
+        run: |
+          FOUND=$(grep -rn "Ubuntu-2[0-9]\.[0-9][0-9]" --include="*.py" . || true)
+          if [ -n "$FOUND" ]; then
+            echo "❌ HARDCODE DÉTECTÉ:"
+            echo "$FOUND"
+            echo "→ Utiliser os.environ.get('WSL_DISTRO', 'Ubuntu')"
+            exit 1
+          fi
+          echo "✅ Aucun Ubuntu-XX.XX hardcodé"
+
+      - name: Check no hardcoded port 7719 (codedb stale)
+        run: |
+          FOUND=$(grep -rn ":7719\|port.*7719\|7719.*port" --include="*.py" --include="*.ps1" . || true)
+          if [ -n "$FOUND" ]; then
+            echo "❌ PORT OBSOLÈTE 7719 DÉTECTÉ:"
+            echo "$FOUND"
+            echo "→ Port codedb correct: 6767 (cf. NEXUS/infra-defaults.yaml)"
+            exit 1
+          fi
+          echo "✅ Aucun port 7719 résiduel"

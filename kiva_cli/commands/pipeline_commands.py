@@ -309,20 +309,21 @@ def pipeline_run(name: Optional[str], steps_list: Optional[str], dry_run: bool, 
             raise SystemExit(1)
         return  # done for ad-hoc case
     # --- end ad-hoc ---
-        if name is None:
-            click.echo("[ERROR] Either provide a pipeline NAME or use --steps", err=True)
-            raise SystemExit(1)
 
-        path = _find_yaml(name)
-        if path is None:
-            click.echo(f"[ERROR] Pipeline not found: '{name}' in {_pipelines_dir()}", err=True)
-            raise SystemExit(1)
+    if name is None:
+        click.echo("[ERROR] Either provide a pipeline NAME or use --steps", err=True)
+        raise SystemExit(1)
 
-        try:
-            p = load_pipeline(path)
-        except Exception as exc:
-            click.echo(f"[ERROR] Failed to parse pipeline '{name}': {exc}", err=True)
-            raise SystemExit(1)
+    path = _find_yaml(name)
+    if path is None:
+        click.echo(f"[ERROR] Pipeline not found: '{name}' in {_pipelines_dir()}", err=True)
+        raise SystemExit(1)
+
+    try:
+        p = load_pipeline(path)
+    except Exception as exc:
+        click.echo(f"[ERROR] Failed to parse pipeline '{name}': {exc}", err=True)
+        raise SystemExit(1)
 
     # --- KIVA-008: --from support (resume execution) ---
     pre_skipped_results: list[StepResult] = []

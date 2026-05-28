@@ -30,7 +30,7 @@ class CodeDBManager:
             data_dir = "C:\\DevTools\\data\\codedb"
         self.data_dir = Path(data_dir)
         self.projects_file = self.data_dir / "projects.json"
-        self.wsl_distro = "Ubuntu-22.04"
+        self.wsl_distro = "Ubuntu"
         self._ensure_dirs()
 
     def _ensure_dirs(self):
@@ -38,7 +38,7 @@ class CodeDBManager:
 
     def _run_wsl(self, cmd: str, cwd: str = None) -> subprocess.CompletedProcess:
         """Run command in WSL."""
-        full_cmd = f"export PATH=/root/bin:$PATH && {cmd}"
+        full_cmd = f"export PATH=/home/gervdb/bin:$PATH && {cmd}"
         args = ["wsl", "-d", self.wsl_distro, "bash", "-c", full_cmd]
         return subprocess.run(args, capture_output=True, text=True, cwd=cwd, timeout=30)
 

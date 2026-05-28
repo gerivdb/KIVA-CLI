@@ -12,6 +12,7 @@ ECOS-CLI unified command-line interface for:
 - Entity path mapping (EntityPathMapper)
 - NEXUS governance (.nexus/ tracking per repo)
 - Pipeline chain execution (KIVA-008)
+- Branch Routing & Governance System (BRGS) audit
 """
 
 import sys
@@ -56,10 +57,11 @@ from kiva_cli.commands.epic_commands import epic_cli
 from kiva_cli.commands.gate_command import gate_cli
 from kiva_cli.commands.nexus_commands import nexus_cli
 from kiva_cli.commands.pipeline_commands import pipeline_cli
+from kiva_cli.commands.audit_commands import audit
 
 
 @click.group()
-@click.version_option(version="0.23.0", prog_name="KIVA-CLI")
+@click.version_option(version="0.24.0", prog_name="KIVA-CLI")
 def cli():
     """KIVA-CLI - ECOS unified command-line interface.
 
@@ -91,6 +93,7 @@ def cli():
     - EPIC-centric development mode
     - NEXUS governance (.nexus/ tracking per repo)
     - Pipeline chain execution (KIVA-008: DAG, on_failure, WAL, phi_delta)
+    - Branch Routing & Governance System (BRGS) audit
     """
     pass
 
@@ -123,6 +126,7 @@ cli.add_command(zvec_cli, name="zvec")
 cli.add_command(epic_cli, name="epic")
 cli.add_command(nexus_cli, name="nexus")
 cli.add_command(pipeline_cli, name="pipeline")
+cli.add_command(audit, name="audit")
 
 
 def main():

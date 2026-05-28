@@ -4,7 +4,7 @@
   "version": "0.23.0",
   "layer": "L3",
   "category": "orchestrator",
-  "intent": "Orchestrateur local \u00c3\u00a9cosyst\u00c3\u00a8me \u00e2\u20ac\u201d Planificateur Windows, 100% ENV2 FinOps",
+  "intent": "Orchestrateur local Ã©cosystÃ¨me â€” Planificateur Windows, 100% ENV2 FinOps",
   "dependencies": [
     "NEXUS",
     "WAZAA",
@@ -20,7 +20,9 @@
     "ecosVersion": "2.0.0",
     "owner": "gerivdb",
     "lastCommit": "cd11baa",
-    "intentHash": "0xITAD_ECOS_ENV2_GERICODE_20260516"
+    "intentHash": "0xITAD_ECOS_ENV2_GERICODE_20260516",
+    "lastHarmonized": "2026-05-26T16:50:33Z",
+    "harmonizeIntentHash": "0xECOSROOT_HARMONIZE_20260526"
   },
   "itad": {
     "env_id": "ENV2",
@@ -56,6 +58,52 @@
       "intent_hash": "0xECOS_CLI_BASELINE_RESET_20260516",
       "phi_cps_baseline": 6.5245,
       "status": "ACTIVE"
+    },
+    "LYCOS": {
+      "env_id": "ENV2",
+      "physical_path": "D:\\DO\\WEB\\TOOLS\\L4-TOOLS\\LYCOS",
+      "entry_points": [
+        "src/lycos.py",
+        "scripts/"
+      ],
+      "layer": "L4",
+      "category": "devtools",
+      "wazaa_registered": false,
+      "nexus_declared": false,
+      "declared_at": "2026-05-26T16:50:33Z",
+      "harmonized_at": "2026-05-26T16:50:33Z",
+      "intent_hash": "0xECOSROOT_HARMONIZE_20260526",
+      "status": "HARMONIZED"
+    },
+    "MNEMO": {
+      "env_id": "ENV2",
+      "physical_path": "D:\\DO\\WEB\\TOOLS\\L4-TOOLS\\MNEMO",
+      "entry_points": [
+        "src/"
+      ],
+      "layer": "L4",
+      "category": "devtools",
+      "wazaa_registered": false,
+      "nexus_declared": false,
+      "declared_at": "2026-05-26T16:50:33Z",
+      "harmonized_at": "2026-05-26T16:50:33Z",
+      "intent_hash": "0xECOSROOT_HARMONIZE_20260526",
+      "status": "HARMONIZED"
+    },
+    "PLIX": {
+      "env_id": "ENV2",
+      "physical_path": "D:\\DO\\WEB\\TOOLS\\L4-TOOLS\\PLIX",
+      "entry_points": [
+        "src/"
+      ],
+      "layer": "L4",
+      "category": "devtools",
+      "wazaa_registered": false,
+      "nexus_declared": false,
+      "declared_at": "2026-05-26T16:50:33Z",
+      "harmonized_at": "2026-05-26T16:50:33Z",
+      "intent_hash": "0xECOSROOT_HARMONIZE_20260526",
+      "status": "HARMONIZED"
     }
   }
 }

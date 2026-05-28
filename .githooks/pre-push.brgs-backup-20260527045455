@@ -1,0 +1,32 @@
+#!/bin/sh
+# KIVA Gate - pre-push hook
+# Blocks push if phi-CPS drift exceeds CRITICAL threshold (5%)
+#
+# Install: git config core.hooksPath .githooks
+# Or via:  ecos automate install-hooks --force
+#
+# CANONICAL TEMPLATE — source: gerivdb/NEXUS/.githooks/pre-push
+# Promoted from FLUENCE SHA: 044aa6aceb0c37ddf3b15f297cfa8565bd38e1d5
+# Date: 2026-05-17 | HOOK_VERSION=0.2.0 | CONFORME_NEXUS
+
+REPO=$(basename $(git rev-parse --show-toplevel))
+BASE="main"
+
+export PYTHONIOENCODING=utf-8
+
+echo "[KIVA] Running phi-CPS gate for repo: $REPO"
+
+python -m kiva_cli.kiva gate check --repo "$REPO" --base "$BASE"
+EXIT_CODE=$?
+
+if [ $EXIT_CODE -eq 1 ]; then
+    echo "[KIVA] Push BLOCKED by phi-CPS gate."
+    echo "[KIVA] Fix: resolve drift, then retry push."
+    exit 1
+elif [ $EXIT_CODE -eq 2 ]; then
+    echo "[KIVA] WARNING: Gate check failed (WAL unavailable). Push allowed with warning."
+    exit 0
+fi
+
+echo "[KIVA] Gate PASSED. Push allowed."
+exit 0
