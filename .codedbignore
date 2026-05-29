@@ -1,0 +1,8 @@
+# .codedbignore — TOPOS profiles
+TOPOS/
+**/topos/
+**/TOPOS/
+topos.yaml
+topos_v*.yaml
+eecs_matrix.yaml
+
