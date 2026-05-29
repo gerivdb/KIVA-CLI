@@ -1,37 +1,20 @@
 # STRATUM RELAY — KIVA-CLI (L3)
 
-**VAGUE**: 1 | **Synchro**: 2026-05-29 | **Hub**: gerivdb/LLM-REPO
-
----
-
-## Identite stratique
+**VAGUE**: 2 | **Synchro**: 2026-05-29 | **Hub**: gerivdb/LLM-REPO
 
 - **Strate** : `L3` — Systeme moteur CLI
 - **Role canonique** : CLI orchestrateur projets/apps — scaffolding KIVA
 - **Parent** : L2 (BRAIN)
 - **Enfants** : L4 (KIVA execute les deploiements)
 
-## Navigation rapide
-
-- PRD : `GOVERNANCE-HUB/PRD/PRD_ECOSYSTEM_SUPERSTRUCTURE_L0-L9_V1.md`
-- Substrat cognitif : `gerivdb/LLM-REPO`
-- Orchestrateur compagnon : `gerivdb/KIVA`
-- Transit map : `VERSUS/urban_ontology_verse/TRANSIT/transit_map.yaml`
-- Cadastre : `VERSUS/urban_ontology_verse/CADASTRE/cadastre_full.yaml`
-
 ## Regles locales
-
 - R1 — KIVA-CLI orchestre les projets/apps — tout scaffolding passe par KIVA-CLI.
 - R2 — KIVA execute, KIVA-CLI definit — ne pas inverser.
 - Anti-pattern: deployer un projet sans passer par KIVA-CLI.
 
-## Vague de mise a jour
-
-| Vague | Contenu | Statut |
-|-------|---------|--------|
-| **1 (courante)** | Identite + navigation | Deploye |
-| 2 (suivante) | + Regles + Recall | Planifie |
-
----
-
-*Genere par `VERSUS/urban_ontology_verse/TOOLS/relay_propagator.py` v2.0*
+## Karpathy-Recall local (Vague 2 — 5Q)
+1. Apres migration v1.1.0, que contient ECOS-CLI et que NE contient-il PLUS ?
+2. Qu'est-ce que BLO et quel format de base de donnees utilise-t-il ?
+3. Quelle commande ecos * est la plus critique a tester ?
+4. Quelle est la frontiere entre KIVA-CLI (L3) et ECOS-CLI (L3) ?
+5. Pourquoi KIVA-CLI ne doit-il pas executer directement les deploiements ?
