@@ -6,3 +6,8 @@ topos.yaml
 topos_v*.yaml
 eecs_matrix.yaml
 
+
+# LLM-REPO (L1b) — contains agent profiles, skip indexing
+**/LLM-REPO/
+**/llm_rules/
+
