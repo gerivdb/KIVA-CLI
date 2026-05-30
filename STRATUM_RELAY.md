@@ -1,6 +1,6 @@
 # STRATUM RELAY — KIVA-CLI (L3)
 
-**VAGUE**: 3 | **Synchro**: 2026-05-29 | **Hub**: gerivdb/LLM-REPO
+**VAGUE**: 4 | **Synchro**: 2026-05-30 | **Hub**: gerivdb/LLM-REPO
 
 - **Strate** : `L3` — Systeme moteur CLI
 - **Role canonique** : CLI orchestrateur projets/apps — scaffolding KIVA
@@ -29,10 +29,35 @@
 - **Parent (amont)** : KIVA (L2) — KIVA-CLI recoit les directives de scaffolding de KIVA.
 - **Enfants (aval)** : Aucun — KIVA-CLI est une feuille de la chaine; il delegue l'execution a KIVA (L4).
 
+## Agents locaux (Vague 4)
+
+```yaml
+# .roomodes — profil agent KIVA-CLI
+agent: kiva-scaffolder
+strate: L3
+role: Project scaffolding CLI
+rules: KIVA-CLI/rules/scaffold_rules.yaml
+hub_ref: KIVA
+```
+
+L'agent `kiva-scaffolder` definit la structure de chaque projet/app, valide la conformite avant delegation, et ne modifie jamais l'execution.
+
+## Auto-conformite (Vague 4)
+
+- **Guard 1 — Define, don't execute** : KIVA-CLI definit la structure, KIVA execute. Toute inversion est bloquee.
+- **Guard 2 — Conformance check** : Tout projet doit passer la validation de conformite avant delegation a KIVA.
+- **Guard 3 — No direct deploy** : KIVA-CLI ne deploie jamais directly. Tout passe par KIVA.
+
 ## Vague de mise a jour
 
 | Vague | Contenu | Statut |
 |-------|---------|--------|
 | 2 | Identite + regles + Karpathy-Recall 5Q | Deploye |
-| **3 (courante)** | Recall etendu a 10Q + section Dependances | Deploye |
-| 4 (suivante) | Tests de validation KIVA-CLI + integration BLO | Planifie |
+| 3 | Recall etendu a 10Q + section Dependances | Deploye |
+| **4 (courante)** | Agents locaux + auto-conformite | Deploye |
+
+---
+
+*Genere par `VERSUS/urban_ontology_verse/TOOLS/relay_propagator.py` v4.0*
+*UrbanVerse v4.0.0 — gerivdb/VERSUS (L8)*
+*IntentHash: 0xPHASE8_KIVA_CLI_V4_PHASE8_20260530*
