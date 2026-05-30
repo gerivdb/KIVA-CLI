@@ -1,63 +1,107 @@
+---
+relay_version: 5
+repo: gerivdb/KIVA-CLI
+strate: L3
+lifecycle: ACTIVE
+vague: 5
+synchro: '2026-05-30'
+hub: gerivdb/GOVERNANCE-HUB
+intent_hash: '0xE8ED2CCEB9C4DDF4'
+phi_cps:
+  value: null
+  source: NOT_MEASURED
+  valid: false
+  note: 3.697 was a mass placeholder — replaced by null
+rules:
+- id: R1
+  assertion: ECOS-CLI est un executable pur — zero regle LLM.
+  eval_cmd: null
+  status: UNVERIFIED
+  severity: CRITICAL
+- id: R2
+  assertion: Chaque commande ecos * a un test dans DevTools-CLI.
+  eval_cmd: null
+  status: UNVERIFIED
+  severity: HIGH
+- id: R3
+  assertion: BLO utilise bloom.db + WAL — acces direct interdit.
+  eval_cmd: null
+  status: UNVERIFIED
+  severity: HIGH
+---
+
 # STRATUM RELAY — KIVA-CLI (L3)
 
-**VAGUE**: 4 | **Synchro**: 2026-05-30 | **Hub**: gerivdb/LLM-REPO
+**VAGUE**: 5 | **Synchro**: 2026-05-30 | **Hub**: gerivdb/GOVERNANCE-HUB
+
+---
+
+## Identite stratique
 
 - **Strate** : `L3` — Systeme moteur CLI
-- **Role canonique** : CLI orchestrateur projets/apps — scaffolding KIVA
-- **Parent** : L2 (KIVA)
-- **Enfants** : L4 (KIVA execute les deploiements)
+- **Role canonique** : CLI orchestrateur projets/apps Ã”Ã‡Ã¶ scaffolding KIVA
+- **Parent** : L2
+- **Enfants** : L4
+- **phi-CPS** : null (NOT_MEASURED)
+
+## Navigation rapide
+
+- PRD canonique : `GOVERNANCE-HUB/PRD/PRD_ECOSYSTEM_SUPERSTRUCTURE_L0-L9_V1.md`
+- Substrat cognitif : `gerivdb/LLM-REPO` (L1b — prive)
+- Standards repo : `REPO-STANDARDS` (RSS-v1)
+- Transit map : `VERSUS/urban_ontology_verse/TRANSIT/transit_map.yaml`
+- Cadastre : `VERSUS/urban_ontology_verse/CADASTRE/cadastre_full.yaml`
 
 ## Regles locales
-- R1 — KIVA-CLI orchestre les projets/apps — tout scaffolding passe par KIVA-CLI.
-- R2 — KIVA execute, KIVA-CLI definit — ne pas inverser.
-- Anti-pattern: deployer un projet sans passer par KIVA-CLI.
 
-## Karpathy-Recall local (Vague 3 — 10Q)
-1. Apres migration v1.1.0, que contient ECOS-CLI et que NE contient-il PLUS ?
-2. Qu'est-ce que BLO et quel format de base de donnees utilise-t-il ?
-3. Quelle commande ecos * est la plus critique a tester ?
-4. Quelle est la frontiere entre KIVA-CLI (L3) et ECOS-CLI (L3) ?
-5. Pourquoi KIVA-CLI ne doit-il pas executer directement les deploiements ?
-6. Quels types de projets/apps KIVA-CLI peut-il scaffolder et comment KIVA les execute-t-il ?
-7. Quel est le format de sortie du scaffolding KIVA-CLI et ou est-il stocke ?
-8. Comment KIVA-CLI verifie-t-il qu'un projet est conforme avant de le deleguer a KIVA ?
-9. Quelles sont les differences entre le mode 'create' et le mode 'deploy' dans KIVA-CLI ?
-10. Comment KIVA-CLI integre-t-il le registre ECOS pour les dependances multi-repo ?
+- **R1** — ECOS-CLI est un executable pur — zero regle LLM.  [UNVERIFIED]
+- **R2** — Chaque commande ecos * a un test dans DevTools-CLI.  [UNVERIFIED]
+- **R3** — BLO utilise bloom.db + WAL — acces direct interdit.  [UNVERIFIED]
+
+## Karpathy-Recall etendu (Vague 5 — 10Q)
+
+> Reponds mentalement a ces questions avant d'agir dans ce repo.
+
+1. Q: Apres migration v1.1.0, que contient ECOS-CLI et que NE contient-il PLUS ?
+2. Q: Quelle est la frontiere de responsabilite entre ECOS-CLI et DevTools ?
+3. Q: Qu'est-ce que BLO et quel format de base de donnees utilise-t-il ?
+4. Q: OPENCLAW-CLI est decrit comme 'Intent Normalization Gateway' — qu'est-ce que cela veut dire ?
+5. Q: FLUENCE-CLI delegue a ECOS-CLI — quelle est la regle de delegation ?
+6. Q: Quels repos dependent directement de L3 (ECOS-CLI, CLIs) ?
+7. Q: Quel est le role de L3 dans la boot sequence ?
+8. Q: Pourquoi les regles LLM ne doivent pas resider dans ECOS-CLI ?
+9. Q: Quelle commande ecos * est la plus critique a tester ?
+10. Q: Dans quelle phase UrbanVerse le STRATUM_RELAY de ce repo a-t-il ete deploye ?
 
 ## Dependances directes
 
-- **Parent (amont)** : KIVA (L2) — KIVA-CLI recoit les directives de scaffolding de KIVA.
-- **Enfants (aval)** : Aucun — KIVA-CLI est une feuille de la chaine; il delegue l'execution a KIVA (L4).
+**Parents (amont) :**
+- BRAIN
+- FLUENCE
+- VDB
+- DATA-MINER
+- TINA
 
-## Agents locaux (Vague 4)
-
-```yaml
-# .roomodes — profil agent KIVA-CLI
-agent: kiva-scaffolder
-strate: L3
-role: Project scaffolding CLI
-rules: KIVA-CLI/rules/scaffold_rules.yaml
-hub_ref: KIVA
-```
-
-L'agent `kiva-scaffolder` definit la structure de chaque projet/app, valide la conformite avant delegation, et ne modifie jamais l'execution.
-
-## Auto-conformite (Vague 4)
-
-- **Guard 1 — Define, don't execute** : KIVA-CLI definit la structure, KIVA execute. Toute inversion est bloquee.
-- **Guard 2 — Conformance check** : Tout projet doit passer la validation de conformite avant delegation a KIVA.
-- **Guard 3 — No direct deploy** : KIVA-CLI ne deploie jamais directly. Tout passe par KIVA.
+**Enfants (aval) :**
+- ECOS-CLI
+- DevTools
+- FLUENCE-CLI
+- DevTools-CLI
+- FORGE
+- OPENCLAW-CLI
+- BRAIN-CLI
+- GOST
+- ecos-plugin-perplexity
+- BatMCP
 
 ## Vague de mise a jour
 
 | Vague | Contenu | Statut |
 |-------|---------|--------|
-| 2 | Identite + regles + Karpathy-Recall 5Q | Deploye |
-| 3 | Recall etendu a 10Q + section Dependances | Deploye |
-| **4 (courante)** | Agents locaux + auto-conformite | Deploye |
+| **5 (courante)** | Frontmatter YAML + regles structurees + phi_cps null honnete | Deploye |
+| 6 (suivante) | Eval cmd sandbox + HMAC + hardware constraints | Planifie |
 
 ---
 
 *Genere par `VERSUS/urban_ontology_verse/TOOLS/relay_propagator.py` v4.0*
-*UrbanVerse v4.0.0 — gerivdb/VERSUS (L8)*
-*IntentHash: 0xPHASE8_KIVA_CLI_V4_PHASE8_20260530*
+*UrbanVerse v1.0.0 — gerivdb/VERSUS (L8)*
