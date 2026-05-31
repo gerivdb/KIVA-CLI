@@ -1,6 +1,6 @@
 # .githooks/rules.sh — Auto-generated from multi-repo-governance.yaml
 # DO NOT EDIT MANUALLY — Run: python .githooks/generate_rules.py
-# Generated: 2026-05-29T01:41:53.242038
+# Generated: 2026-05-29T05:35:26.562714
 # BRGS Version: 3.0
 # Repository: KIVA-CLI
 # IntentHash: 0xBRG_GENERATE_RULES_20260526
