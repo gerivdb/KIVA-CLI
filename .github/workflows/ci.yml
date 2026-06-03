@@ -1,5 +1,12 @@
 name: CI
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Implements: OBIF-06-CICD (BRAIN/obif/OBIF-06-CICD.md)
+# IntentHash: 0xOBIF_06_CI_KIVACLI_20260603
+# ADR: ADR-2026-06-03-001 (GOVERNANCE-HUB) — Branch Governor
+# Bridge B2: CI → OBIF cross-reference
+# ─────────────────────────────────────────────────────────────────────────────
+
 on:
   push:
     branches: [main, develop]

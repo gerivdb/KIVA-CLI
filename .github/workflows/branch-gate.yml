@@ -10,7 +10,11 @@ name: Branch Gate
 # status check and comments violations but does not prevent the push.
 #
 # IntentHash: 0xBRG_GITHUB_ACTION_20260526
-# Version: 1.0.0
+# Version: 1.1.0
+# Implements: ADR-2026-06-03-001 (GOVERNANCE-HUB) — Branch Governor
+# Bridge B3: Gate → ADR cross-reference
+# Repo type: cli (BRANCH-CHECK.yaml by_repo_type.cli)
+# ─────────────────────────────────────────────────────────────────────────────
 # ─────────────────────────────────────────────────────────────────────────────
 
 on:
@@ -61,4 +65,35 @@ jobs:
             echo "✅ BRGS check passed"
           else
             echo "⚠️  BRGS check found violations (see annotations above)"
+          fi
+
+  branch-naming:
+    name: "BRANCH-GOVERNOR — Branch Naming Check"
+    runs-on: ubuntu-latest  # GHA-hosted runner (no self-hosted dependency)
+    needs: ownership-check
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Check branch naming convention
+        id: naming
+        env:
+          BRANCH_NAME: ${{ github.ref_name }}
+        run: |
+          # BRANCH-CHECK.yaml global pattern: type/slug-id
+          # Valid types for cli repos: feat, fix, docs, chore, refactor, perf, test, hotfix, emergency, experiment
+          PATTERN="^(feat|fix|docs|chore|refactor|perf|test|hotfix|emergency|experiment)/[a-z0-9-]+-[0-9]{3}$"
+
+          if echo "$BRANCH_NAME" | grep -qE "$PATTERN"; then
+            echo "✅ Branch name '$BRANCH_NAME' conforms to BRANCH-CHECK.yaml"
+            echo "result=pass" >> "$GITHUB_OUTPUT"
+          elif [ "$BRANCH_NAME" = "main" ] || [ "$BRANCH_NAME" = "develop" ]; then
+            echo "ℹ️  Branch name '$BRANCH_NAME' is a trunk branch — skipping"
+            echo "result=skip" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::Branch name '$BRANCH_NAME' violates BRANCH-CHECK.yaml pattern"
+            echo "::warning::Expected: type/slug-id (e.g. feat/add-feature-001)"
+            echo "result=fail" >> "$GITHUB_OUTPUT"
+            exit 1
           fi
