@@ -52,6 +52,7 @@ from kiva_cli.commands.cluster_commands import cluster_cli
 from kiva_cli.commands.lxc_commands import lxc_cli
 from kiva_cli.commands.dashboard_commands import dashboard_cli
 from kiva_cli.commands.kvcache_commands import kvcache_cli
+from kiva_cli.commands.tql import tql
 from kiva_cli.commands.zvec_commands import zvec_cli
 from kiva_cli.commands.epic_commands import epic_cli
 from kiva_cli.commands.gate_command import gate_cli
@@ -122,6 +123,7 @@ cli.add_command(cluster_cli, name="cluster")
 cli.add_command(lxc_cli, name="lxc")
 cli.add_command(dashboard_cli, name="dashboard")
 cli.add_command(kvcache_cli, name="kvcache")
+cli.add_command(tql, name="tql")
 cli.add_command(zvec_cli, name="zvec")
 cli.add_command(epic_cli, name="epic")
 cli.add_command(nexus_cli, name="nexus")
