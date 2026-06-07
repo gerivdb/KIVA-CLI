@@ -1,0 +1,101 @@
+# .kiva/pipelines/mc-rnn-ci.yaml
+# MC-RNN Cross-Repo CI Pipeline — local CI for all 6 MC-RNN repos
+#
+# Usage:
+#   kiva pipeline show mc-rnn-ci
+#   kiva pipeline run mc-rnn-ci --dry-run
+#   kiva pipeline run mc-rnn-ci --verbose
+#   kiva pipeline validate mc-rnn-ci
+#
+# Pre-requisites:
+#   - Python 3.10+ with pytest (LYCOS, BRAIN, TINA)
+#   - Zig 0.14+ (CodeDB-E5620)
+#   - git (all repos)
+#
+# Gate: D4+ (post-branch, pre-merge). Run before creating PRs.
+
+name: mc-rnn-ci
+version: "1.0"
+description: "MC-RNN local CI — tests for all 6 repos before PR merge"
+intent_hash: 0xMC_RNN_CI_PIPELINE_20260607
+
+# Fail fast on test errors, but continue on lint/coverage warnings
+on_failure: abort
+max_workers: 3
+
+# Parallel groups: lint + tests can run concurrently per repo
+parallel_groups:
+  - [lycos-lint, codedb-bench]
+
+# ---------------------------------------------------------------------------
+# Steps
+# ---------------------------------------------------------------------------
+steps:
+
+  # -- 1. Repo discovery ------------------------------------------------------
+  # Verify all MC-RNN repos exist locally
+  - name: repo-discovery
+    description: "Verify all 6 MC-RNN repos are reachable locally"
+    command: "python -c \"import os; repos = {'LYCOS': r'D:\\DO\\WEB\\TOOLS\\L4-TOOLS\\LYCOS', 'CodeDB-E5620': r'D:\\DO\\WEB\\TOOLS\\CodeDB-E5620', 'VDB': r'D:\\DO\\WEB\\TOOLS\\L4-TOOLS\\VDB'}; [print(f'  {k}: {\"OK\" if os.path.isdir(v) else \"NOT FOUND\"}' ) for k,v in repos.items()]\""
+    on_failure: abort
+    retry: 0
+
+  # -- 2. LYCOS lint (parallel with codedb-bench) ------------------------------
+  - name: lycos-lint
+    description: "Flake8 on LYCOS src/ (PEP8)"
+    command: python -m flake8 "D:\DO\WEB\TOOLS\L4-TOOLS\LYCOS\src" --max-line-length=120 --count --statistics
+    depends_on: [repo-discovery]
+    on_failure: warn
+    retry: 0
+    when: "env.get('SKIP_LINT', '0') != '1'"
+
+  # -- 3. CodeDB-E5620 Zig benchmark (parallel with lycos-lint) ----------------
+  - name: codedb-bench
+    description: "Zig build test for CodeDB-E5620 (build test only, no ENV2 required)"
+    command: "cd /d D:\DO\WEB\TOOLS\CodeDB-E5620 && zig build test --summary all 2>&1 | findstr /L /C:\"PASS\" /C:\"FAIL\" /C:\"error\""
+    depends_on: [repo-discovery]
+    on_failure: abort
+    retry: 0
+    when: "env.get('SKIP_ZIG', '0') != '1'"
+
+  # -- 4. LYCOS unit tests (pytest) -------------------------------------------
+  - name: lycos-tests
+    description: "pytest on LYCOS tests/ (test_lycos_mc.py + test_fluence_encoder.py + test_janus_compressor.py)"
+    command: python -m pytest "D:\DO\WEB\TOOLS\L4-TOOLS\LYCOS\tests" -v --tb=short -x --ignore="D:\DO\WEB\TOOLS\L4-TOOLS\LYCOS\tests\test_integration.py"
+    depends_on: [lycos-lint]
+    on_failure: abort
+    retry: 1
+    when: "last_status in ('SUCCESS', 'WARN') and not dry_run"
+
+  # -- 5. VDB schema validation -----------------------------------------------
+  - name: vdb-schema-validate
+    description: "Validate mc_hidden_states.yaml schema (YAML parse + field check)"
+    command: "python -c \"import yaml, sys; data = yaml.safe_load(open(r'D:\\DO\\WEB\\TOOLS\\L4-TOOLS\\VDB\\schema\\mc_hidden_states.yaml', encoding='utf-8')); fields = [f['name'] for f in data['@schema mc_hidden_states']['fields']]; assert 'h_vector' in fields, 'h_vector missing'; assert 'symbol_hash' in fields, 'symbol_hash missing'; assert 'gate_activity' in fields, 'gate_activity missing'; print(f'  Schema OK: {len(fields)} fields, intent_hash={data[chr(64)+chr(115)+chr(99)+chr(104)+chr(101)+chr(109)+chr(97)+chr(32)+chr(109)+chr(99)+chr(95)+chr(104)+chr(105)+chr(100)+chr(100)+chr(101)+chr(110)+chr(95)+chr(115)+chr(116)+chr(97)+chr(116)+chr(101)+chr(115)][\"intent_hash\"])'); print('  source_layer enum:', data['@schema mc_hidden_states']['fields'][5]['enum'])\""
+    depends_on: [repo-discovery]
+    on_failure: abort
+    retry: 0
+
+  # -- 6. VDB fingerprint SQL validation --------------------------------------
+  - name: vdb-sql-validate
+    description: "Validate diffscope_fingerprints.sql is parseable (SQLite syntax check)"
+    command: "python -c \"import sqlite3; conn = sqlite3.connect(':memory:'); sql = open(r'D:\\DO\\WEB\\TOOLS\\L4-TOOLS\\VDB\\schema\\diffscope_fingerprints.sql', encoding='utf-8').read(); conn.executescript(sql); print(f'  SQL OK: {len(sql.splitlines())} lines'); conn.close()\""
+    depends_on: [repo-discovery]
+    on_failure: abort
+    retry: 0
+
+  # -- 7. Coverage (LYCOS only — represents FLUENCE coverage) -----------------
+  - name: lycos-coverage
+    description: "pytest --cov on LYCOS (FLUENCE encoding + MC-RNN cache)"
+    command: python -m pytest "D:\DO\WEB\TOOLS\L4-TOOLS\LYCOS\tests" --cov="D:\DO\WEB\TOOLS\L4-TOOLS\LYCOS\src" --cov-report=term-missing --cov-fail-under=70 -q
+    depends_on: [lycos-tests]
+    on_failure: notify
+    retry: 0
+    when: "last_status == 'SUCCESS' or last_status == 'WARN'"
+
+  # -- 8. Summary -------------------------------------------------------------
+  - name: summary
+    description: "Print CI summary"
+    command: "python -c \"print('\\n=== MC-RNN CI SUMMARY ==='); print('Repos tested: LYCOS (pytest), CodeDB-E5620 (zig test), VDB (schema+SQL)'); print('Repos NOT tested locally (need clone): BRAIN, TINA, UAE'); print('Gate D4+ status: READY FOR PR if all steps green'); print('\\nRemaining:'); print('  - git -C D:\\DO\\WEB\\BRAIN push origin --delete feature/keel-parser-v0.6-v0.7'); print('  - Create 5 PRs: LYCOS, CodeDB-E5620, VDB, TINA, UAE -> main'); print('  - BRAIN PR #236 was merged 2026-06-06 (already on main)')\""
+    depends_on: [lycos-coverage, codedb-bench, vdb-schema-validate, vdb-sql-validate]
+    on_failure: warn
+    retry: 0

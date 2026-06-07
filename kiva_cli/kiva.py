@@ -59,6 +59,7 @@ from kiva_cli.commands.gate_command import gate_cli
 from kiva_cli.commands.nexus_commands import nexus_cli
 from kiva_cli.commands.pipeline_commands import pipeline_cli
 from kiva_cli.commands.audit_commands import audit
+from kiva_cli.commands.mc_rnn_ci import mc_rnn_ci
 
 
 @click.group()
@@ -128,7 +129,8 @@ cli.add_command(zvec_cli, name="zvec")
 cli.add_command(epic_cli, name="epic")
 cli.add_command(nexus_cli, name="nexus")
 cli.add_command(pipeline_cli, name="pipeline")
-cli.add_command(audit, name="audit")
+cli.add_command(audit, name='audit')
+cli.add_command(mc_rnn_ci, name='mc-rnn-ci')
 
 
 def main():
