@@ -1,0 +1,91 @@
+name: tina-sgr-daily
+version: "1.0.0"
+intent_hash: 0xKIVA_TINA_SGR_PIPELINE_20260608
+schedule: "0 6 * * *"
+on_merge:
+  - repo: gerivdb/GOVERNANCE-HUB
+    branch: main
+  - repo: gerivdb/TINA
+    branch: main
+  - repo: gerivdb/NEXUS
+    branch: main
+
+env:
+  TINA_PATH: "D:/DO/WEB/TOOLS/L3-CITIZENS/TINA"
+  NEXUS_PATH: "D:/DO/WEB/TOOLS/L0-CANON/NEXUS"
+  REPORT_DIR: "D:/DO/WEB/TOOLS/reports"
+
+steps:
+  - id: ingest-symbolgraph
+    name: "TINA — Ingest all sources → SymbolGraph"
+    agent: Alfred
+    run: |
+      cd $TINA_PATH
+      python -m symbol_graph --ingest-all \
+        --trit-registry D:/DO/WEB/TOOLS/L0-CANON/GOVERNANCE-HUB/TritRegistry.yaml \
+        --known-repos D:/DO/WEB/TOOLS/L0-CANON/GOVERNANCE-HUB/known_repositories.yaml \
+        --skills D:/DO/WEB/TOOLS/L4-TOOLS/SKILLS/perplexity/skills/ \
+        --output $REPORT_DIR/tina/symbolgraph-latest.json
+    on_fail: ABORT
+    timeout_sec: 120
+
+  - id: run-sgr
+    name: "SGR — Detect gaps via SymbolGraph"
+    agent: Selina
+    depends_on: [ingest-symbolgraph]
+    run: |
+      cd $NEXUS_PATH/citizens/SystemicGapReasoner
+      python run_sgr.py 2>&1
+    on_fail: WARN
+    timeout_sec: 60
+
+  - id: check-p1-gaps
+    name: "Gate — 0 P1 gaps tolerated"
+    agent: Riddler
+    depends_on: [run-sgr]
+    run: |
+      python -c "
+      import json, sys
+      import glob
+      reports = glob.glob('$REPORT_DIR/sgr/GAP_REPORT_*.json')
+      if not reports:
+          print('WARNING: No GAP report found')
+          sys.exit(0)
+      latest = max(reports)
+      r = json.load(open(latest))
+      p1 = r.get('by_priority', {}).get('P1', [])
+      if p1:
+          print(f'CRITICAL: {len(p1)} P1 gaps detected:')
+          for g in p1: print(f'  - {g[\"id\"]}: {g[\"title\"]}')
+          sys.exit(1)
+      print(f'OK: 0 P1 gaps. Total: {r.get(\"total_gaps\", 0)}')
+      "
+    on_fail: ALERT_HITL
+    timeout_sec: 30
+
+  - id: push-report
+    name: "Archive report → NEXUS/reports/sgr/"
+    agent: Alfred
+    depends_on: [check-p1-gaps]
+    run: |
+      import glob, shutil
+      from datetime import datetime
+      reports = glob.glob('$REPORT_DIR/sgr/GAP_REPORT_*.json')
+      if reports:
+          latest = max(reports)
+          ts = datetime.now().strftime('%Y%m%d')
+          dest = f'$NEXUS_PATH/reports/sgr/GAP_REPORT-{ts}.json'
+          shutil.copy2(latest, dest)
+          print(f'Archived: {dest}')
+    on_fail: WARN
+    timeout_sec: 60
+
+on_alert_hitl:
+  action: create_issue
+  repo: gerivdb/ARGUS
+  title: "[SGR] P1 gap(s) detected — HITL required"
+  labels: [critical, sgr, hitl]
+  body: |
+    SGR daily run detected P1 gap(s).
+    Report: $REPORT_DIR/sgr/GAP_REPORT-latest.json
+    Action required before next pipeline run.
