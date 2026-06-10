@@ -1,0 +1,37 @@
+# epic.schema.yaml — Schema RSS-v2 pour les EPIC
+# Reference: PRD-001
+
+type: EPIC
+pattern: "^EPIC-\\d{3}-[a-z0-9][a-z0-9-]*\\.md$"
+
+frontmatter:
+  required:
+    id: "EPIC-NNN"
+    title: "string"
+    repo: "string"
+    status: "draft | active | done | deprecated | superseded"
+    created: "YYYY-MM-DD"
+    author: "string"
+  optional:
+    intent_hash: "0x[A-Z0-9_]+"
+    superseded_by: "EPIC-NNN"
+    updated: "YYYY-MM-DD"
+
+statuses:
+  draft:
+    description: "En cours de definition"
+  active:
+    description: "En cours de realisation"
+  done:
+    description: "Termine"
+  deprecated:
+    description: "Abandonne"
+  superseded:
+    description: "Remplace par un EPIC ulterieur"
+
+stub_superseded:
+  enabled: false
+  note: "Les EPICs supersedes peuvent etre archives sans stub obligatoire"
+
+# Les EPICs ne doivent pas etre miroires
+mirror_allowed: false

@@ -1,0 +1,41 @@
+# adr.schema.yaml — Schema RSS-v2 pour les ADR (Architecture Decision Record)
+# Reference: PRD-001, ADR-001
+
+type: ADR
+pattern: "^ADR-\\d{3}-[a-z0-9][a-z0-9-]*\\.md$"
+
+frontmatter:
+  required:
+    id: "ADR-NNN"
+    title: "string"
+    repo: "string"
+    status: "proposed | accepted | deprecated | superseded"
+    created: "YYYY-MM-DD"
+    author: "string"
+  optional:
+    intent_hash: "0x[A-Z0-9_]+"
+    superseded_by: "ADR-NNN"
+    source_repo: "gerivdb/<repo>"
+    source_path: "ADR/<filename>"
+    updated: "YYYY-MM-DD"
+
+statuses:
+  proposed:
+    description: "Propose, en attente de decision"
+  accepted:
+    description: "Approuve et en vigueur"
+  deprecated:
+    description: "N'est plus recommande mais conserve"
+  superseded:
+    description: "Remplace par un ADR ulterieur — doit etre un stub"
+
+stub_superseded:
+  enabled: true
+  max_body_lines: 3
+  template: |
+    **Superseded by**: [ADR-NNN-title](ADR-NNN-slug.md)
+    **Date**: YYYY-MM-DD
+
+# Regle de primature (ADR-001)
+source_of_truth: local
+blo_role: read-only

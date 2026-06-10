@@ -1,0 +1,101 @@
+# artifact.schema.yaml — Schema RSS-v2 pour tout artefact de gouvernance
+# Reference: PRD-001, ADR-001, ADR-002
+# Usage: validation par rss_lint.py --check-artifacts
+
+artifact_policy:
+  version: "2.1"
+  intent_hash: 0xREPOSTANDARDS_RSSV2_ARTIFACT_POLICY_20260610
+
+  # Source de verite
+  source_of_truth: local          # Option A — local prime, BLO = read-only
+  blo_role: read-index            # BLO agrege, n'ecrit pas
+
+  # Types d'artefacts geres
+  types:
+    PRD:
+      pattern: "^PRD-\\d{3}-[a-z0-9][a-z0-9-]*\\.md$"
+      statuses: [draft, active, deprecated, superseded]
+      index_required: true
+      stub_superseded: true
+      mirror_allowed: true
+    ADR:
+      pattern: "^ADR-\\d{3}-[a-z0-9][a-z0-9-]*\\.md$"
+      statuses: [proposed, accepted, deprecated, superseded]
+      index_required: true
+      stub_superseded: true
+      mirror_allowed: true
+    EPIC:
+      pattern: "^EPIC-\\d{3}-[a-z0-9][a-z0-9-]*\\.md$"
+      statuses: [draft, active, done, deprecated, superseded]
+      index_required: true
+      stub_superseded: false
+      mirror_allowed: false
+    SPEC:
+      pattern: "^SPEC-\\d{3}-[a-z0-9][a-z0-9-]*\\.md$"
+      statuses: [draft, stable, deprecated, superseded]
+      index_required: false
+      stub_superseded: true
+      mirror_allowed: true
+
+  # Index reserves
+  index_files:
+    PRD: "PRD-000-index.md"
+    ADR: "ADR-000-index.md"
+    EPIC: "EPIC-000-index.md"
+
+  # Frontmatter — noyau commun obligatoire
+  frontmatter:
+    required_fields:
+      - id
+      - title
+      - repo
+      - status
+      - created
+      - author
+    optional_fields:
+      - intent_hash
+      - superseded_by
+      - source_repo
+      - source_path
+      - updated
+
+  # Politique de mirror
+  mirror_policy:
+    required_fields:
+      - source_repo
+      - source_path
+    non_compliant_if_missing: true
+
+  # Politique de supersession
+  superseded_policy:
+    keep_original_name: true
+    stub_max_body_lines: 3
+    stub_must_reference_active: true
+
+  # Priorites de migration (policy-as-code)
+  migration_priorities:
+    blocker:
+      - index_missing
+      - structure_missing_dir
+      - forbidden_root
+    high:
+      - naming_violation
+      - frontmatter_incomplete
+      - status_invalid
+    medium:
+      - stub_superseded
+      - mirror_undeclared
+      - run_artefacts
+    low:
+      - depth_exceeded
+      - config_misplaced
+    exempt:
+      - uncovered
+
+  # Regles de gouvernance
+  governance:
+    local_first: true
+    blo_read_only: true
+    no_silent_rewrite: true
+    ambiguous_creates_new_adr: true
+    recurring_patterns_rise_to_rss_v2: true

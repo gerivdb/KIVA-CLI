@@ -1,0 +1,37 @@
+# prd.schema.yaml — Schema RSS-v2 pour les PRD (Product Requirements Document)
+# Reference: PRD-001
+
+type: PRD
+pattern: "^PRD-\\d{3}-[a-z0-9][a-z0-9-]*\\.md$"
+
+frontmatter:
+  required:
+    id: "PRD-NNN"
+    title: "string"
+    repo: "string"
+    status: "draft | active | deprecated | superseded"
+    created: "YYYY-MM-DD"
+    author: "string"
+  optional:
+    intent_hash: "0x[A-Z0-9_]+"
+    superseded_by: "PRD-NNN"
+    source_repo: "gerivdb/<repo>"
+    source_path: "PRD/<filename>"
+    updated: "YYYY-MM-DD"
+
+statuses:
+  draft:
+    description: "En cours de redaction, non encore valide"
+  active:
+    description: "Approuve et en vigueur"
+  deprecated:
+    description: "Remplace mais conserve pour reference"
+  superseded:
+    description: "Remplace par une version ulterieure — doit etre un stub"
+
+stub_superseded:
+  enabled: true
+  max_body_lines: 3
+  template: |
+    **Superseded by**: [PRD-NNN-title](PRD-NNN-slug.md)
+    **Date**: YYYY-MM-DD
