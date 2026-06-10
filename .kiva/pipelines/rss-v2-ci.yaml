@@ -1,0 +1,103 @@
+# .kiva/pipelines/rss-v2-ci.yaml
+# RSS-v2 Local CI Pipeline — validation structurelle et artefacts de gouvernance
+#
+# Usage:
+#   kiva pipeline show rss-v2-ci
+#   kiva pipeline run rss-v2-ci --dry-run
+#   kiva pipeline run rss-v2-ci --verbose
+#   kiva pipeline validate rss-v2-ci
+#
+# Gate: D4+ (post-branch, pre-merge). Run before creating PRs.
+# Reference: PRD-001, ADR-001 (gerivdb/REPO-STANDARDS)
+#
+# Ce pipeline execute rss_lint.py sur les repos du metacluster gerivdb
+# pour verifier la conformite RSS-v2 (structure + artefacts de gouvernance).
+# Il est concu pour etre lance localement par KIVA-CLI, pas par GitHub Actions.
+
+name: rss-v2-ci
+version: "1.0"
+description: "RSS-v2 local CI — structure + artefact validation for gerivdb repos"
+intent_hash: 0xRSS_V2_CI_PIPELINE_20260610
+
+# Fail fast on structure errors, continue on lint warnings
+on_failure: abort
+max_workers: 2
+
+# ---------------------------------------------------------------------------
+# Parallel groups
+# Self-check (REPO-STANDARDS) + GOVERNANCE-HUB can run concurrently
+# ---------------------------------------------------------------------------
+parallel_groups:
+  - [self-check, gh-check]
+
+# ---------------------------------------------------------------------------
+# Steps
+# ---------------------------------------------------------------------------
+steps:
+
+  # -- 1. Env check ----------------------------------------------------------
+  # Verify Python and rss_lint.py are available
+  - name: env-check
+    description: "Verify Python 3.10+ and rss_lint.py are available"
+    command: "python -c \"import sys; assert sys.version_info >= (3, 10); print(f'Python {sys.version}')\" && python -c \"import yaml; print('PyYAML OK')\""
+    on_failure: abort
+    retry: 0
+
+  # -- 2. Self-check: REPO-STANDARDS (parallel with gh-check) ----------------
+  # Validate REPO-STANDARDS itself first (dogfooding)
+  - name: self-check
+    description: "rss_lint.py --all-checks on REPO-STANDARDS (dogfooding)"
+    command: "python D:\\DO\\WEB\\TOOLS\\L4-TOOLS\\REPO-STANDARDS\\rss_lint.py --repo D:\\DO\\WEB\\TOOLS\\L4-TOOLS\\REPO-STANDARDS --all-checks --check-artifacts"
+    depends_on: [env-check]
+    on_failure: abort
+    retry: 0
+    when: "env.get('SKIP_SELF_CHECK', '0') != '1'"
+
+  # -- 3. GOVERNANCE-HUB check (parallel with self-check) --------------------
+  # Validate GOVERNANCE-HUB structure + artefacts
+  - name: gh-check
+    description: "rss_lint.py --all-checks on GOVERNANCE-HUB"
+    command: "python D:\\DO\\WEB\\TOOLS\\L4-TOOLS\\REPO-STANDARDS\\rss_lint.py --repo D:\\DO\\WEB\\TOOLS\\L0-CANON\\GOVERNANCE-HUB --all-checks --check-artifacts"
+    depends_on: [env-check]
+    on_failure: abort
+    retry: 0
+    when: "env.get('SKIP_GH_CHECK', '0') != '1'"
+
+  # -- 4. KIVA-CLI check ----------------------------------------------------
+  # Validate KIVA-CLI structure (no artefact check — infra repo)
+  - name: kiva-check
+    description: "rss_lint.py --all-checks on KIVA-CLI (structure only)"
+    command: "python D:\\DO\\WEB\\TOOLS\\L4-TOOLS\\REPO-STANDARDS\\rss_lint.py --repo D:\\DO\\WEB\\TOOLS\\L1-INFRA\\KIVA-CLI --all-checks"
+    depends_on: [self-check, gh-check]
+    on_failure: warn
+    retry: 0
+    when: "env.get('SKIP_KIVA_CHECK', '0') != '1'"
+
+  # -- 5. Index rebuild (REPO-STANDARDS) ------------------------------------
+  # Rebuild all artefact indexes for REPO-STANDARDS
+  - name: index-rebuild-self
+    description: "Rebuild artefact indexes for REPO-STANDARDS"
+    command: "python D:\\DO\\WEB\\TOOLS\\L4-TOOLS\\REPO-STANDARDS\\rss_lint.py --repo D:\\DO\\WEB\\TOOLS\\L4-TOOLS\\REPO-STANDARDS --index rebuild"
+    depends_on: [self-check]
+    on_failure: warn
+    retry: 0
+    when: "env.get('SKIP_INDEX_REBUILD', '0') != '1'"
+
+  # -- 6. Index rebuild (GOVERNANCE-HUB) ------------------------------------
+  # Rebuild all artefact indexes for GOVERNANCE-HUB
+  - name: index-rebuild-gh
+    description: "Rebuild artefact indexes for GOVERNANCE-HUB"
+    command: "python D:\\DO\\WEB\\TOOLS\\L4-TOOLS\\REPO-STANDARDS\\rss_lint.py --repo D:\\DO\\WEB\\TOOLS\\L0-CANON\\GOVERNANCE-HUB --index rebuild"
+    depends_on: [gh-check]
+    on_failure: warn
+    retry: 0
+    when: "env.get('SKIP_INDEX_REBUILD', '0') != '1'"
+
+  # -- 7. Summary ------------------------------------------------------------
+  # Print CI summary
+  - name: summary
+    description: "Print RSS-v2 CI summary"
+    command: "python -c \"print('\\n=== RSS-v2 CI SUMMARY ==='); print('Repos checked: REPO-STANDARDS, GOVERNANCE-HUB, KIVA-CLI'); print('Checks: structure (rss_lint.py --all-checks) + artefacts (--check-artifacts)'); print('Indexes rebuilt: PRD-000-index.md, ADR-000-index.md, EPIC-000-index.md'); print('Reference: PRD-001, ADR-001 (gerivdb/REPO-STANDARDS)')\""
+    depends_on: [kiva-check, index-rebuild-self, index-rebuild-gh]
+    on_failure: warn
+    retry: 0
