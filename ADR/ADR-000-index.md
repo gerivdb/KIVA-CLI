@@ -1,4 +1,4 @@
-# ADR-000-index.md — Index des ADR de ce repo
+# ADR-000-index.md — Index des ADR de GOVERNANCE-HUB
 
 > Index genere automatiquement. Ne pas editer a la main.
 > Pour regenerer : `python rss_lint.py --repo . --index rebuild`
@@ -16,4 +16,5 @@
 | — | — | — | — | — |
 
 
-*Derniere mise a jour : auto-genere*
+*Derniere mise a jour : 2026-06-11*
+*IntentHash: 0xADR_INDEX_GH_20260610*
