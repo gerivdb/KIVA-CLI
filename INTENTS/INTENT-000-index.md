@@ -1,4 +1,4 @@
-# INTENT-000-index.md — Index des INTENT de KIVA-CLI
+# INTENT-000-index.md — Index des INTENTS de ce repo
 
 > Index genere automatiquement. Ne pas editer a la main.
 > Pour regenerer : `python rss_lint.py --repo . --index rebuild`
@@ -7,10 +7,13 @@
 
 | ID | Fichier | Titre | Statut | Date |
 |----|---------|-------|--------|------|
+| — | — | — | — | — |
 
 ## Archives
 
-*Aucun artefact archive pour le moment.*
+| ID | Fichier | Titre | Statut | Date |
+|----|---------|-------|--------|------|
+| — | — | — | — | — |
 
 
-*Derniere mise a jour: 2026-06-11*
+*Derniere mise a jour : auto-genere*
