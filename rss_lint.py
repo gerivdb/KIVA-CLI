@@ -78,21 +78,63 @@ ARTEFACT_PATTERNS = [
 ]
 
 
-def get_depth(repo_path: Path) -> int:
+def load_rssignore(repo_path: Path) -> list:
+    """Charge les patterns d'exclusion depuis .rssignore (un pattern par ligne)."""
+    ignore_file = repo_path / ".rssignore"
+    patterns = []
+    if ignore_file.exists():
+        for line in ignore_file.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if line and not line.startswith("#"):
+                patterns.append(line)
+    return patterns
+
+
+def _is_ignored(path_parts: tuple, patterns: list) -> bool:
+    """Vérifie si un chemin match un pattern .rssignore."""
+    import fnmatch
+    path_str = "/".join(path_parts)
+    for pat in patterns:
+        # Supprimer le suffixe ** pour le matching
+        clean_pat = pat.rstrip("/").rstrip("*")
+        if clean_pat and path_str.startswith(clean_pat):
+            return True
+        if fnmatch.fnmatch(path_str, pat.rstrip("/")):
+            return True
+    return False
+
+
+def get_depth(repo_path: Path, rssignore_patterns: list = None) -> int:
     """Détermine la profondeur du repo en scannant la structure existante."""
+    import os
     max_depth = 0
-    for item in repo_path.rglob("*"):
-        if item.is_dir():
-            # Ignorer les dossiers internes (git, node_modules, IDE, etc.)
-            rel = item.relative_to(repo_path)
-            parts = rel.parts
-            if parts[0].startswith(".git") or parts[0].startswith(".kilo") or \
-               parts[0] in ("node_modules", ".venv", "__pycache__"):
-                continue
+    # Dossiers d'artefacts connus
+    artifact_dirs = {"ADR", "PRD", "EPICS", "INTENTS", "SPEC"}
+    
+    for root, dirs, files in os.walk(repo_path, topdown=True):
+        rel_root = Path(root).relative_to(repo_path)
+        parts = rel_root.parts if str(rel_root) != "." else ()
+        
+        # Pruner les dossiers ignorés
+        if rssignore_patterns:
+            dirs[:] = [d for d in dirs if not _is_ignored(parts + (d,), rssignore_patterns)]
+        
+        # Ignorer les dossiers internes
+        if parts and (parts[0].startswith(".git") or parts[0].startswith(".kilo") or
+                      parts[0] in ("node_modules", ".venv", "__pycache__")):
+            dirs.clear()
+            continue
+        
+        # Si on est dans un dossier d'artefact, calculer la profondeur
+        if parts and parts[0] in artifact_dirs:
             depth = len(parts)
             if depth > max_depth:
                 max_depth = depth
-    # Si le repo a déjà 3+ niveaux, c'est un repo complexe
+        # Si on est à la racine, scanner les sous-dossiers d'artefacts
+        elif not parts:
+            # Ne scanner que les dossiers d'artefacts et config
+            dirs[:] = [d for d in dirs if d in artifact_dirs or d in ("config", ".github")]
+    
     return 4 if max_depth >= 3 else 2
 
 
@@ -103,9 +145,12 @@ def scan_repo(repo_path: str, depth: int = None) -> dict:
         print(f"[ERROR] Repo introuvable: {repo_path}")
         sys.exit(1)
 
+    # Charger les exclusions .rssignore
+    rssignore_patterns = load_rssignore(repo)
+
     # Auto-détecter la profondeur si non spécifiée
     if depth is None:
-        depth = get_depth(repo)
+        depth = get_depth(repo, rssignore_patterns)
 
     violations = {
         "forbidden_root": [],
@@ -156,24 +201,25 @@ def scan_repo(repo_path: str, depth: int = None) -> dict:
         if not (repo / required_dir).exists():
             violations["missing_dirs"].append(required_dir)
 
-    # Vérifier la profondeur des sous-dossiers (en ignorant les dossiers internes)
-    for item in repo.rglob("*"):
-        if item.is_dir():
-            rel = item.relative_to(repo_path)
-            parts = rel.parts
-            # Ignorer les dossiers internes (git, node_modules, IDE, etc.)
-            rel = item.relative_to(repo_path)
-            parts = rel.parts
-            if parts[0].startswith(".git") or parts[0].startswith(".kilo") or \
-               parts[0] in ("node_modules", ".venv", "__pycache__", "temp_skills"):
-                continue
-            current_depth = len(parts)
-            if current_depth > depth:
-                violations["depth_exceeded"].append({
-                    "path": str(rel),
-                    "depth": current_depth,
-                    "max": depth,
-                })
+    # Vérifier la profondeur des sous-dossiers (avec pruning .rssignore via os.walk)
+    import os
+    for root, dirs, files in os.walk(repo_path, topdown=True):
+        rel_root = Path(root).relative_to(repo)
+        parts = rel_root.parts if str(rel_root) != "." else ()
+        # Pruner les dossiers ignorés et internes
+        if rssignore_patterns:
+            dirs[:] = [d for d in dirs if not _is_ignored(parts + (d,), rssignore_patterns)]
+        if parts and (parts[0].startswith(".git") or parts[0].startswith(".kilo") or
+                      parts[0] in ("node_modules", ".venv", "__pycache__", "temp_skills")):
+            dirs.clear()
+            continue
+        current_depth = len(parts)
+        if current_depth > depth:
+            violations["depth_exceeded"].append({
+                "path": str(rel_root),
+                "depth": current_depth,
+                "max": depth,
+            })
 
     # Pour les repos complexes : vérifier que les fichiers de config/ ne sont pas à la racine
     if depth == 4:
@@ -295,7 +341,7 @@ def check_gitignore_coverage(repo_path: str, repo_type: str = "default") -> dict
     }
 
 
-def check_filesystem_integrity(repo_path: str) -> dict:
+def check_filesystem_integrity(repo_path: str, rssignore_patterns: list = None) -> dict:
     """Vérifie l'intégrité du filesystem (junctions NTFS, dossiers vides, fichiers orphelins).
 
     Aligné sur BRANCH-CHECK.yaml global.branch_content.filesystem.
@@ -315,21 +361,22 @@ def check_filesystem_integrity(repo_path: str) -> dict:
     except (subprocess.SubprocessError, FileNotFoundError):
         pass
 
-    # Détecter les dossiers vides non-trackés
-    for item in repo.rglob("*"):
-        if item.is_dir():
-            rel = item.relative_to(repo)
-            parts = rel.parts
-            # Ignorer .git et dossiers internes
-            if parts[0].startswith(".git") or parts[0].startswith(".kilo") or \
-               parts[0] in ("node_modules", ".venv", "__pycache__"):
-                continue
-            # Vérifier si vide
-            try:
-                if not any(item.iterdir()):
-                    empty_dirs.append(str(rel))
-            except PermissionError:
-                pass
+    # Détecter les dossiers vides non-trackés (avec pruning .rssignore)
+    import os
+    for root, dirs, files in os.walk(repo_path, topdown=True):
+        rel_root = Path(root).relative_to(repo)
+        parts = rel_root.parts if str(rel_root) != "." else ()
+        # Pruner les dossiers ignorés
+        if rssignore_patterns:
+            dirs[:] = [d for d in dirs if not _is_ignored(parts + (d,), rssignore_patterns)]
+        # Ignorer .git et dossiers internes
+        if parts and (parts[0].startswith(".git") or parts[0].startswith(".kilo") or
+                      parts[0] in ("node_modules", ".venv", "__pycache__")):
+            dirs.clear()
+            continue
+        # Vérifier si vide
+        if not dirs and not files:
+            empty_dirs.append(str(rel_root))
 
     # Détecter les fichiers orphelins (trackés par git mais absents du disque)
     try:
@@ -451,6 +498,8 @@ def main():
                         help="Reconstruire les index d'artefacts")
     parser.add_argument("--artifact-dir", type=str, default=None,
                         help="Dossier d'artefact cible pour --index (PRD, ADR, EPICS, SPEC). Tous si omis.")
+    parser.add_argument("--scope", type=str, default=None,
+                        help="Limiter le scan aux dossiers spécifiés (ex: ADR,PRD,EPICS,INTENTS). Tous si omis.")
 
     args = parser.parse_args()
 
@@ -461,8 +510,11 @@ def main():
         args.check_filesystem = True
         args.check_artifacts = True
 
+    # Charger les exclusions .rssignore
+    rssignore_patterns = load_rssignore(Path(args.repo))
+
     # Auto-detecter la profondeur
-    depth = args.depth or get_depth(Path(args.repo))
+    depth = args.depth or get_depth(Path(args.repo), rssignore_patterns)
 
     print(f"\n{'='*60}")
     print(f"RSS-v2 — Gate de conformite")
@@ -471,6 +523,17 @@ def main():
     if args.repo_type != "default":
         print(f"Type: {args.repo_type}")
     print(f"{'='*60}\n")
+
+    # Si .rssignore contient skip-filesystem, désactiver le check filesystem
+    skip_filesystem = any(p.strip() == "skip-filesystem" for p in rssignore_patterns)
+    skip_depth = any(p.strip() == "skip-depth-check" for p in rssignore_patterns)
+    if skip_filesystem:
+        args.check_filesystem = False
+        print("[INFO] .rssignore: skip-filesystem activé")
+    if skip_depth:
+        args.check_filesystem = False
+        depth = 4  # Forcer profondeur max pour éviter le check
+        print("[INFO] .rssignore: skip-depth-check activé")
 
     # ── Index rebuild ──
     if args.index == "rebuild":
@@ -534,7 +597,7 @@ def main():
     # ── Filesystem Integrity Check ──
     fs_result = None
     if args.check_filesystem:
-        fs_result = check_filesystem_integrity(args.repo)
+        fs_result = check_filesystem_integrity(args.repo, rssignore_patterns)
         severity = fs_result.get("severity", "PASS")
 
         if severity == "FAIL":
@@ -707,18 +770,20 @@ import yaml as _yaml
 
 # Patterns de nommage par type d'artefact
 ARTIFACT_NAMING = {
-    "PRD":  re.compile(r"^PRD-\d{3}-[a-z0-9][a-z0-9-]*\.md$"),
-    "ADR":  re.compile(r"^ADR-\d{3}-[a-z0-9][a-z0-9-]*\.md$"),
-    "EPIC": re.compile(r"^EPIC-\d{3}-[a-z0-9][a-z0-9-]*\.md$"),
-    "SPEC": re.compile(r"^SPEC-\d{3}-[a-z0-9][a-z0-9-]*\.md$"),
+    "PRD":   re.compile(r"^PRD-\d{3}-[a-z0-9][a-z0-9-]*\.md$"),
+    "ADR":   re.compile(r"^ADR-\d{3}-[a-z0-9][a-z0-9-]*\.md$"),
+    "EPIC":  re.compile(r"^EPIC-\d{3}-[a-z0-9][a-z0-9-]*\.md$"),
+    "SPEC":  re.compile(r"^SPEC-\d{3}-[a-z0-9][a-z0-9-]*\.md$"),
+    "INTENT": re.compile(r"^INTENT-\d{3}-[a-z0-9][a-z0-9-]*\.md$"),
 }
 
 # Statuts valides par type
 ARTIFACT_STATUSES = {
-    "PRD":  {"draft", "active", "deprecated", "superseded"},
-    "ADR":  {"proposed", "accepted", "deprecated", "superseded"},
-    "EPIC": {"draft", "active", "done", "deprecated", "superseded"},
-    "SPEC": {"draft", "stable", "deprecated", "superseded"},
+    "PRD":   {"draft", "active", "deprecated", "superseded"},
+    "ADR":   {"proposed", "accepted", "deprecated", "superseded"},
+    "EPIC":  {"draft", "active", "done", "deprecated", "superseded"},
+    "SPEC":  {"draft", "stable", "deprecated", "superseded"},
+    "INTENT": {"draft", "active", "completed", "deprecated", "superseded"},
 }
 
 # Champs frontmatter obligatoires (noyau commun)
@@ -726,17 +791,20 @@ FRONTMATTER_CORE_FIELDS = {"id", "title", "repo", "status", "created", "author"}
 
 # Champs additionnels par type
 FRONTMATTER_OPTIONAL_FIELDS = {
-    "PRD":  {"intent_hash", "superseded_by", "source_repo", "source_path", "updated"},
-    "ADR":  {"intent_hash", "superseded_by", "source_repo", "source_path", "updated"},
-    "EPIC": {"intent_hash", "superseded_by", "updated"},
-    "SPEC": {"intent_hash", "superseded_by", "source_repo", "source_path", "updated"},
+    "PRD":   {"intent_hash", "superseded_by", "source_repo", "source_path", "updated"},
+    "ADR":   {"intent_hash", "superseded_by", "source_repo", "source_path", "updated"},
+    "EPIC":  {"intent_hash", "superseded_by", "updated"},
+    "SPEC":  {"intent_hash", "superseded_by", "source_repo", "source_path", "updated"},
+    "INTENT": {"intent_hash", "superseded_by", "updated", "prd_ref", "epic_ref"},
 }
 
 # Index reserves
 ARTIFACT_INDEX_FILES = {
-    "PRD":  "PRD-000-index.md",
-    "ADR":  "ADR-000-index.md",
-    "EPIC": "EPIC-000-index.md",
+    "PRD":   "PRD-000-index.md",
+    "ADR":   "ADR-000-index.md",
+    "EPIC":  "EPIC-000-index.md",
+    "SPEC":  "SPEC-000-index.md",
+    "INTENT": "INTENT-000-index.md",
 }
 
 # Dossiers d'artefacts

@@ -2,7 +2,7 @@
 
 > Standard: RSS-v2 v2.1
 > Profil: infra
-> Source: https://github.com/gerivdb/REVER-STANDARDS
+> Source: https://github.com/gerivdb/REPO-STANDARDS
 
 ## Conformite
 
