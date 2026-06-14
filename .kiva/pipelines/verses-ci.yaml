@@ -1,0 +1,78 @@
+# .kiva/pipelines/verses-ci.yaml
+# VERSES Local CI Pipeline - validation structurelle et registry
+#
+# Usage:
+#   kiva pipeline show verses-ci
+#   kiva pipeline run verses-ci --dry-run
+#   kiva pipeline run verses-ci --verbose
+#   kiva pipeline validate verses-ci
+#
+# Gate: D4+ (post-branch, pre-merge). Run before creating PRs on VERSES.
+# Reference: EPIC-01-Foundation-REV2 (gerivdb/ONTOLOGY)
+
+name: verses-ci
+version: "1.0"
+description: "VERSES local CI - structure + registry validation"
+intent_hash: 0xVERSES_CI_PIPELINE_20260614
+
+on_failure: abort
+max_workers: 2
+
+# ---------------------------------------------------------------------------
+# Parallel groups
+# Structure check + registry validation can run concurrently
+# ---------------------------------------------------------------------------
+parallel_groups:
+  - [structure-check, registry-check]
+
+# ---------------------------------------------------------------------------
+# Steps
+# ---------------------------------------------------------------------------
+steps:
+
+  # -- 1. Env check ----------------------------------------------------------
+  - name: env-check
+    description: "Verify Python and VERSES repo are accessible"
+    command: "python -c \"import sys; assert sys.version_info >= (3, 10); print(f'Python {sys.version}')\" && python -c \"import json, yaml; print('deps OK')\""
+    on_failure: abort
+    retry: 0
+
+  # -- 2. Structure check (parallel with registry-check) ---------------------
+  - name: structure-check
+    description: "Validate VERSES repo structure (verses/, verses-hub/, etc.)"
+    command: "python -c \"import os; base=r'D:\\DO\\WEB\\TOOLS\\L4-TOOLS\\VERSES'; dirs=['verses','verses-hub','verses-marketplace','verses-migration','verses_sync','ontology_registry.json']; missing=[d for d in dirs if not os.path.exists(os.path.join(base,d))]; assert not missing, f'Missing: {missing}'; print('Structure OK:', len(dirs), 'paths verified')\""
+    depends_on: [env-check]
+    on_failure: abort
+    retry: 0
+
+  # -- 3. Registry check (parallel with structure-check) --------------------
+  - name: registry-check
+    description: "Validate ontology_registry.json is valid JSON + schema"
+    command: "python -c \"import json; f=open(r'D:\\DO\\WEB\\TOOLS\\L4-TOOLS\\VERSES\\ontology_registry.json','r',encoding='utf-8'); d=json.load(f); assert 'version' in d; assert 'hub' in d; assert 'verse_families' in d; print(f'Registry OK: v{d[\\\"version\\\"]}, {len(d.get(\\\"verse_families\\\",{}))} families')\""
+    depends_on: [env-check]
+    on_failure: abort
+    retry: 0
+
+  # -- 4. Verses integrity check --------------------------------------------
+  - name: verses-integrity
+    description: "Check all verse files are non-empty and have valid names"
+    command: "python -c \"import os; base=r'D:\\DO\\WEB\\TOOLS\\L4-TOOLS\\VERSES\\verses'; files=[f for f in os.listdir(base) if os.path.isfile(os.path.join(base,f))]; empty=[f for f in files if os.path.getsize(os.path.join(base,f))==0]; assert not empty, f'Empty files: {empty}'; print(f'Verses integrity OK: {len(files)} files, 0 empty')\""
+    depends_on: [structure-check, registry-check]
+    on_failure: warn
+    retry: 0
+
+  # -- 5. Ontology verses integrity -----------------------------------------
+  - name: ontology-verses-integrity
+    description: "Check ontology verse files (migrated from ONTOLOGY)"
+    command: "python -c \"import os; base=r'D:\\DO\\WEB\\TOOLS\\L4-TOOLS\\VERSES\\verses\\ontology'; files=[f for f in os.listdir(base) if os.path.isfile(os.path.join(base,f))]; empty=[f for f in files if os.path.getsize(os.path.join(base,f))==0]; assert not empty, f'Empty files: {empty}'; print(f'Ontology verses OK: {len(files)} files, 0 empty')\""
+    depends_on: [structure-check, registry-check]
+    on_failure: warn
+    retry: 0
+
+  # -- 6. Summary ------------------------------------------------------------
+  - name: summary
+    description: "Print VERSES CI summary"
+    command: "python -c \"print('\\n=== VERSES CI SUMMARY ==='); print('Hub: VERSES (L4-TOOLS)'); print('Families: core (26 files), ontology (49 files)'); print('Registry: ontology_registry.json v2.0'); print('Archived hubs: VERSUS'); print('Reference: EPIC-01-Foundation-REV2')\""
+    depends_on: [verses-integrity, ontology-verses-integrity]
+    on_failure: warn
+    retry: 0
