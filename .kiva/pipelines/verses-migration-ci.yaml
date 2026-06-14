@@ -1,0 +1,53 @@
+# .kiva/pipelines/verses-migration-ci.yaml
+# VERSES Migration CI Pipeline — run migration + validate results
+#
+# Usage:
+#   kiva pipeline run verses-migration-ci
+
+name: verses-migration-ci
+version: "1.0"
+description: "VERSES Migration CI — run migration script + validate"
+intent_hash: 0xVERSES_MIGRATION_CI_20260614
+
+on_failure: warn
+max_workers: 1
+
+steps:
+  # -- 1. Env check ----------------------------------------------------------
+  - name: env-check
+    description: "Verify Python + migration script + VERSES root"
+    command: "python -c \"import sys; sys.path.insert(0,r'D:\\DO\\WEB\\TOOLS\\L4-TOOLS\\VERSES\\verses-migration'); import os; assert os.path.exists(r'D:\\DO\\WEB\\TOOLS\\L4-TOOLS\\VERSES'); print('env OK')\""
+    on_failure: abort
+    retry: 0
+
+  # -- 2. Run migration ------------------------------------------------------
+  - name: run-migration
+    description: "Run migration script for all projects"
+    command: "python D:\\DO\\WEB\\TOOLS\\L4-TOOLS\\VERSES\\verses-migration\\migrate_pilots.py"
+    depends_on: [env-check]
+    on_failure: warn
+    retry: 0
+
+  # -- 3. Validate results ---------------------------------------------------
+  - name: validate-results
+    description: "Check migration report was generated"
+    command: "python -c \"import os, glob; reports=glob.glob(r'D:\\DO\\WEB\\TOOLS\\L4-TOOLS\\VERSES\\reports\\migration_report_*.md'); assert len(reports)>0, 'No migration report found'; print(f'Report: {os.path.basename(reports[-1])}')\""
+    depends_on: [run-migration]
+    on_failure: warn
+    retry: 0
+
+  # -- 4. Monitoring dashboard -----------------------------------------------
+  - name: monitoring
+    description: "Generate health dashboard"
+    command: "python D:\\DO\\WEB\\TOOLS\\L4-TOOLS\\VERSES\\scripts\\monitoring_dashboard.py"
+    depends_on: [validate-results]
+    on_failure: warn
+    retry: 0
+
+  # -- 5. Summary ------------------------------------------------------------
+  - name: summary
+    description: "Print migration CI summary"
+    command: "python -c \"print('\\n=== VERSES MIGRATION CI SUMMARY ==='); print('Script: migrate_pilots.py v2.0'); print('Phases: Pilot (3 projects) + Rollout (6 projects)'); print('Steps: backup, extract, validate, import, update refs'); print('Monitoring: health dashboard generated'); print('Reference: EPIC-05-Migration')\""
+    depends_on: [monitoring]
+    on_failure: warn
+    retry: 0

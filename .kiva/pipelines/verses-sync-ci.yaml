@@ -23,9 +23,17 @@ steps:
   # -- 2. Unit tests ---------------------------------------------------------
   - name: unit-tests
     description: "pytest tests/test_verses_sync.py -v"
-    command: "python -c \"import sys; sys.path.insert(0, r'D:\\DO\\WEB\\TOOLS\\L4-TOOLS\\VERSES'); import subprocess; subprocess.run([sys.executable, '-m', 'pytest', 'tests/test_verses_sync.py', '-v', '--tb=short'], cwd=r'D:\\DO\\WEB\\TOOLS\\L4-TOOLS\\VERSES', check=True)\""
+    command: "python -c \"import os; os.environ['PYTHONPATH']=r'D:\\DO\\WEB\\TOOLS\\L4-TOOLS\\VERSES'; import subprocess; subprocess.run([os.sys.executable,'-m','pytest',r'D:\\DO\\WEB\\TOOLS\\L4-TOOLS\\VERSES\\tests\\test_verses_sync.py','-v','--tb=short'],check=True)\""
     depends_on: [env-check]
     on_failure: abort
+    retry: 0
+
+  # -- 3. Coverage -----------------------------------------------------------
+  - name: coverage
+    description: "pytest --cov=verses_sync --cov-report=term-missing"
+    command: "python -c \"import os; os.environ['PYTHONPATH']=r'D:\\DO\\WEB\\TOOLS\\L4-TOOLS\\VERSES'; import subprocess; subprocess.run([os.sys.executable,'-m','pytest',r'D:\\DO\\WEB\\TOOLS\\L4-TOOLS\\VERSES\\tests\\test_verses_sync.py','--cov=verses_sync','--cov-report=term-missing','-q'],check=True)\""
+    depends_on: [unit-tests]
+    on_failure: warn
     retry: 0
 
   # -- 3. Performance test ---------------------------------------------------
