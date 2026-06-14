@@ -69,10 +69,18 @@ steps:
     on_failure: warn
     retry: 0
 
-  # -- 6. Summary ------------------------------------------------------------
+  # -- 6. Verse review validation ------------------------------------------
+  - name: verse-review
+    description: "Validate all verse files against JSON schema"
+    command: "python D:\\DO\\WEB\\TOOLS\\L4-TOOLS\\VERSES\\scripts\\verse_review_validator.py --all"
+    depends_on: [verses-integrity, ontology-verses-integrity]
+    on_failure: warn
+    retry: 0
+
+  # -- 7. Summary ------------------------------------------------------------
   - name: summary
     description: "Print VERSES CI summary"
-    command: "python -c \"print('\\n=== VERSES CI SUMMARY ==='); print('Hub: VERSES (L4-TOOLS)'); print('Families: core (26 files), ontology (49 files)'); print('Registry: ontology_registry.json v2.0'); print('Archived hubs: VERSUS'); print('Reference: EPIC-01-Foundation-REV2')\""
-    depends_on: [verses-integrity, ontology-verses-integrity]
+    command: "python -c \"print('\\n=== VERSES CI SUMMARY ==='); print('Hub: VERSES (L4-TOOLS)'); print('Families: core (26 files), ontology (49 files), batverse (16 files)'); print('Registry: ontology_registry.json v2.0'); print('Validator: verse_review_validator.py'); print('Reference: CHARTER.md')\""
+    depends_on: [verse-review]
     on_failure: warn
     retry: 0
