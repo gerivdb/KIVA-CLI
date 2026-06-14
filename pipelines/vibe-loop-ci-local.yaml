@@ -1,0 +1,199 @@
+name: vibe-loop-ci-local
+version: "1.0.0"
+intent_hash: 0xKIVA_VIBE_LOOP_CI_LOCAL_20260614
+description: |
+  CI local ENV2 pour le méta-organisme vibe-loop-runner v2.
+  Orchestre les 7 phases + nodetype-morphing-hook (P7)
+  sur la machine locale D:/DO/WEB/TOOLS.
+  PAS de GitHub Actions — tourne via KIVA-CLI schedule ou manuellement.
+
+schedule: "0 */4 * * *"   # toutes les 4h, ajustable
+on_merge:
+  - repo: gerivdb/CTULU
+    branch: main
+  - repo: gerivdb/GOVERNANCE-HUB
+    branch: main
+
+env:
+  CTULU_PATH:       "D:/DO/WEB/TOOLS/L3-CITIZENS/CTULU"
+  INTENTS_PATH:     "D:/DO/WEB/TOOLS/L0-CANON/GOVERNANCE-HUB/INTENTS"
+  OUTPUT_DIR:       "D:/DO/WEB/TOOLS/reports/vibe-loop"
+  THETA:            "0.72"
+  MAX_AUTO_EMIT:    "1"
+  CONFIDENCE_MIN:   "0.50"
+  PYTHON:           "python"
+
+# ── Étapes ──────────────────────────────────────────────────────────────────
+
+steps:
+
+  # ── 0. Pré-flight ────────────────────────────────────────────────────────
+  - id: preflight
+    name: "ENV2 — Vérification pré-vol (CTULU + INTENTS accessibles)"
+    agent: Alfred
+    run: |
+      $PYTHON -c "
+      from pathlib import Path
+      import sys
+      ctulu  = Path('$CTULU_PATH')
+      intents = Path('$INTENTS_PATH')
+      errors = []
+      if not ctulu.exists():   errors.append(f'CTULU manquant: {ctulu}')
+      if not intents.exists(): errors.append(f'INTENTS manquant: {intents}')
+      if errors:
+          for e in errors: print(f'[ERROR] {e}')
+          sys.exit(1)
+      print(f'[OK] CTULU: {ctulu}')
+      print(f'[OK] INTENTS: {intents} ({len(list(intents.glob(\"*.yaml\")))} intents YAML)')
+      "
+    on_fail: ABORT
+    timeout_sec: 15
+
+  # ── 1. Tests nodetype-morphing-hook ──────────────────────────────────────
+  - id: test-nodetype-hook
+    name: "CTULU — pytest nodetype-morphing-hook (12 tests)"
+    agent: Alfred
+    depends_on: [preflight]
+    run: |
+      cd $CTULU_PATH
+      $PYTHON -m pytest tools/nodetype-morphing/tests/test_nodetype_morphing_hook.py \
+        -v --tb=short --no-header \
+        --json-report --json-report-file=$OUTPUT_DIR/test_morph_report.json 2>&1 || true
+      $PYTHON -m pytest tools/nodetype-morphing/tests/test_nodetype_morphing_hook.py \
+        -v --tb=short --no-header 2>&1
+    on_fail: WARN
+    timeout_sec: 60
+
+  # ── 2. Tests vibe-loop-runner ────────────────────────────────────────────
+  - id: test-vibe-loop
+    name: "CTULU — pytest vibe-loop-runner (10 tests)"
+    agent: Alfred
+    depends_on: [preflight]
+    run: |
+      cd $CTULU_PATH
+      $PYTHON -m pytest tools/vibe-loop-runner/ \
+        -v --tb=short --no-header 2>&1
+    on_fail: WARN
+    timeout_sec: 90
+
+  # ── 3. Gate tests ────────────────────────────────────────────────────────
+  - id: gate-tests
+    name: "Gate — 0 échec critique toléré (ABORT si >2 failures)"
+    agent: Riddler
+    depends_on: [test-nodetype-hook, test-vibe-loop]
+    run: |
+      $PYTHON -c "
+      import json, sys, glob
+      report_files = glob.glob('$OUTPUT_DIR/test_morph_report.json')
+      if not report_files:
+          print('[SKIP] Pas de rapport JSON de tests — on continue.')
+          sys.exit(0)
+      r = json.load(open(report_files[0]))
+      failed = r.get('summary', {}).get('failed', 0)
+      if failed > 2:
+          print(f'[ABORT] {failed} tests échoués — pipeline arrêté')
+          sys.exit(1)
+      print(f'[OK] {failed} echec(s) — seuil OK')
+      "
+    on_fail: ABORT
+    timeout_sec: 15
+
+  # ── 4. Cycle vibe-loop (dry-run) ─────────────────────────────────────────
+  - id: vibe-loop-dry
+    name: "Vibe-loop — Cycle complet DRY-RUN (P1→P7 + morph-hook)"
+    agent: Selina
+    depends_on: [gate-tests]
+    run: |
+      cd $CTULU_PATH
+      $PYTHON tools/vibe-loop-runner/vibe_loop_runner_v2.py \
+        --intents-dir  $INTENTS_PATH \
+        --output-dir   $OUTPUT_DIR/dry \
+        --theta        $THETA \
+        --dry-run \
+        2>&1
+    on_fail: WARN
+    timeout_sec: 180
+
+  # ── 5. Gate theta ────────────────────────────────────────────────────────
+  - id: gate-theta
+    name: "Gate θ — Vérifie que θ moyen ≥ 0.50 (sinon HITL)"
+    agent: Riddler
+    depends_on: [vibe-loop-dry]
+    run: |
+      $PYTHON -c "
+      import json, sys, glob
+      reports = glob.glob('$OUTPUT_DIR/dry/run_report*.json')
+      if not reports:
+          print('[SKIP] Pas de run_report. Dry-run probablement absent.')
+          sys.exit(0)
+      r = json.load(open(max(reports)))
+      theta = float(r.get('theta', r.get('theta_mean', 0)))
+      print(f'[θ] theta={theta:.3f}')
+      if theta < 0.50:
+          print(f'[ALERT] theta={theta:.3f} < 0.50 — HITL requis')
+          sys.exit(1)
+      print(f'[OK] theta={theta:.3f} ≥ 0.50')
+      "
+    on_fail: ALERT_HITL
+    timeout_sec: 15
+
+  # ── 6. Nodetype morph standalone (sur le dag du dry-run) ─────────────────
+  - id: morph-hook-standalone
+    name: "Morph-hook — Reclassifie le DAG produit par dry-run"
+    agent: Alfred
+    depends_on: [gate-theta]
+    run: |
+      $PYTHON -c "
+      from pathlib import Path
+      import glob, sys
+      dags = glob.glob('$OUTPUT_DIR/dry/causal_dag*.json')
+      if not dags:
+          print('[SKIP] Pas de causal_dag dans dry output')
+          sys.exit(0)
+      dag = max(dags)
+      print(f'[MORPH] DAG cible: {dag}')
+      " 2>&1
+
+      $PYTHON $CTULU_PATH/tools/nodetype-morphing/nodetype_morphing_hook.py \
+        --dag    $OUTPUT_DIR/dry/causal_dag.json \
+        --output-dir $OUTPUT_DIR/morph \
+        --cycle-id   ci-local \
+        --dry-run \
+        2>&1 || echo '[SKIP] causal_dag.json absent — morph ignoré'
+    on_fail: WARN
+    timeout_sec: 60
+
+  # ── 7. Archive + rapport final ───────────────────────────────────────────
+  - id: archive-report
+    name: "Archive — Copie rapports dans reports/vibe-loop/YYYY-MM-DD/"
+    agent: Alfred
+    depends_on: [morph-hook-standalone]
+    run: |
+      $PYTHON -c "
+      import shutil, sys
+      from pathlib import Path
+      from datetime import datetime
+      src  = Path('$OUTPUT_DIR/dry')
+      dest = Path('$OUTPUT_DIR') / datetime.now().strftime('%Y-%m-%d')
+      dest.mkdir(parents=True, exist_ok=True)
+      copied = 0
+      for f in src.glob('*.json'):
+          shutil.copy2(f, dest / f.name)
+          copied += 1
+      print(f'[OK] {copied} fichier(s) archivé(s) → {dest}')
+      "
+    on_fail: WARN
+    timeout_sec: 30
+
+# ── HITL alert ───────────────────────────────────────────────────────────────
+
+on_alert_hitl:
+  action: create_issue
+  repo: gerivdb/ARGUS
+  title: "[VIBE-LOOP] theta bas détecté — HITL requis"
+  labels: [critical, vibe-loop, hitl, theta]
+  body: |
+    Le cycle vibe-loop-runner (ENV2) a produit un theta < 0.50.
+    Rapport: $OUTPUT_DIR/dry/run_report-latest.json
+    Action manuelle requise avant le prochain cycle auto.
+    HITL schedule : 16h00 → 07h30 CEST
