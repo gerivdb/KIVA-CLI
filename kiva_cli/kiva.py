@@ -60,10 +60,11 @@ from kiva_cli.commands.nexus_commands import nexus_cli
 from kiva_cli.commands.pipeline_commands import pipeline_cli
 from kiva_cli.commands.audit_commands import audit
 from kiva_cli.commands.mc_rnn_ci import mc_rnn_ci
+from kiva_cli.commands.merge_commands import merge_cli
 
 
 @click.group()
-@click.version_option(version="0.24.0", prog_name="KIVA-CLI")
+@click.version_option(version="0.25.0", prog_name="KIVA-CLI")
 def cli():
     """KIVA-CLI - ECOS unified command-line interface.
 
@@ -131,6 +132,7 @@ cli.add_command(nexus_cli, name="nexus")
 cli.add_command(pipeline_cli, name="pipeline")
 cli.add_command(audit, name='audit')
 cli.add_command(mc_rnn_ci, name='mc-rnn-ci')
+cli.add_command(merge_cli, name='merge')
 
 
 def main():
