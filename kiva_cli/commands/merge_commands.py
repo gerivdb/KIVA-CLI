@@ -23,6 +23,7 @@ import click
 # Synchroniser avec .workspace.index.yaml (GOVERNANCE-HUB L0).
 # En v2, lire le YAML directement au runtime (voir docstring du module).
 REPOS_LOCAL_PATHS = {
+    "CTULU":          r"D:\DO\WEB\CTULU",
     "GOVERNANCE-HUB": r"D:\DO\WEB\TOOLS\L0-CANON\GOVERNANCE-HUB",
     "NEXUS":          None,  # remote_only — not cloned on ENV2
     "ECOYSTEM":       r"D:\DO\WEB\TOOLS\L1-INFRA\ECOYSTEM",
