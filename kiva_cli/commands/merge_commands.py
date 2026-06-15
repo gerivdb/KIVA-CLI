@@ -24,7 +24,7 @@ import click
 # En v2, lire le YAML directement au runtime (voir docstring du module).
 REPOS_LOCAL_PATHS = {
     "GOVERNANCE-HUB": r"D:\DO\WEB\TOOLS\L0-CANON\GOVERNANCE-HUB",
-    "NEXUS":          r"D:\DO\WEB\TOOLS\L1-INFRA\NEXUS",
+    "NEXUS":          None,  # remote_only — not cloned on ENV2
     "ECOYSTEM":       r"D:\DO\WEB\TOOLS\L1-INFRA\ECOYSTEM",
     "ECOS-CLI":       r"D:\DO\WEB\TOOLS\L1-INFRA\ECOS-CLI",
     "KIVA-CLI":       r"D:\DO\WEB\TOOLS\L1-INFRA\KIVA-CLI",
@@ -133,9 +133,17 @@ def merge_pr(repo: str, pr_number: int, method: str, hotfix: bool, dry_run: bool
         _wal_append(repo, pr_number, "ci_bypassed_hotfix", dry_run=dry_run)
     else:
         click.echo(click.style("  [STEP 1] Local CI", fg="cyan"))
-        if repo_path:
+        if repo_path is None and repo in REPOS_LOCAL_PATHS:
+            # remote_only repo — CI local not available, skip with notice
+            click.echo(click.style(
+                f"  [SKIP] {repo} is remote_only on ENV2 — local CI skipped",
+                fg="yellow"))
+            _wal_append(repo, pr_number, "ci_skipped_remote_only", dry_run=dry_run)
+            rc = 0
+        elif repo_path:
             rc = _run(["kiva", "cicd", "run", repo_path], dry_run=dry_run)
         else:
+            # Unknown repo — fallback to pytest in current directory
             click.echo(click.style(
                 f"  [WARN] Unknown local path for {repo} — pytest fallback",
                 fg="yellow"))
