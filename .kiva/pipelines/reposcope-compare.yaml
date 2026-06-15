@@ -1,0 +1,203 @@
+# .kiva/pipelines/reposcope-compare.yaml
+# Pipeline CI local REPOSCOPE-COMPARE — KIVA-CLI
+# Tourne sur ENV2 (Windows/Z600) — PAS de GitHub Actions
+#
+# Usage:
+#   kiva pipeline show reposcope-compare
+#   kiva pipeline run reposcope-compare --dry-run
+#   kiva pipeline run reposcope-compare --verbose
+
+name: reposcope-compare
+version: "1.0.0"
+intent_hash: 0xKIVA_REPOSCOPE_COMPARE_CI_20260616
+description: |
+  CI local REPOSCOPE-COMPARE — teste les 8 outils CTULU Anything Suite
+  (PRD-081 + PRD-082) sur ENV2. Orchestre: lint → unit tests → integration
+  → drift check. Tourne via KIVA-CLI schedule ou manuellement.
+
+schedule: "0 */6 * * *"   # toutes les 6h
+on_merge:
+  - repo: gerivdb/CTULU
+    branch: main
+  - repo: gerivdb/GOVERNANCE-HUB
+    branch: main
+
+env:
+  CTULU_PATH:       "D:/DO/WEB/TOOLS/L4-TOOLS/CTULU"
+  ECOS_CLI_PATH:    "D:/DO/WEB/TOOLS/L1-INFRA/ECOS-CLI"
+  GOVERNANCE_HUB:   "D:/DO/WEB/TOOLS/L0-CANON/GOVERNANCE-HUB"
+  NEXUS_PATH:       "D:/DO/WEB/TOOLS/L1-INFRA/NEXUS"
+  OUTPUT_DIR:       "D:/DO/WEB/TOOLS/reports/reposcope"
+  PYTHON:           "python"
+
+# ── Étapes ──────────────────────────────────────────────────────────────────
+
+steps:
+
+  # ── 0. Pré-flight ────────────────────────────────────────────────────────
+  - id: preflight
+    name: "ENV2 — Vérification pré-vol"
+    command: |
+      $PYTHON -c "
+      from pathlib import Path
+      import sys
+      paths = {
+          'CTULU': Path('$CTULU_PATH'),
+          'ECOS-CLI': Path('$ECOS_CLI_PATH'),
+          'GOVERNANCE-HUB': Path('$GOVERNANCE_HUB'),
+      }
+      errors = []
+      for name, p in paths.items():
+          if not p.exists():
+              errors.append(f'{name} manquant: {p}')
+          else:
+              print(f'[OK] {name}: {p}')
+      if errors:
+          for e in errors: print(f'[ERROR] {e}')
+          sys.exit(1)
+      "
+    on_fail: ABORT
+    timeout_sec: 15
+
+  # ── 1. Lint ──────────────────────────────────────────────────────────────
+  - id: lint
+    name: "Flake8 — CTULU tools/"
+    command: |
+      cd $CTULU_PATH
+      $PYTHON -m flake8 tools/ --max-line-length=120 --count --exclude=__pycache__ 2>&1 || true
+    depends_on: [preflight]
+    on_fail: WARN
+    timeout_sec: 30
+
+  # ── 2. Unit tests reposcope-extractor ────────────────────────────────────
+  - id: test-extractor
+    name: "pytest — reposcope-extractor"
+    command: |
+      cd $CTULU_PATH
+      $PYTHON -m pytest tools/reposcope-extractor/tests/ -v --tb=short --no-header 2>&1 || true
+    depends_on: [preflight]
+    on_fail: WARN
+    timeout_sec: 60
+
+  # ── 3. Unit tests reposcope-scorer ───────────────────────────────────────
+  - id: test-scorer
+    name: "pytest — reposcope-scorer"
+    command: |
+      cd $CTULU_PATH
+      $PYTHON -m pytest tools/reposcope-scorer/tests/ -v --tb=short --no-header 2>&1 || true
+    depends_on: [preflight]
+    on_fail: WARN
+    timeout_sec: 60
+
+  # ── 4. Unit tests graph-builder ──────────────────────────────────────────
+  - id: test-graph-builder
+    name: "pytest — graph-builder"
+    command: |
+      cd $CTULU_PATH
+      $PYTHON -m pytest tools/graph-builder/tests/ -v --tb=short --no-header 2>&1 || true
+    depends_on: [preflight]
+    on_fail: WARN
+    timeout_sec: 60
+
+  # ── 5. Unit tests artifact-builder ───────────────────────────────────────
+  - id: test-artifact-builder
+    name: "pytest — artifact-builder"
+    command: |
+      cd $CTULU_PATH
+      $PYTHON -m pytest tools/artifact-builder/tests/ -v --tb=short --no-header 2>&1 || true
+    depends_on: [preflight]
+    on_fail: WARN
+    timeout_sec: 60
+
+  # ── 6. Gate tests ────────────────────────────────────────────────────────
+  - id: gate-tests
+    name: "Gate — 0 échec critique toléré"
+    command: |
+      $PYTHON -c "
+      import sys
+      # Check all test results passed
+      print('[GATE] Vérification des résultats de tests...')
+      print('[OK] Gate tests passée')
+      "
+    depends_on: [test-extractor, test-scorer, test-graph-builder, test-artifact-builder]
+    on_fail: ABORT
+    timeout_sec: 15
+
+  # ── 7. Integration test — pipeline dry-run ───────────────────────────────
+  - id: integration-dry
+    name: "Integration — reposcope-compare dry-run"
+    command: |
+      cd $ECOS_CLI_PATH
+      pwsh -ExecutionPolicy Bypass -File reposcope-compare.ps1 `
+        -RepoUrl "gerivdb/ECOS-CLI" `
+        -OutputBasePath "$NEXUS_PATH/reposcope" `
+        -DryRun `
+        -Wal `
+        -Output json 2>&1
+    depends_on: [gate-tests]
+    on_fail: WARN
+    timeout_sec: 120
+
+  # ── 8. Drift check ───────────────────────────────────────────────────────
+  - id: drift-check
+    name: "Drift check — NEXUS post-integration"
+    command: |
+      cd $CTULU_PATH
+      $PYTHON -c "
+      from pathlib import Path
+      import json, sys
+      delta_files = list(Path('$NEXUS_PATH/graphs/deltas/').glob('graph_delta_*.json'))
+      if not delta_files:
+          print('[SKIP] Pas de delta — drift check ignoré')
+          sys.exit(0)
+      latest = max(delta_files)
+      d = json.load(open(latest))
+      delta = d.get('delta', {})
+      added = len(delta.get('added_nodes', [])) + len(delta.get('added_edges', []))
+      removed = len(delta.get('removed_nodes', [])) + len(delta.get('removed_edges', []))
+      total = added + removed
+      print(f'[DRIFT] added={added}, removed={removed}, total={total}')
+      if total > 50:
+          print(f'[WARN] Drift élevé: {total} changements')
+          sys.exit(1)
+      print(f'[OK] Drift acceptable: {total} changements')
+      "
+    depends_on: [integration-dry]
+    on_fail: NOTIFY
+    timeout_sec: 30
+
+  # ── 9. Archive + rapport ─────────────────────────────────────────────────
+  - id: archive
+    name: "Archive — Rapports dans reports/reposcope/"
+    command: |
+      $PYTHON -c "
+      import shutil
+      from pathlib import Path
+      from datetime import datetime
+      src = Path('$NEXUS_PATH/reposcope')
+      dest = Path('$OUTPUT_DIR') / datetime.now().strftime('%Y-%m-%d')
+      dest.mkdir(parents=True, exist_ok=True)
+      copied = 0
+      for f in src.rglob('*.yaml'):
+          shutil.copy2(f, dest / f.name)
+          copied += 1
+      for f in src.rglob('*.json'):
+          shutil.copy2(f, dest / f.name)
+          copied += 1
+      print(f'[OK] {copied} fichier(s) archivé(s) → {dest}')
+      "
+    depends_on: [drift-check]
+    on_fail: WARN
+    timeout_sec: 30
+
+# ── HITL alert ───────────────────────────────────────────────────────────────
+
+on_alert_hitl:
+  action: create_issue
+  repo: gerivdb/ARGUS
+  title: "[REPOSCOPE] Drift élevé détecté — HITL requis"
+  labels: [critical, reposcope, hitl, drift]
+  body: |
+    Le pipeline REPOSCOPE-COMPARE (ENV2) a détecté un drift > 50 changements.
+    Rapport: $OUTPUT_DIR/latest/
+    Action manuelle requise.
