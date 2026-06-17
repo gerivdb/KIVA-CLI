@@ -4,15 +4,17 @@ Groupe : kiva nexus
 Sous-groupes / commandes :
   kiva nexus tracking init <REPO> [--path PATH] [--dry-run]
   kiva nexus drift check   [--repo REPO] [--since HOURS] [--phi-only] [--status-scan]
-
-Extensions futures :
-  kiva nexus status <REPO>
-  kiva nexus reciprocity <REPO>
+  kiva nexus query <path>  [--section status|tracking|wal|all] [--format json|yaml|table]
+  kiva nexus mutate --op <op> --path <path> [--data <json>] [--dry-run]
+  kiva nexus status <repo>
+  kiva nexus pipeline <subcmd>
+  kiva nexus sync [--dry-run] [--skip-watchdog]
 """
 
 from __future__ import annotations
 
 import hashlib
+import json as json_mod
 import os
 import subprocess
 import sys
@@ -32,7 +34,7 @@ from kiva_cli.core.pipeline_registry import (
 )
 
 # ---------------------------------------------------------------------------
-# Chemins canoniques par défaut (L0-CANON sur D:\DO\WEB\TOOLS)
+# Chemins canoniques par défaut (L0-CANON sur D:\\DO\\WEB\\TOOLS)
 # ---------------------------------------------------------------------------
 _L0_CANON_ROOT = Path(r"D:\DO\WEB\TOOLS\L0-CANON")
 
@@ -86,6 +88,22 @@ def _severity_icon(phi_cps_alert: bool, validation_state: str) -> str:
     if validation_state == "PENDING":
         return "[?]"
     return "[ok]"
+
+
+def _read_yaml_file(path: Path) -> dict:
+    """Lit un fichier YAML et retourne un dict. Fallback: parsing manuel."""
+    try:
+        import yaml  # type: ignore
+        return yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    except ImportError:
+        data = {}
+        for line in path.read_text(encoding="utf-8").splitlines():
+            if ":" in line and not line.strip().startswith("#"):
+                k, _, v = line.partition(":")
+                data[k.strip()] = v.strip().strip('"').strip("'")
+        return data
+    except Exception:
+        return {}
 
 
 # ---------------------------------------------------------------------------
@@ -181,7 +199,7 @@ intent_hash: "{intent_hash}"
 
 
 # ---------------------------------------------------------------------------
-# Groupe Click
+# Groupe Click principal
 # ---------------------------------------------------------------------------
 
 @click.group(name="nexus")
@@ -191,13 +209,443 @@ def nexus_cli():
     Commandes disponibles :
       tracking init <REPO>   Initialise .nexus/TRACKING.md + STATUS.yaml
       drift check            Détecte les dérives φ-CPS et les alertes WAL
-      sync                   Enchaîne les 5 scripts du weekly sync NEXUS (remplace GHA)
-
-    Extensions futures :
-      status <REPO>          Affiche l'état NEXUS d'un repo
-      reciprocity <REPO>     Calcule le score de réciprocité
+      query <path>           Lit l'état NEXUS (STATUS.yaml, TRACKING.md, WAL)
+      mutate --op <op>       Écrit / mute un champ NEXUS
+      status <repo>          Affiche l'état condensé d'un repo
+      pipeline               Gouvernance des pipelines (list, validate, drift, prune)
+      sync                   Enchaîne les 5 scripts du weekly sync NEXUS
     """
     pass
+
+
+# ===========================================================================
+# SOUS-GROUPE: kiva nexus query
+# ===========================================================================
+
+@nexus_cli.command(name="query")
+@click.argument("path", type=click.Path(exists=False))
+@click.option(
+    "--section",
+    type=click.Choice(["status", "tracking", "wal", "all"], case_sensitive=False),
+    default="all",
+    show_default=True,
+    help="Section à lire",
+)
+@click.option(
+    "--format",
+    "fmt",
+    type=click.Choice(["json", "yaml", "table"], case_sensitive=False),
+    default="json",
+    show_default=True,
+    help="Format de sortie",
+)
+@click.option(
+    "--since",
+    default=24,
+    show_default=True,
+    type=int,
+    help="Fenêtre WAL en heures (uniquement si section=wal ou all)",
+)
+def nexus_query(path: str, section: str, fmt: str, since: int):
+    """Lit l'état NEXUS d'un repo ou d'un fichier .nexus/.
+
+    Équivalent API : GET /api/v3/query?path=<path>
+
+    Le PATH peut être :
+      - Un chemin vers un repo (lit .nexus/STATUS.yaml + TRACKING.md)
+      - Un chemin vers un fichier .nexus/STATUS.yaml spécifique
+      - Un chemin vers un fichier .nexus/TRACKING.md
+
+    Exemples :
+
+      kiva nexus query D:\\DO\\WEB\\TOOLS\\L0-CANON\\NEXUS
+
+      kiva nexus query D:\\DO\\WEB\\TOOLS\\L0-CANON\\NEXUS\\.nexus\\STATUS.yaml
+
+      kiva nexus query D:\\DO\\WEB\\TOOLS\\L0-CANON\\NEXUS --section status
+
+      kiva nexus query D:\\DO\\WEB\\TOOLS\\L0-CANON\\NEXUS --section wal --since 48
+
+      kiva nexus query D:\\DO\\WEB\\TOOLS\\L0-CANON\\NEXUS --format yaml
+    """
+    target = Path(path)
+    result: dict = {"path": str(target), "timestamp": _now_iso()}
+
+    # -- Déterminer le repo root et les chemins .nexus/ ------------------------
+    if target.is_file():
+        if target.name == "STATUS.yaml":
+            nexus_dir = target.parent
+            repo_root = nexus_dir.parent
+        elif target.name == "TRACKING.md":
+            nexus_dir = target.parent
+            repo_root = nexus_dir.parent
+        else:
+            # Fichier quelconque — lire brut
+            result["content"] = target.read_text(encoding="utf-8")
+            _output(result, fmt)
+            return
+    elif target.is_dir():
+        # Si on pointe vers .nexus/ directement
+        if target.name == ".nexus":
+            nexus_dir = target
+            repo_root = target.parent
+        else:
+            # Repo root — chercher .nexus/
+            repo_root = target
+            nexus_dir = target / ".nexus"
+    else:
+        click.echo(f"[ERROR] Chemin introuvable : {target}", err=True)
+        sys.exit(1)
+
+    repo_name = repo_root.name
+    status_file = nexus_dir / "STATUS.yaml"
+    tracking_file = nexus_dir / "TRACKING.md"
+
+    # -- Section: status (STATUS.yaml) ----------------------------------------
+    if section in ("status", "all"):
+        if status_file.exists():
+            status_data = _read_yaml_file(status_file)
+            result["status"] = status_data
+        else:
+            result["status"] = None
+            result["status_missing"] = str(status_file)
+
+    # -- Section: tracking (TRACKING.md) --------------------------------------
+    if section in ("tracking", "all"):
+        if tracking_file.exists():
+            result["tracking"] = {
+                "file": str(tracking_file),
+                "content": tracking_file.read_text(encoding="utf-8"),
+            }
+        else:
+            result["tracking"] = None
+            result["tracking_missing"] = str(tracking_file)
+
+    # -- Section: wal (événements WAL) ----------------------------------------
+    if section in ("wal", "all"):
+        try:
+            from kiva_cli.core.global_wal_manager import GlobalWALManager
+            wal = GlobalWALManager()
+            start_time = (
+                datetime.now(timezone.utc) - timedelta(hours=since)
+            ).strftime("%Y-%m-%dT%H:%M:%S")
+            events = wal.query_events(
+                repo=repo_name,
+                start_time=start_time,
+                limit=50,
+            )
+            result["wal_events"] = events
+            result["wal_count"] = len(events)
+        except Exception as exc:
+            result["wal_events"] = []
+            result["wal_error"] = str(exc)
+
+    # -- Sortie ---------------------------------------------------------------
+    _output(result, fmt)
+
+
+def _output(data: dict, fmt: str) -> None:
+    """Formate et affiche le résultat."""
+    if fmt == "json":
+        click.echo(json_mod.dumps(data, indent=2, ensure_ascii=False, default=str))
+    elif fmt == "yaml":
+        try:
+            import yaml  # type: ignore
+            click.echo(yaml.dump(data, default_flow_style=False, allow_unicode=True))
+        except ImportError:
+            click.echo(json_mod.dumps(data, indent=2, ensure_ascii=False, default=str))
+    elif fmt == "table":
+        # Affichage tabulaire simplifié
+        for key, value in data.items():
+            if isinstance(value, dict):
+                click.echo(f"\n[{key}]")
+                for k, v in value.items():
+                    click.echo(f"  {k}: {v}")
+            elif isinstance(value, list):
+                click.echo(f"\n[{key}] ({len(value)} items)")
+                for item in value[:10]:
+                    click.echo(f"  - {item}")
+            else:
+                click.echo(f"{key}: {value}")
+
+
+# ===========================================================================
+# SOUS-GROUPE: kiva nexus mutate
+# ===========================================================================
+
+@nexus_cli.command(name="mutate")
+@click.option(
+    "--op",
+    required=True,
+    type=click.Choice(
+        ["update_status", "create_tracking", "set_field", "set_conflict"],
+        case_sensitive=False,
+    ),
+    help="Opération de mutation",
+)
+@click.option(
+    "--path",
+    "repo_path",
+    required=True,
+    type=click.Path(exists=False),
+    help="Chemin du repo cible",
+)
+@click.option(
+    "--data",
+    default=None,
+    help="Données JSON pour la mutation (ex: '{\"nexus_status\": \"ACTIVE\"}')",
+)
+@click.option(
+    "--field",
+    default=None,
+    help="Chemin du champ (dot notation) pour set_field (ex: nexus_status)",
+)
+@click.option(
+    "--value",
+    default=None,
+    help="Nouvelle valeur pour set_field",
+)
+@click.option(
+    "--dry-run",
+    is_flag=True,
+    default=False,
+    help="Simule sans écrire",
+)
+def nexus_mutate(op: str, repo_path: str, data: Optional[str], field: Optional[str], value: Optional[str], dry_run: bool):
+    """Écrit / mute un champ NEXUS.
+
+    Équivalent API : POST /api/v3/mutate
+
+    Opérations supportées :
+      update_status   Met à jour nexus_status dans STATUS.yaml
+      create_tracking Crée .nexus/TRACKING.md + STATUS.yaml (idem tracking init)
+      set_field       Modifie un champ spécifique (dot notation)
+      set_conflict    Active/désactive conflict_flag
+
+    Exemples :
+
+      kiva nexus mutate --op update_status --path D:\\DO\\WEB\\TOOLS\\L0-CANON\\NEXUS --data '{"nexus_status": "ACTIVE"}'
+
+      kiva nexus mutate --op set_field --path D:\\DO\\WEB\\TOOLS\\L0-CANON\\NEXUS --field nexus_status --value CONFLICT
+
+      kiva nexus mutate --op set_conflict --path D:\\DO\\WEB\\TOOLS\\L0-CANON\\NEXUS --value true
+
+      kiva nexus mutate --op create_tracking --path D:\\DO\\WEB\\TOOLS\\L0-CANON\\BLO
+
+      kiva nexus mutate --op update_status --path D:\\...\\NEXUS --data '{"nexus_status":"ACTIVE"}' --dry-run
+    """
+    target = Path(repo_path)
+    nexus_dir = target / ".nexus" if target.is_dir() else target.parent
+    status_file = nexus_dir / "STATUS.yaml"
+    ts = _now_iso()
+
+    click.echo(f"\n{'[DRY-RUN] ' if dry_run else ''}kiva nexus mutate :: {op}")
+    click.echo(f"  Path : {target}")
+    click.echo(f"  Time : {ts}")
+
+    if op == "create_tracking":
+        _mutate_create_tracking(target, nexus_dir, dry_run)
+        return
+
+    # Les autres ops nécessitent un STATUS.yaml existant
+    if not status_file.exists():
+        click.echo(f"[ERROR] STATUS.yaml introuvable : {status_file}", err=True)
+        click.echo("  -> Créez d'abord avec: kiva nexus mutate --op create_tracking --path ...", err=True)
+        sys.exit(1)
+
+    status_data = _read_yaml_file(status_file)
+
+    if op == "update_status":
+        payload = json_mod.loads(data) if data else {}
+        if not payload:
+            click.echo("[ERROR] --data requis pour update_status", err=True)
+            sys.exit(1)
+        _mutate_update_status(status_file, status_data, payload, dry_run)
+
+    elif op == "set_field":
+        if not field or value is None:
+            click.echo("[ERROR] --field et --value requis pour set_field", err=True)
+            sys.exit(1)
+        _mutate_set_field(status_file, status_data, field, value, dry_run)
+
+    elif op == "set_conflict":
+        val = value.lower() in ("true", "1", "yes") if value else False
+        _mutate_set_field(status_file, status_data, "conflict_flag", val, dry_run)
+
+    else:
+        click.echo(f"[ERROR] Opération inconnue : {op}", err=True)
+        sys.exit(1)
+
+
+def _mutate_create_tracking(repo_root: Path, nexus_dir: Path, dry_run: bool) -> None:
+    """Crée .nexus/TRACKING.md + STATUS.yaml."""
+    repo_name = repo_root.name
+    ts = _now_iso()
+    ih = _intent_hash(repo_name, ts)
+
+    tracking_file = nexus_dir / "TRACKING.md"
+    status_file = nexus_dir / "STATUS.yaml"
+
+    click.echo(f"  Repo : {repo_name}")
+    click.echo(f"  Tier : {_REPO_TIER.get(repo_name, 'L1-ACTIVE')}")
+    click.echo(f"  Hash : {ih}")
+
+    if dry_run:
+        click.echo("\n  [DRY-RUN] Fichiers qui seraient créés :")
+        click.echo(f"    - {tracking_file}")
+        click.echo(f"    - {status_file}")
+        return
+
+    nexus_dir.mkdir(parents=True, exist_ok=True)
+
+    if not tracking_file.exists():
+        tracking_file.write_text(_tracking_md(repo_name, ts), encoding="utf-8")
+        click.echo(f"  [OK] TRACKING.md créé")
+    else:
+        click.echo(f"  [SKIP] TRACKING.md existe déjà")
+
+    if not status_file.exists():
+        status_file.write_text(_status_yaml(repo_name, ts, ih), encoding="utf-8")
+        click.echo(f"  [OK] STATUS.yaml créé")
+    else:
+        click.echo(f"  [SKIP] STATUS.yaml existe déjà")
+
+
+def _mutate_update_status(status_file: Path, status_data: dict, payload: dict, dry_run: bool) -> None:
+    """Met à jour des champs dans STATUS.yaml."""
+    allowed_keys = {"nexus_status", "conflict_flag", "operational_owner", "sprint_active", "phi_cps_score"}
+    changes = {}
+
+    for key, value in payload.items():
+        if key not in allowed_keys:
+            click.echo(f"  [WARN] Champ non autorisé ignoré : {key}")
+            continue
+        old = status_data.get(key)
+        if old != value:
+            changes[key] = {"old": old, "new": value}
+            status_data[key] = value
+
+    if not changes:
+        click.echo("  [OK] Aucun changement détecté")
+        return
+
+    click.echo(f"  Changements :")
+    for k, v in changes.items():
+        click.echo(f"    {k}: {v['old']} → {v['new']}")
+
+    if dry_run:
+        click.echo("  [DRY-RUN] Fichier non modifié")
+        return
+
+    # Écriture YAML manuelle (préserver le format)
+    _write_status_yaml(status_file, status_data)
+    click.echo(f"  [OK] STATUS.yaml mis à jour : {status_file}")
+
+
+def _mutate_set_field(status_file: Path, status_data: dict, field: str, value, dry_run: bool) -> None:
+    """Modifie un champ spécifique dans STATUS.yaml (dot notation supportée)."""
+    # Support dot notation simple (ex: "nexus_status" ou "metadata.owner")
+    keys = field.split(".")
+    target = status_data
+    for k in keys[:-1]:
+        if k not in target or not isinstance(target[k], dict):
+            target[k] = {}
+        target = target[k]
+
+    old = target.get(keys[-1])
+    target[keys[-1]] = value
+
+    click.echo(f"  {field}: {old} → {value}")
+
+    if dry_run:
+        click.echo("  [DRY-RUN] Fichier non modifié")
+        return
+
+    _write_status_yaml(status_file, status_data)
+    click.echo(f"  [OK] STATUS.yaml mis à jour : {status_file}")
+
+
+def _write_status_yaml(path: Path, data: dict) -> None:
+    """Écrit un STATUS.yaml en préservant le format attendu."""
+    lines = [
+        f"# .nexus/STATUS.yaml — {data.get('repo', 'unknown')}",
+        f"# SOT: {_NEXUS_SOT}",
+        f"# Généré par: kiva nexus mutate",
+        f"# Généré le: {_now_iso()}",
+        "",
+        f"repo: {data.get('repo', '')}",
+        f"owner: {data.get('owner', _REPO_OWNER)}",
+        f"tier: {data.get('tier', 'L1-ACTIVE')}",
+        f"github_url: {data.get('github_url', '')}",
+        "",
+        f"nexus_status: {data.get('nexus_status', 'UNTRACKED')}",
+        f'last_synced_at: "{data.get("last_synced_at", _now_iso())}"',
+        f"conflict_flag: {str(data.get('conflict_flag', False)).lower()}",
+        "",
+        f"operational_owner: {data.get('operational_owner', 'gerivdb')}",
+        f"canonical_source: {data.get('canonical_source', _NEXUS_SOT)}",
+        f"ecos_root_sot: {data.get('ecos_root_sot', _ECOS_ROOT_SOT)}",
+        "",
+        f"entity_type: {data.get('entity_type', 'REPO')}",
+        f'nexus_version: "{data.get("nexus_version", "3.0.0")}"',
+        "",
+        f'intent_hash: "{data.get("intent_hash", "")}"',
+    ]
+
+    # Champs optionnels
+    for opt in ("sprint_active", "phi_cps_score", "drift_delta", "reciprocity_score"):
+        if opt in data and data[opt] is not None:
+            val = data[opt]
+            if isinstance(val, str):
+                lines.append(f'{opt}: "{val}"')
+            else:
+                lines.append(f"{opt}: {val}")
+
+    lines.append("")
+    path.write_text("\n".join(lines), encoding="utf-8")
+
+
+# ===========================================================================
+# SOUS-GROUPE: kiva nexus status
+# ===========================================================================
+
+@nexus_cli.command(name="status")
+@click.argument("repo")
+def nexus_status(repo: str):
+    """Affiche l'état condensé d'un repo.
+
+    Équivalent API : GET /api/v3/status/<repo>
+
+    Exemple :
+
+      kiva nexus status NEXUS
+    """
+    repo_path = _default_path(repo)
+    nexus_dir = repo_path / ".nexus"
+    status_file = nexus_dir / "STATUS.yaml"
+
+    click.echo(f"\n=== kiva nexus status :: {repo} ===")
+    click.echo(f"  Tier   : {_REPO_TIER.get(repo, 'L1-ACTIVE')}")
+    click.echo(f"  Path   : {repo_path}")
+    click.echo(f"  .nexus : {nexus_dir}")
+
+    if not status_file.exists():
+        click.echo(f"\n  [!!] Aucun STATUS.yaml trouvé — repo non tracké")
+        click.echo(f"  -> Initialiser : kiva nexus mutate --op create_tracking --path {repo_path}")
+        return
+
+    data = _read_yaml_file(status_file)
+    nexus_status_val = data.get("nexus_status", "UNKNOWN")
+    last_sync = data.get("last_synced_at", "-")
+    conflict = str(data.get("conflict_flag", "false")).lower() not in ("false", "0", "")
+
+    status_icon = "[!!]" if conflict else ("[?]" if nexus_status_val in ("UNTRACKED", "UNKNOWN") else "[ok]")
+
+    click.echo(f"\n  {status_icon} nexus_status    : {nexus_status_val}")
+    click.echo(f"     last_synced_at  : {last_sync}")
+    click.echo(f"     conflict_flag   : {conflict}")
+    click.echo(f"     owner           : {data.get('operational_owner', '-')}")
+    click.echo(f"     intent_hash     : {data.get('intent_hash', '-')}")
 
 
 # ---------------------------------------------------------------------------
@@ -233,12 +681,11 @@ def pipeline_list(pipelines_dir: Path | None, as_json: bool):
         name = p.stem
         rec = store.get_record(name)
         if rec is None:
-            # Créer un enregistrement minimal pour l'affichage
             schema_h = compute_schema_hash(p)
             rec = PipelineRecord(
                 name=name,
                 schema_hash=schema_h,
-                step_count=0,  # sera enrichi plus tard
+                step_count=0,
             )
 
         records.append({
@@ -252,7 +699,7 @@ def pipeline_list(pipelines_dir: Path | None, as_json: bool):
         })
 
     if as_json:
-        click.echo(json.dumps(records, indent=2, ensure_ascii=False))
+        click.echo(json_mod.dumps(records, indent=2, ensure_ascii=False))
         return
 
     if not records:
@@ -278,7 +725,6 @@ def pipeline_validate(name: str):
     """Valide le DAG et la structure d'un pipeline."""
     from kiva_cli.core.pipeline_loader import load_pipeline, detect_cycles
 
-    # Cherche le fichier
     candidates = discover_pipelines()
     target = None
     for p in candidates:
@@ -317,7 +763,6 @@ def pipeline_show(name: str):
 
     if rec is None:
         click.echo(f"Pipeline '{name}' inconnu dans le registry.", err=True)
-        # Try to see if the YAML exists at least
         candidates = discover_pipelines()
         if any(p.stem == name for p in candidates):
             click.echo(f"  (Le fichier .kiva/pipelines/{name}.yaml existe mais n'a jamais été exécuté)")
@@ -360,12 +805,11 @@ def pipeline_history(name: str, limit: int):
         return
 
     try:
-        events = wal.query_events(event_type="PIPELINE_RUN", limit=limit * 2)  # overfetch then filter
+        events = wal.query_events(event_type="PIPELINE_RUN", limit=limit * 2)
     except Exception as exc:
         click.echo(f"[WARN] Impossible de requêter le WAL : {exc}")
         return
 
-    # Filter client-side for this pipeline
     relevant = []
     for ev in events:
         payload = ev.get("payload") or {}
@@ -401,19 +845,7 @@ def pipeline_history(name: str, limit: int):
 @click.option("--json", "as_json", is_flag=True, default=False, help="Sortie JSON machine-readable")
 @click.option("--fail-on-drift", is_flag=True, default=False, help="Exit 1 si au moins un drift détecté")
 def pipeline_drift(pipelines_dir: Path | None, as_json: bool, fail_on_drift: bool):
-    """Détecte les dérives de schema_hash (YAML courant vs dernier run SUCCESS).
-
-    Compare le schema_hash enregistré lors du dernier SUCCESS avec
-    le hash calculé sur le YAML courant. Un drift = le YAML a changé
-    depuis le dernier run réussi.
-
-    Exit codes :
-      0 = aucun drift
-      1 = au moins un drift détecté (avec --fail-on-drift)
-      2 = store ou YAML inaccessible
-    """
-    import json as json_mod
-
+    """Détecte les dérives de schema_hash (YAML courant vs dernier run SUCCESS)."""
     try:
         store = PipelineRegistryStore()
     except Exception as exc:
@@ -471,55 +903,19 @@ def pipeline_drift(pipelines_dir: Path | None, as_json: bool, fail_on_drift: boo
 # ---------------------------------------------------------------------------
 
 @pipeline_cli.command(name="prune")
-@click.option(
-    "--dry-run",
-    is_flag=True,
-    default=False,
-    help="Affiche les orphelins sans les supprimer.",
-)
-@click.option(
-    "--force",
-    is_flag=True,
-    default=False,
-    help="Supprime sans confirmation interactive.",
-)
-@click.option(
-    "--name",
-    "names",
-    multiple=True,
-    help="Supprime uniquement les pipelines spécifiés (répétable).",
-)
+@click.option("--dry-run", is_flag=True, default=False, help="Affiche les orphelins sans les supprimer.")
+@click.option("--force", is_flag=True, default=False, help="Supprime sans confirmation interactive.")
+@click.option("--name", "names", multiple=True, help="Supprime uniquement les pipelines spécifiés (répétable).")
 @click.option("--json", "as_json", is_flag=True, default=False, help="Sortie JSON machine-readable.")
 def pipeline_prune(dry_run: bool, force: bool, names: tuple[str, ...], as_json: bool):
-    """Supprime les pipelines orphelins du registry.
-
-    Un pipeline est orphelin si :
-      - total_runs == 0 (jamais exécuté)
-      - operational_owner manquant
-      - dernier run > 30 jours
-
-    Modes :
-      kiva nexus pipeline prune --dry-run         → aperçu uniquement
-      kiva nexus pipeline prune                   → confirmation interactive
-      kiva nexus pipeline prune --force           → suppression directe
-      kiva nexus pipeline prune --name build      → cible spécifique
-
-    Exit codes :
-      0 = OK (rien à supprimer ou suppression réussie)
-      1 = annulé par l'utilisateur
-      2 = store inaccessible
-    """
-    import json as json_mod
-
+    """Supprime les pipelines orphelins du registry."""
     try:
         store = PipelineRegistryStore()
     except Exception as exc:
         click.echo(f"[ERROR] Store inaccessible : {exc}", err=True)
         sys.exit(2)
 
-    # -- Déterminer les cibles -----------------------------------------------
     if names:
-        # Mode ciblé : prune uniquement les noms explicites
         targets = []
         for n in names:
             rec = store.get_record(n)
@@ -528,10 +924,8 @@ def pipeline_prune(dry_run: bool, force: bool, names: tuple[str, ...], as_json: 
             else:
                 targets.append(rec)
     else:
-        # Mode auto : tous les orphelins
         targets = store.find_orphans()
 
-    # -- Sortie JSON ---------------------------------------------------------
     if as_json:
         payload = [
             {
@@ -550,7 +944,6 @@ def pipeline_prune(dry_run: bool, force: bool, names: tuple[str, ...], as_json: 
                 store.delete_record(r.name)
         return
 
-    # -- Affichage -----------------------------------------------------------
     click.echo(f"\n=== kiva nexus pipeline prune {'(DRY-RUN)' if dry_run else ''} ===")
 
     if not targets:
@@ -572,7 +965,6 @@ def pipeline_prune(dry_run: bool, force: bool, names: tuple[str, ...], as_json: 
         click.echo(f"  [DRY-RUN] {len(targets)} entrée(s) seraient supprimées. Relancer sans --dry-run pour confirmer.")
         return
 
-    # -- Confirmation / suppression ------------------------------------------
     if not force:
         if not _confirm_prune(targets):
             click.echo("  Annulé.")
@@ -590,7 +982,6 @@ def pipeline_prune(dry_run: bool, force: bool, names: tuple[str, ...], as_json: 
 
 
 def _orphan_reason(rec: PipelineRecord) -> str:
-    """Retourne la raison principale pour laquelle un record est orphelin."""
     if rec.total_runs == 0:
         return "jamais exécuté"
     if not rec.operational_owner or rec.operational_owner.strip() == "":
@@ -606,7 +997,6 @@ def _orphan_reason(rec: PipelineRecord) -> str:
 
 
 def _confirm_prune(targets: list) -> bool:
-    """Confirmation interactive avant suppression."""
     try:
         answer = click.prompt(
             f"  Supprimer {len(targets)} entrée(s) ? [y/N]",
@@ -620,8 +1010,6 @@ def _confirm_prune(targets: list) -> bool:
 
 # ---------------------------------------------------------------------------
 # kiva nexus sync  — NEXUS Weekly Sync (remplace GHA nexus-weekly-sync)
-# IntentHash: 0xKIVA_NEXUS_SYNC_LOCAL
-# GHA volontairement désactivé (budget) — exécution locale via Task Scheduler
 # ---------------------------------------------------------------------------
 
 _NEXUS_ROOT_DEFAULT = _L0_CANON_ROOT / "NEXUS"
@@ -660,21 +1048,15 @@ _NEXUS_SYNC_PIPELINE = [
         "script": "tools/nexus_watchdog.py",
         "args":   ["--create-issues"],
         "label":  "[5/5] Watchdog intégrité",
-        "fatal":  False,  # continue-on-error intentionnel (identique au GHA)
+        "fatal":  False,
     },
 ]
 
 
-def _run_sync_step(
-    step: dict,
-    nexus_root: Path,
-    dry_run: bool,
-    python_exe: str,
-) -> bool:
-    """Exécute un step du pipeline sync. Retourne True si OK (ou non-fatal)."""
+def _run_sync_step(step: dict, nexus_root: Path, dry_run: bool, python_exe: str) -> bool:
     script = nexus_root / step["script"]
-    cmd    = [python_exe, str(script)] + step["args"]
-    tag    = "DRY-RUN" if dry_run else "RUN"
+    cmd = [python_exe, str(script)] + step["args"]
+    tag = "DRY-RUN" if dry_run else "RUN"
 
     click.echo(f"\n  {step['label']}")
     click.echo(f"  [{tag}] {' '.join(str(c) for c in cmd)}")
@@ -701,37 +1083,12 @@ def _run_sync_step(
 
 
 @nexus_cli.command(name="sync")
-@click.option("--dry-run",       is_flag=True, help="Simule sans exécuter aucun script.")
-@click.option("--repo",          default=None, type=click.Path(), help="Chemin NEXUS (défaut: L0-CANON/NEXUS).")
+@click.option("--dry-run", is_flag=True, help="Simule sans exécuter aucun script.")
+@click.option("--repo", default=None, type=click.Path(), help="Chemin NEXUS (défaut: L0-CANON/NEXUS).")
 @click.option("--skip-watchdog", is_flag=True, help="Saute l'étape 5 (nexus_watchdog).")
-@click.option("--python",        default=sys.executable, help="Interpréteur Python (défaut: courant).")
+@click.option("--python", default=sys.executable, help="Interpréteur Python (défaut: courant).")
 def nexus_sync(dry_run: bool, repo: Optional[str], skip_watchdog: bool, python: str):
-    """Enchaîne les 5 scripts du weekly sync NEXUS en local.
-
-    Remplace le workflow GHA nexus-weekly-sync (désactivé volontairement —
-    coût GitHub Actions). Conçu pour Task Scheduler Windows (lundi 6h).
-
-    Pipeline exécuté :
-
-      1. nexus_sync.py --generate
-
-      2. nexus_changelog_gen.py
-
-      3. nexus_readme_gen.py
-
-      4. nexus_validate.py --check drift --create-issues
-
-      5. nexus_watchdog.py --create-issues   [continue-on-error]
-
-    Exemples :
-
-      kiva nexus sync
-
-      kiva nexus sync --dry-run
-
-      kiva nexus sync --repo D:\\DO\\WEB\\TOOLS\\L0-CANON\\NEXUS
-    """
-    import subprocess as _sp
+    """Enchaîne les 5 scripts du weekly sync NEXUS en local."""
     nexus_root = Path(repo) if repo else _NEXUS_ROOT_DEFAULT
 
     click.secho("\n" + "=" * 56, fg="cyan", bold=True)
@@ -745,7 +1102,7 @@ def nexus_sync(dry_run: bool, repo: Optional[str], skip_watchdog: bool, python: 
         click.secho(f"[ERROR] NEXUS root introuvable : {nexus_root}", fg="red")
         sys.exit(1)
 
-    steps   = [s for s in _NEXUS_SYNC_PIPELINE if not (skip_watchdog and s["name"] == "nexus_watchdog")]
+    steps = [s for s in _NEXUS_SYNC_PIPELINE if not (skip_watchdog and s["name"] == "nexus_watchdog")]
     success = 0
     failed: list[str] = []
 
@@ -847,14 +1204,12 @@ def tracking_init(repo: str, repo_path: Optional[str], dry_run: bool):
         (status_file, status_content, "STATUS.yaml"),
     ]:
         if fpath.exists():
-            click.echo(f"  [SKIP] {label} existe deja - non ecrase. Utilisez --force pour forcer.")
+            click.echo(f"  [SKIP] {label} existe deja - non ecrase.")
         else:
             fpath.write_text(content, encoding="utf-8")
             click.echo(f"  [OK] {label} cree : {fpath}")
 
     click.echo(f"\n[OK] .nexus/ initialise pour {repo}")
-    click.echo(f"   -> git add {nexus_dir} && git commit -m 'chore(nexus): init .nexus/ tracking [{repo}]'")
-    click.echo(f"   -> git push origin main")
 
 
 # ---------------------------------------------------------------------------
@@ -868,61 +1223,13 @@ def drift_cli():
 
 
 @drift_cli.command(name="check")
-@click.option(
-    "--repo", "repo_filter",
-    default=None,
-    help="Filtrer les alertes WAL pour un repo specifique."
-)
-@click.option(
-    "--since",
-    default=24,
-    show_default=True,
-    type=int,
-    help="Fenetre de recherche en heures (defaut: 24h)."
-)
-@click.option(
-    "--phi-only",
-    is_flag=True,
-    default=False,
-    help="Afficher uniquement les evenements avec phi_cps_alert=True."
-)
-@click.option(
-    "--status-scan",
-    is_flag=True,
-    default=False,
-    help="Scanner aussi les .nexus/STATUS.yaml des repos en L0-CANON."
-)
-@click.option(
-    "--limit",
-    default=20,
-    show_default=True,
-    type=int,
-    help="Nombre max d'evenements WAL a afficher."
-)
-def drift_check(
-    repo_filter: Optional[str],
-    since: int,
-    phi_only: bool,
-    status_scan: bool,
-    limit: int,
-):
-    """Detecte les derives phi-CPS et signale les alertes WAL NEXUS.
-
-    Sources consultees :
-      1. WAL global (~/.kiva/global_wal.db) — phi_cps_alert + validation_state
-      2. (optionnel) .nexus/STATUS.yaml de chaque repo L0-CANON
-
-    Exemples :
-
-      kiva nexus drift check
-
-      kiva nexus drift check --repo BLO --since 48
-
-      kiva nexus drift check --phi-only
-
-      kiva nexus drift check --status-scan
-    """
-    # -- Connexion WAL -------------------------------------------------------
+@click.option("--repo", "repo_filter", default=None, help="Filtrer les alertes WAL pour un repo specifique.")
+@click.option("--since", default=24, show_default=True, type=int, help="Fenetre de recherche en heures (defaut: 24h).")
+@click.option("--phi-only", is_flag=True, default=False, help="Afficher uniquement les evenements avec phi_cps_alert=True.")
+@click.option("--status-scan", is_flag=True, default=False, help="Scanner aussi les .nexus/STATUS.yaml des repos en L0-CANON.")
+@click.option("--limit", default=20, show_default=True, type=int, help="Nombre max d'evenements WAL a afficher.")
+def drift_check(repo_filter: Optional[str], since: int, phi_only: bool, status_scan: bool, limit: int):
+    """Detecte les derives phi-CPS et signale les alertes WAL NEXUS."""
     try:
         from kiva_cli.core.global_wal_manager import GlobalWALManager
         wal = GlobalWALManager()
@@ -930,7 +1237,6 @@ def drift_check(
         click.echo(f"[ERROR] WAL inaccessible : {exc}", err=True)
         sys.exit(1)
 
-    # -- 1. Drift phi-CPS global ---------------------------------------------
     click.echo("\n=== kiva nexus drift check ===")
     click.echo(f"    WAL     : ~/.kiva/global_wal.db")
     click.echo(f"    Fenetre : dernières {since}h")
@@ -946,23 +1252,19 @@ def drift_check(
         alert_count = drift.get("alert_count", 0)
         total_events = drift.get("events_since_baseline", 0)
 
-        drift_icon = "[!!]"
-        drift_ok = "[OK]"
-        phi_icon = drift_icon if exceeded else drift_ok
-
+        drift_icon = "[!!]" if exceeded else "[OK]"
         click.echo("--- phi-CPS global ---")
         click.echo(f"  baseline   : {drift.get('baseline_phi', 0.0):.6f}")
         click.echo(f"  current    : {drift.get('current_phi', 0.0):.6f}")
         click.echo(f"  delta      : {abs_drift:+.6f}  (relative: {rel_drift:+.2%})")
         click.echo(f"  threshold  : +/-{_PHI_DRIFT_THRESHOLD:.2%}")
-        click.echo(f"  status     : {phi_icon} {'DRIFT DETECTE' if exceeded else 'STABLE'}")
+        click.echo(f"  status     : {drift_icon} {'DRIFT DETECTE' if exceeded else 'STABLE'}")
         click.echo(f"  alerts     : {alert_count} / {total_events} events")
         click.echo("")
     except Exception as exc:
         click.echo(f"  [WARN] get_drift() indisponible : {exc}")
         click.echo("")
 
-    # -- 2. Evenements WAL avec alertes --------------------------------------
     start_time = (
         datetime.now(timezone.utc) - timedelta(hours=since)
     ).strftime("%Y-%m-%dT%H:%M:%S")
@@ -978,8 +1280,6 @@ def drift_check(
         click.echo(f"  [WARN] query_events() indisponible : {exc}")
         events = []
 
-    # Filtrage supplémentaire : si pas --phi-only, on remonte tous les events
-    # mais on met en valeur ceux avec phi_cps_alert
     click.echo(f"--- Evenements WAL (dernières {since}h{', phi-only' if phi_only else ''}) ---")
 
     if not events:
@@ -1003,7 +1303,6 @@ def drift_check(
             )
     click.echo("")
 
-    # -- 3. Scan .nexus/STATUS.yaml (optionnel) ------------------------------
     if status_scan:
         click.echo("--- Scan .nexus/STATUS.yaml (L0-CANON) ---")
         found_any = False
@@ -1013,30 +1312,13 @@ def drift_check(
             for status_file in sorted(tier_dir.glob("*/.nexus/STATUS.yaml")):
                 found_any = True
                 repo_name = status_file.parent.parent.name
-                # Filtre repo si spécifié
                 if repo_filter and repo_filter.lower() not in repo_name.lower():
                     continue
-                try:
-                    import yaml  # type: ignore
-                    data = yaml.safe_load(status_file.read_text(encoding="utf-8"))
-                except ImportError:
-                    # Fallback: lecture brute pour nexus_status + last_synced_at
-                    data = {}
-                    for line in status_file.read_text(encoding="utf-8").splitlines():
-                        if ":" in line and not line.strip().startswith("#"):
-                            k, _, v = line.partition(":")
-                            data[k.strip()] = v.strip().strip('"')
-                except Exception:
-                    data = {}
-
+                data = _read_yaml_file(status_file)
                 nexus_status = data.get("nexus_status", "UNKNOWN")
                 last_sync = data.get("last_synced_at", "-")
-                conflict = data.get("conflict_flag", "false")
-                conflict_flag = str(conflict).lower() not in ("false", "0", "")
-
-                status_icon = "[!!]" if conflict_flag else (
-                    "[?]" if nexus_status in ("UNTRACKED", "UNKNOWN") else "[ok]"
-                )
+                conflict = str(data.get("conflict_flag", "false")).lower() not in ("false", "0", "")
+                status_icon = "[!!]" if conflict else ("[?]" if nexus_status in ("UNTRACKED", "UNKNOWN") else "[ok]")
                 click.echo(
                     f"  {status_icon}  {repo_name:<24} status={nexus_status:<14} "
                     f"sync={str(last_sync)[:19]}  conflict={conflict}"
@@ -1045,7 +1327,6 @@ def drift_check(
             click.echo("  (aucun .nexus/STATUS.yaml trouvé dans L0-CANON / L1-ACTIVE)")
         click.echo("")
 
-    # -- 4. Pipeline schema drift (S3) ----------------------------------------
     click.echo("--- Pipeline schema drift ---")
     try:
         store = PipelineRegistryStore()
@@ -1062,7 +1343,6 @@ def drift_check(
         click.echo(f"  [WARN] Pipeline drift check indisponible : {exc}")
     click.echo("")
 
-    # -- 5. Résumé final -------------------------------------------------------
     click.echo("--- Résumé ---")
     if exceeded:
         click.echo("  [!!] DRIFT phi-CPS detecte — verifier les deltas et les pipelines recents")
@@ -1074,9 +1354,8 @@ def drift_check(
 
 
 # ---------------------------------------------------------------------------
-# kiva nexus sync   (P0.3 — local replacement for disabled GHA weekly sync)
+# kiva nexus sync (import depuis nexus_sync_command)
 # ---------------------------------------------------------------------------
-from .nexus_sync_command import nexus_sync_cmd
+from .nexus_sync_command import nexus_sync_cmd  # noqa: E402
 
 nexus_cli.add_command(nexus_sync_cmd)
-
