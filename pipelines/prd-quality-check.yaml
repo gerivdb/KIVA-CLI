@@ -1,0 +1,187 @@
+name: prd-quality-check
+version: "1.0.0"
+intent_hash: 0xKIVA_PRD_QUALITY_CHECK_20260619
+description: |
+  CI local ENV2 — Pipeline d'industrialisation qualite documentaire.
+  Detecte automatiquement les impenses-structurels, drifts-documentaires,
+  conflits SWARM et violations de fidelite semantique sur les PRDs.
+  PAS de GitHub Actions — tourne via KIVA-CLI on_merge ou cron.
+  Refs: PRD-043, PRD-044, PRD-045
+  Concepts: industrialisation-qualite-documentaire (ONTOLOGY)
+
+schedule: "0 */6 * * *"   # toutes les 6h
+on_merge:
+  - repo: gerivdb/GOVERNANCE-HUB
+    branch: main
+
+env:
+  GOV_HUB:      "D:/DO/WEB/TOOLS/L0-CANON/GOVERNANCE-HUB"
+  INTENTS_PATH: "D:/DO/WEB/TOOLS/L0-CANON/GOVERNANCE-HUB/INTENTS"
+  KIVA_PATH:    "D:/DO/WEB/TOOLS/L3-CITIZENS/KIVA-CLI"
+  REPORT_DIR:   "D:/DO/WEB/TOOLS/reports/prd-quality"
+  FIDELITY_MIN: "0.85"
+  PYTHON:       "python"
+
+# ── Etapes ──────────────────────────────────────────────────────────────────
+
+steps:
+
+  # ── GATE-0 : Validation frontmatter YAML ────────────────────────────────
+  - id: gate-frontmatter
+    name: "GATE-0 — Validation frontmatter PRDs (intent_hash, status, layer, priority)"
+    agent: Riddler
+    run: |
+      $PYTHON -c "
+      import sys, glob
+      from pathlib import Path
+      import re
+
+      required_fields = ['intent_hash', 'status', 'layer', 'priority']
+      prd_dir = Path('$INTENTS_PATH')
+      prds = list(prd_dir.glob('PRD-*.md'))
+      if not prds:
+          print('[SKIP] Aucun PRD trouve dans INTENTS/')
+          sys.exit(0)
+
+      errors = []
+      for prd in prds:
+          content = prd.read_text(encoding='utf-8', errors='replace')
+          # Extraire le bloc frontmatter YAML
+          m = re.match(r'^---\n(.*?)\n---', content, re.DOTALL)
+          if not m:
+              errors.append(f'[MISSING_FRONTMATTER] {prd.name}')
+              continue
+          fm = m.group(1)
+          for field in required_fields:
+              if field + ':' not in fm:
+                  errors.append(f'[MISSING_FIELD:{field}] {prd.name}')
+
+      if errors:
+          for e in errors: print(e)
+          sys.exit(1)
+      print(f'[OK] {len(prds)} PRD(s) valides — tous champs requis presents')
+      "
+    on_fail: ABORT
+    timeout_sec: 30
+
+  # ── STEP-1 : Cross-PRD audit (impenses + drifts + synergies) ────────────
+  - id: cross-prd-audit
+    name: "STEP-1 — cross_prd_audit.py (IMPENSE / DRIFT / SYNERGY detection)"
+    agent: Riddler
+    depends_on: [gate-frontmatter]
+    run: |
+      $PYTHON $GOV_HUB/scripts/cross_prd_audit.py \
+        --intents-dir  $INTENTS_PATH \
+        --output-dir   $REPORT_DIR \
+        --patterns     timeout,rollback,schema,protocol,governance,write-lock \
+        2>&1
+    on_fail: WARN
+    timeout_sec: 120
+    note: "Script a creer : GOVERNANCE-HUB/scripts/cross_prd_audit.py"
+
+  # ── GATE-1 : Aucun impense CRITIQUE non tague ────────────────────────────
+  - id: gate-critique
+    name: "GATE-1 — 0 IMPENSE CRITIQUE tolere en statut proposed"
+    agent: Riddler
+    depends_on: [cross-prd-audit]
+    run: |
+      $PYTHON -c "
+      import json, sys, glob
+      reports = glob.glob('$REPORT_DIR/cross_audit_report*.json')
+      if not reports:
+          print('[SKIP] Pas de rapport cross_audit — on continue')
+          sys.exit(0)
+      r = json.load(open(max(reports)))
+      critiques = [i for i in r.get('items', []) if i.get('severity') == 'CRITIQUE' and i.get('status') == 'open']
+      if critiques:
+          print(f'[ABORT] {len(critiques)} IMPENSE(S) CRITIQUE(S) open:')
+          for c in critiques:
+              print(f'  - {c[\"id\"]}: {c[\"description\"]}')
+          sys.exit(1)
+      total = len(r.get('items', []))
+      print(f'[OK] 0 critique open. Total items: {total}')
+      "
+    on_fail: ALERT_HITL
+    timeout_sec: 15
+
+  # ── STEP-2 : Verification fidelite semantique intent -> PRD ─────────────
+  - id: fidelity-check
+    name: "STEP-2 — traduction_fidelite_check.py (score >= 0.85)"
+    agent: Selina
+    depends_on: [gate-critique]
+    run: |
+      $PYTHON $GOV_HUB/scripts/traduction_fidelite_check.py \
+        --intents-dir  $INTENTS_PATH \
+        --min-score    $FIDELITY_MIN \
+        --output-dir   $REPORT_DIR \
+        2>&1
+    on_fail: WARN
+    timeout_sec: 90
+    note: "Script a creer : GOVERNANCE-HUB/scripts/traduction_fidelite_check.py"
+
+  # ── STEP-3 : Verification SWARM (conflits en cours) ─────────────────────
+  - id: swarm-check
+    name: "STEP-3 — swarm_check.py (conflits SWARM.yaml vs repos_cibles PRDs)"
+    agent: Alfred
+    depends_on: [fidelity-check]
+    run: |
+      $PYTHON $GOV_HUB/scripts/swarm_check.py \
+        --swarm-file   $GOV_HUB/SWARM.yaml \
+        --intents-dir  $INTENTS_PATH \
+        --output-dir   $REPORT_DIR \
+        2>&1 || echo '[INFO] SWARM.yaml absent ou swarm_check non disponible — skip'
+    on_fail: WARN
+    timeout_sec: 30
+    note: "Script a creer : GOVERNANCE-HUB/scripts/swarm_check.py (PRD-043)"
+
+  # ── STEP-4 : Mise a jour INTENT-000-index.md ────────────────────────────
+  - id: update-index
+    name: "STEP-4 — rss_lint.py --index rebuild (INTENT-000-index.md)"
+    agent: Alfred
+    depends_on: [swarm-check]
+    run: |
+      cd $KIVA_PATH
+      $PYTHON rss_lint.py \
+        --root     $GOV_HUB \
+        --index    rebuild \
+        --report   $REPORT_DIR/rss_lint_report.json \
+        2>&1
+    on_fail: WARN
+    timeout_sec: 60
+
+  # ── ARCHIVE : Rapport final ──────────────────────────────────────────────
+  - id: archive-report
+    name: "Archive — Copie rapports dans reports/prd-quality/YYYY-MM-DD/"
+    agent: Alfred
+    depends_on: [update-index]
+    run: |
+      $PYTHON -c "
+      import shutil
+      from pathlib import Path
+      from datetime import datetime
+      src  = Path('$REPORT_DIR')
+      dest = src / datetime.now().strftime('%Y-%m-%d')
+      dest.mkdir(parents=True, exist_ok=True)
+      copied = 0
+      for f in src.glob('*.json'):
+          shutil.copy2(f, dest / f.name)
+          copied += 1
+      print(f'[OK] {copied} rapport(s) archive(s) -> {dest}')
+      "
+    on_fail: WARN
+    timeout_sec: 30
+
+# ── HITL alert ───────────────────────────────────────────────────────────────
+
+on_alert_hitl:
+  action: create_issue
+  repo: gerivdb/ARGUS
+  title: "[PRD-QUALITY] Impense(s) CRITIQUE(S) detecte(s) — HITL requis"
+  labels: [critical, prd-quality, hitl, impense]
+  body: |
+    Le pipeline prd-quality-check a detecte des impenses CRITIQUES open
+    dans les PRDs au statut proposed.
+    Rapport: $REPORT_DIR/cross_audit_report-latest.json
+    Action manuelle requise avant le prochain cycle.
+    HITL schedule : 16h00 -> 07h30 CEST
+    Refs: industrialisation-qualite-documentaire (ONTOLOGY)
