@@ -1,0 +1,16 @@
+# .swarm/node.yaml — Carte d'identité holographique
+# Chaque repo gerivdb possède ce fichier : c'est son ADN dans l'organisme
+# IntentHash: 0xSWARM_NODE_GENOME_20260622
+node:
+  name: KIVA-CLI
+  full_name: gerivdb/KIVA-CLI
+  url: https://github.com/gerivdb/KIVA-CLI
+  layer: L1_CAUSALITY
+  strate: L1_CAUSALITY
+  role: "Interface CLI de KIVA"
+  lens: warm
+  phi_cps: 1.0
+  thousand_brains_ref: false
+  do_not_create: true
+  upstream: ["KIVA"]
+  downstream: []
