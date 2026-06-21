@@ -181,3 +181,13 @@ phase_1b_planned:
   - Template hot-reload
   - Health monitoring
   - Rollback history UI
+
+## SWARM Coordination (OBLIGATOIRE — ADR-089)
+# Avant toute action sur un repo, vérifier SWARM.yaml :
+# 1. Pull GOVERNANCE-HUB: git -C D:\DO\WEB\TOOLS\L0-CANON\GOVERNANCE-HUB pull --rebase origin main
+# 2. Lire SWARM.yaml: instances actives + repos occupés
+# 3. Si repo occupé → ATTENDRE ou RÉORIENTER
+# 4. Si repo libre → RÉSERVER: python scripts/swarm_check.py --reserve --repos REPO --task "description"
+# 5. Après push → LIBÉRER: python scripts/swarm_check.py --release
+# Fichier: D:\DO\WEB\TOOLS\L0-CANON\GOVERNANCE-HUB\SWARM.yaml
+# Script: D:\DO\WEB\TOOLS\L0-CANON\GOVERNANCE-HUB\scripts\swarm_check.py
