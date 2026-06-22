@@ -138,7 +138,7 @@ def get_depth(repo_path: Path, rssignore_patterns: list = None) -> int:
     return 4 if max_depth >= 3 else 2
 
 
-def scan_repo(repo_path: str, depth: int = None) -> dict:
+def scan_repo(repo_path: str, depth: int = None, skip_depth: bool = False) -> dict:
     """Scan un repo et retourne les violations."""
     repo = Path(repo_path)
     if not repo.exists():
@@ -202,24 +202,25 @@ def scan_repo(repo_path: str, depth: int = None) -> dict:
             violations["missing_dirs"].append(required_dir)
 
     # Vérifier la profondeur des sous-dossiers (avec pruning .rssignore via os.walk)
-    import os
-    for root, dirs, files in os.walk(repo_path, topdown=True):
-        rel_root = Path(root).relative_to(repo)
-        parts = rel_root.parts if str(rel_root) != "." else ()
-        # Pruner les dossiers ignorés et internes
-        if rssignore_patterns:
-            dirs[:] = [d for d in dirs if not _is_ignored(parts + (d,), rssignore_patterns)]
-        if parts and (parts[0].startswith(".git") or parts[0].startswith(".kilo") or
-                      parts[0] in ("node_modules", ".venv", "__pycache__", "temp_skills")):
-            dirs.clear()
-            continue
-        current_depth = len(parts)
-        if current_depth > depth:
-            violations["depth_exceeded"].append({
-                "path": str(rel_root),
-                "depth": current_depth,
-                "max": depth,
-            })
+    if not skip_depth:
+        import os
+        for root, dirs, files in os.walk(repo_path, topdown=True):
+            rel_root = Path(root).relative_to(repo)
+            parts = rel_root.parts if str(rel_root) != "." else ()
+            # Pruner les dossiers ignorés et internes
+            if rssignore_patterns:
+                dirs[:] = [d for d in dirs if not _is_ignored(parts + (d,), rssignore_patterns)]
+            if parts and (parts[0].startswith(".git") or parts[0].startswith(".kilo") or
+                          parts[0] in ("node_modules", ".venv", "__pycache__", "temp_skills")):
+                dirs.clear()
+                continue
+            current_depth = len(parts)
+            if current_depth > depth:
+                violations["depth_exceeded"].append({
+                    "path": str(rel_root),
+                    "depth": current_depth,
+                    "max": depth,
+                })
 
     # Pour les repos complexes : vérifier que les fichiers de config/ ne sont pas à la racine
     if depth == 4:
@@ -545,7 +546,7 @@ def main():
                 print(f"  [SKIP] Dossier inexistant ou type non supporte: {d}")
         sys.exit(0)
 
-    violations = scan_repo(args.repo, depth)
+    violations = scan_repo(args.repo, depth, skip_depth=skip_depth)
 
     total_violations = (
         len(violations["forbidden_root"]) +

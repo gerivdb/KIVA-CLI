@@ -1,0 +1,43 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "0xDEP_GRAPH_SCHEMA_20260620",
+  "title": "dep_graph",
+  "description": "Schema de validation du graphe de dependances inter-EPICs du metacluster gerivdb/",
+  "type": "object",
+  "required": ["version", "intent_hash", "generated", "topos_ref", "epics"],
+  "properties": {
+    "version":     { "type": "string", "pattern": "^\\d+\\.\\d+$" },
+    "intent_hash": { "type": "string", "pattern": "^0x[A-Z0-9_]+$" },
+    "generated":   { "type": "string", "format": "date-time" },
+    "generator":   { "type": "string" },
+    "consumed_by": { "type": "array", "items": { "type": "string" } },
+    "topos_ref": {
+      "type": "object",
+      "required": ["cache", "eecs"],
+      "properties": {
+        "cache": { "type": "string" },
+        "eecs":  { "type": "string" }
+      }
+    },
+    "epics": {
+      "type": "object",
+      "patternProperties": {
+        "^EPIC-\\d{3}$": {
+          "type": "object",
+          "required": ["title", "repo", "strata", "priority", "env", "status", "blocked_by", "blocks"],
+          "properties": {
+            "title":      { "type": "string" },
+            "repo":       { "type": "string" },
+            "strata":     { "type": "string", "pattern": "^L[0-9]+[ab]?$" },
+            "priority":   { "type": "string", "enum": ["CRITICAL", "HIGH", "MEDIUM", "LOW"] },
+            "env":        { "type": "string", "pattern": "^ENV[0-9]" },
+            "status":     { "type": "string", "enum": ["proposed", "in-progress", "done", "blocked", "cancelled"] },
+            "blocked_by": { "type": "array", "items": { "type": "string", "pattern": "^EPIC-\\d{3}$" } },
+            "blocks":     { "type": "array", "items": { "type": "string", "pattern": "^EPIC-\\d{3}$" } },
+            "issue_url":  { "type": ["string", "null"] }
+          }
+        }
+      }
+    }
+  }
+}

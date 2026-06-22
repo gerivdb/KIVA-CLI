@@ -58,6 +58,9 @@ from kiva_cli.commands.epic_commands import epic_cli
 from kiva_cli.commands.gate_command import gate_cli
 from kiva_cli.commands.nexus_commands import nexus_cli
 from kiva_cli.commands.pipeline_commands import pipeline_cli
+from kiva_cli.commands.topos_commands import topos_cli
+from kiva_cli.commands.trix_commands import trix_cli
+from kiva_cli.commands.tql_commands import tql_cli
 from kiva_cli.commands.audit_commands import audit
 from kiva_cli.commands.mc_rnn_ci import mc_rnn_ci
 from kiva_cli.commands.merge_commands import merge_cli
@@ -95,8 +98,11 @@ def cli():
     - zvec vector database
     - EPIC-centric development mode
     - NEXUS governance (.nexus/ tracking per repo)
-    - Pipeline chain execution (KIVA-008: DAG, on_failure, WAL, phi_delta)
-    - Branch Routing & Governance System (BRGS) audit
+ - Pipeline chain execution (KIVA-008: DAG, on_failure, WAL, phi_delta)
+     - TOPOS topology sync/diff/export (EPIC-204)
+     - TRIX snapshot pipeline (EPIC-202: lycos.snapshot -> semantic chunks)
+     - TQL query engine (EPIC-203: DEPS/CONSUMERS/INTERFACES/STATUS/PATH)
+     - Branch Routing & Governance System (BRGS) audit
     """
     pass
 
@@ -130,6 +136,9 @@ cli.add_command(zvec_cli, name="zvec")
 cli.add_command(epic_cli, name="epic")
 cli.add_command(nexus_cli, name="nexus")
 cli.add_command(pipeline_cli, name="pipeline")
+cli.add_command(topos_cli, name="topos")
+cli.add_command(trix_cli, name="trix")
+cli.add_command(tql_cli, name="tql")
 cli.add_command(audit, name='audit')
 cli.add_command(mc_rnn_ci, name='mc-rnn-ci')
 cli.add_command(merge_cli, name='merge')

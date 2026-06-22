@@ -1,0 +1,226 @@
+{
+  "version": "1.1",
+  "intent_hash": "0xDEP_GRAPH_NEXUS_SOT_20260620",
+  "generated": "2026-06-20T22:53:00Z",
+  "generator": "manual-bootstrap — ecos blo dep sync a implementer (EPIC-079)",
+  "topos_ref": {
+    "cache": "TOPOS/matrix/repo-structure-cache.yaml",
+    "eecs":  "TOPOS/matrix/eecs_matrix.yaml"
+  },
+  "consumed_by": [
+    "ECOS-CLI/context_bridge.py (EPIC-077)",
+    "TOPOS/tools/topos_validator.py (mode --dep-graph, a implementer)",
+    "LLM-REPO/LLM_BOOT_PROTOCOL.md (GATE-2)"
+  ],
+  "epics": {
+    "EPIC-061": {
+      "title": "tql-content-dependent-routing",
+      "repo": "TRIX",
+      "strata": "L3",
+      "priority": "HIGH",
+      "env": "ENV2-z600",
+      "status": "proposed",
+      "blocked_by": [],
+      "blocks": [],
+      "issue_url": null
+    },
+    "EPIC-062": {
+      "title": "drift-detect-sparse-delta",
+      "repo": "TRIX",
+      "strata": "L3",
+      "priority": "HIGH",
+      "env": "ENV2-z600",
+      "status": "proposed",
+      "blocked_by": [],
+      "blocks": [],
+      "issue_url": null
+    },
+    "EPIC-063": {
+      "title": "yarn-incremental-agent-ram",
+      "repo": "TRIX",
+      "strata": "L3",
+      "priority": "HIGH",
+      "env": "ENV2-z600",
+      "status": "proposed",
+      "blocked_by": [],
+      "blocks": [],
+      "issue_url": null
+    },
+    "EPIC-064": {
+      "title": "sparse-gate-router-matrix",
+      "repo": "TRIX",
+      "strata": "L3",
+      "priority": "HIGH",
+      "env": "ENV2-z600",
+      "status": "proposed",
+      "blocked_by": [],
+      "blocks": [],
+      "issue_url": null
+    },
+    "EPIC-065": {
+      "title": "wal-positional-replay",
+      "repo": "TRIX",
+      "strata": "L3",
+      "priority": "HIGH",
+      "env": "ENV2-z600",
+      "status": "proposed",
+      "blocked_by": [],
+      "blocks": [],
+      "issue_url": null
+    },
+    "EPIC-066": {
+      "title": "epic-attention-patch-policy",
+      "repo": "GOVERNANCE-HUB",
+      "strata": "L0",
+      "priority": "CRITICAL",
+      "env": "ENV2-z600",
+      "status": "proposed",
+      "blocked_by": [],
+      "blocks": [],
+      "issue_url": null
+    },
+    "EPIC-067": {
+      "title": "gerivdb-ruler-benchmark",
+      "repo": "GOVERNANCE-HUB",
+      "strata": "L0",
+      "priority": "CRITICAL",
+      "env": "ENV2-z600",
+      "status": "proposed",
+      "blocked_by": [],
+      "blocks": [],
+      "issue_url": null
+    },
+    "EPIC-068": {
+      "title": "vale-batch-cross-doc-lint",
+      "repo": "GOVERNANCE-HUB",
+      "strata": "L0",
+      "priority": "CRITICAL",
+      "env": "ENV2-z600",
+      "status": "proposed",
+      "blocked_by": [],
+      "blocks": [],
+      "issue_url": null
+    },
+    "EPIC-069": {
+      "title": "causal-prereqs-dag-parallel",
+      "repo": "TRIX",
+      "strata": "L3",
+      "priority": "HIGH",
+      "env": "ENV2-z600",
+      "status": "proposed",
+      "blocked_by": [],
+      "blocks": [],
+      "issue_url": null
+    },
+    "EPIC-070": {
+      "title": "session-scope-infer-t40",
+      "repo": "TRIX",
+      "strata": "L3",
+      "priority": "HIGH",
+      "env": "ENV2-z600",
+      "status": "proposed",
+      "blocked_by": [],
+      "blocks": [],
+      "issue_url": null
+    },
+    "EPIC-071": {
+      "title": "blo-cycleguard-meta-pipeline",
+      "repo": "ECOS-CLI",
+      "strata": "L3",
+      "priority": "HIGH",
+      "env": "ENV2-z600",
+      "status": "proposed",
+      "blocked_by": [],
+      "blocks": ["EPIC-072"],
+      "issue_url": null
+    },
+    "EPIC-072": {
+      "title": "cycleguard-validator-engine",
+      "repo": "ECOS-CLI",
+      "strata": "L3",
+      "priority": "HIGH",
+      "env": "ENV2-z600",
+      "status": "proposed",
+      "blocked_by": ["EPIC-071"],
+      "blocks": ["EPIC-073"],
+      "issue_url": null
+    },
+    "EPIC-073": {
+      "title": "cycle-index-nexus-sot",
+      "repo": "NEXUS",
+      "strata": "L1",
+      "priority": "CRITICAL",
+      "env": "ENV2-z600",
+      "status": "proposed",
+      "blocked_by": ["EPIC-072"],
+      "blocks": ["EPIC-074", "EPIC-077"],
+      "issue_url": null
+    },
+    "EPIC-074": {
+      "title": "ecos-blo-cycle-cli",
+      "repo": "ECOS-CLI",
+      "strata": "L3",
+      "priority": "HIGH",
+      "env": "ENV2-z600",
+      "status": "proposed",
+      "blocked_by": ["EPIC-073"],
+      "blocks": ["EPIC-075"],
+      "issue_url": null
+    },
+    "EPIC-075": {
+      "title": "cycle-anything-meta-tool",
+      "repo": "ECOS-CLI",
+      "strata": "L3",
+      "priority": "HIGH",
+      "env": "ENV2-z600",
+      "status": "proposed",
+      "blocked_by": ["EPIC-074"],
+      "blocks": ["EPIC-076"],
+      "issue_url": null
+    },
+    "EPIC-076": {
+      "title": "cycle-guard-iris-hitl-alert",
+      "repo": "ECOS-CLI",
+      "strata": "L3",
+      "priority": "HIGH",
+      "env": "ENV2-z600",
+      "status": "proposed",
+      "blocked_by": ["EPIC-075"],
+      "blocks": [],
+      "issue_url": null
+    },
+    "EPIC-077": {
+      "title": "context-bridge-session-loader",
+      "repo": "ECOS-CLI",
+      "strata": "L3",
+      "priority": "HIGH",
+      "env": "ENV2-z600",
+      "status": "proposed",
+      "blocked_by": ["EPIC-073", "EPIC-079"],
+      "blocks": [],
+      "issue_url": "https://github.com/gerivdb/ECOS-CLI/issues/964"
+    },
+    "EPIC-078": {
+      "title": "ctulu-autodiscover-intents-scan",
+      "repo": "CTULU",
+      "strata": "L3",
+      "priority": "HIGH",
+      "env": "ENV2-z600",
+      "status": "proposed",
+      "blocked_by": [],
+      "blocks": ["EPIC-077"],
+      "issue_url": "https://github.com/gerivdb/CTULU/issues/30"
+    },
+    "EPIC-079": {
+      "title": "dep-graph-json-nexus-sot",
+      "repo": "NEXUS",
+      "strata": "L1",
+      "priority": "CRITICAL",
+      "env": "ENV2-z600",
+      "status": "in-progress",
+      "blocked_by": [],
+      "blocks": ["EPIC-077"],
+      "issue_url": "https://github.com/gerivdb/NEXUS/issues/106"
+    }
+  }
+}
