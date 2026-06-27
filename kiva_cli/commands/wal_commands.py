@@ -486,3 +486,163 @@ def export_audit(output_path: str, format: str):
 
 if __name__ == '__main__':
     wal_cli()
+
+
+# =============================================================================
+# HITL GATE COMMANDS (INTENT-GT-015-HITL-GATE-DECLARATIF)
+# IntentHash: 0xTRIX_GT015_HITL_GATE_DECLARATIF_20260627
+# =============================================================================
+
+import os
+
+
+@wal_cli.command(name='hitl-approve')
+@click.option(
+    '--reason', '-r',
+    required=True,
+    help='Raison de la validation HITL (ex: "review PR #77", "hotfix critique")'
+)
+@click.option(
+    '--repo',
+    default=None,
+    help='Repo concerne (defaut: repo courant)'
+)
+def hitl_approve(reason: str, repo: Optional[str]):
+    """
+    Documente une validation HITL (Human-In-The-Loop) dans le WAL.
+
+    Utilise pour autoriser un push force ou bypasser un gate LEC.
+    Le HITL doit etre documente AVANT l'action bloquante.
+
+    Exemples:
+        kiva wal hitl-approve --reason "review PR #77 roadmap-generator"
+        kiva wal hitl-approve -r "hotfix critique" --repo CTULU
+    """
+    wal = GlobalWALManager()
+
+    event_id = wal.append_event(
+        event_type=EventType.VALIDATION,
+        repositories=[repo] if repo else ["unknown"],
+        phi_cps_baseline=1.0,
+        phi_cps_current=1.0,
+        severity=Severity.INFO,
+        description=f"HITL approve: {reason}",
+        metadata={
+            "reason": reason,
+            "approved_by": os.environ.get("USER", "unknown"),
+            "timestamp": datetime.utcnow().isoformat(),
+            "gate": "HITL_DECLARATIF",
+            "intent_hash": "0xTRIX_GT015_HITL_GATE_DECLARATIF_20260627",
+        },
+        auto_approved=True,
+    )
+
+    click.echo("")
+    click.echo("HITL APPROVED")
+    click.echo("-" * 40)
+    click.echo(f"  Event ID: {event_id}")
+    click.echo(f"  Reason: {reason}")
+    click.echo(f"  Repo: {repo or 'current'}")
+    click.echo(f"  Status: HITL_OK")
+    click.echo("")
+    click.echo("Vous pouvez maintenant forcer le push (git push --force)")
+
+
+@wal_cli.command(name='hitl-check')
+@click.option(
+    '--repo',
+    default=None,
+    help='Repo a verifier (defaut: repo courant)'
+)
+def hitl_check(repo: Optional[str]):
+    """
+    Verifie si un HITL valide existe dans le WAL pour le repo courant.
+
+    Retourne HITL_OK si un HITL recent (< 24h) existe.
+    Retourne NO_HITL sinon (exit code 1).
+
+    Exemples:
+        kiva wal hitl-check
+        kiva wal hitl-check --repo CTULU
+    """
+    wal = GlobalWALManager()
+
+    # Chercher un HITL recent (< 24h) dans les metadata
+    cutoff = (datetime.utcnow() - timedelta(hours=24)).isoformat()
+    events = wal.query_events(
+        start_time=cutoff,
+        limit=50,
+    )
+
+    # Filtrer les events HITL manuellement (metadata JSON)
+    hitl_events = []
+    for evt in events:
+        meta = evt.get("metadata", {})
+        if isinstance(meta, str):
+            try:
+                meta = json.loads(meta)
+            except (json.JSONDecodeError, TypeError):
+                meta = {}
+        if meta is None:
+            meta = {}
+        if meta.get("gate") == "HITL_DECLARATIF":
+            if repo is None or repo in evt.get("repositories", []):
+                hitl_events.append(evt)
+
+    if hitl_events:
+        evt = hitl_events[-1]
+        meta = evt.get("metadata", {})
+        if isinstance(meta, str):
+            meta = json.loads(meta)
+        click.echo("HITL_OK")
+        click.echo(f"  Event ID: {evt.get('event_id', 'unknown')}")
+        click.echo(f"  Reason: {meta.get('reason', 'N/A')}")
+        click.echo(f"  Approved by: {meta.get('approved_by', 'N/A')}")
+        sys.exit(0)
+    else:
+        click.echo("NO_HITL")
+        sys.exit(1)
+
+
+@wal_cli.command(name='status')
+@click.option(
+    '--repo',
+    default=None,
+    help='Repo a verifier'
+)
+@click.option(
+    '--max-age-minutes',
+    type=int,
+    default=60,
+    help='Age max en minutes (defaut: 60)'
+)
+def wal_status(repo: Optional[str], max_age_minutes: int):
+    """
+    Verifie si une entree WAL recente existe pour le repo.
+
+    Retourne WAL_OK si une entree recente existe.
+    Retourne NO_WAL sinon (exit code 1).
+
+    Exemples:
+        kiva wal status --repo CTULU
+        kiva wal status --max-age-minutes 120
+    """
+    wal = GlobalWALManager()
+
+    cutoff = (datetime.utcnow() - timedelta(minutes=max_age_minutes)).isoformat()
+    events = wal.query_events(
+        repo=repo,
+        start_time=cutoff,
+        limit=1,
+    )
+
+    if events:
+        evt = events[0]
+        click.echo("WAL_OK")
+        click.echo(f"  Event ID: {evt.get('event_id', 'unknown')}")
+        click.echo(f"  Operation: {evt.get('event_type', 'N/A')}")
+        click.echo(f"  Repo: {', '.join(evt.get('repositories', ['N/A']))}")
+        sys.exit(0)
+    else:
+        click.echo("NO_WAL")
+        sys.exit(1)
