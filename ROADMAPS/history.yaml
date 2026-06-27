@@ -1,0 +1,14 @@
+amendments: []
+date: '2026-06-27'
+entries:
+- action: creation
+  actor: Kilo agent (phase2-generator)
+  changes:
+  - Création ROADMAPS/ avec 5 fichiers
+  date: '2026-06-27T00:09:30+00:00'
+  description: Phase 2 — génération automatique de la roadmap
+  intent_hash: 0XKIVA-CLI_ROADMAP_V1_20260627
+intent_hash: 0XKIVA-CLI_ROADMAP_V1_20260627
+repo: gerivdb/KIVA-CLI
+type: ROADMAP_HISTORY
+version: '1.0'
