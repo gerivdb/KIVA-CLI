@@ -1,0 +1,35 @@
+date: '2026-06-27'
+intent_hash: 0XKIVA-CLI_ROADMAP_V1_20260627
+milestones:
+- dependencies: []
+  description: Déploiement RSS-v3 via generate_roadmap_template.py
+  id: M-001
+  name: ROADMAPS/ initial
+  owner: KIVA-CLI core
+  reference: ADR-20260625-003-VECTUS
+  status: done
+  target_date: '2026-06-26'
+  unlocks:
+  - VECTOR_COLLECTOR
+  - RESULTANTE_ENGINE
+- dependencies:
+  - M-001
+  description: INTENT-000-index
+  id: M-002
+  name: INTENT-000-index
+  owner: KIVA-CLI core
+  status: not_started
+  target_date: '2026-07-26'
+  unlocks: []
+- dependencies:
+  - M-001
+  description: INVERSE-IR -- Reconstruction d'un repo scaffold phi-conforme
+  id: M-003
+  name: INVERSE-IR -- Reconstruction d'un repo scaffold phi-conforme
+  owner: KIVA-CLI core
+  status: not_started
+  target_date: '2026-08-26'
+  unlocks: []
+repo: gerivdb/KIVA-CLI
+type: ROADMAP_MILESTONES
+version: '1.0'
