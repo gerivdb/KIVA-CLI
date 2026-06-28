@@ -1,0 +1,41 @@
+date: '2026-06-27'
+intent_hash: 0XKIVA-CLI_ROADMAP_V2_20260627
+repo: gerivdb/KIVA-CLI
+type: ROADMAP_VECTOR
+vector:
+  _inference_source: auto-generated (phase 2)
+  _inferred: false
+  dimensions:
+    d0_stabilisation: 0.0
+    d1_extension: 1.0
+    d2_integration: 0.3
+    d3_formalisation: 1.0
+    d4_deprecation: 0.1
+    d5_performance: 0.2
+    d6_gouvernance: 0.4
+    d7_experimentation: 0.3
+  direction:
+  - INTENT-000-index
+  - INVERSE-IR -- Reconstruction d'un repo scaffold phi-conforme depuis un IRNode-seed
+  horizon: 90d
+  last_amended: '2026-06-27T00:09:30+00:00'
+  mass: 1.0
+  thought_commits:
+  - date: '2026-06-27'
+    delta_vector:
+    - 0.0
+    - 1.0
+    - 0.3
+    - 1.0
+    - 0.1
+    - 0.2
+    - 0.4
+    - 0.3
+    event: phase2_auto_generation
+    significance: 0.75
+  velocity_observed: 0.0
+  vision_layer:
+    fractale_strate: Roadmap auto-générée le 2026-06-27.
+    holovision: KIVA-CLI est un composant actif du méta-cluster gerivdb.
+    omnivision_role: Vue unifiée des 2 intents de KIVA-CLI.
+version: '2.0'
