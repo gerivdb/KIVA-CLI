@@ -17,6 +17,19 @@ ECOS-CLI unified command-line interface for:
 
 import sys
 from pathlib import Path
+
+# Fix Windows console encoding for Unicode characters (e.g. φ)
+# See: https://github.com/gerivdb/KIVA-CLI/issues/???
+if sys.stdout.encoding and sys.stdout.encoding.lower() not in ('utf-8', 'utf8'):
+    try:
+        sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+        sys.stderr.reconfigure(encoding='utf-8', errors='replace')
+    except AttributeError:
+        # Python < 3.7 fallback (not strictly needed, kept for safety)
+        import io as _io
+        sys.stdout = _io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+        sys.stderr = _io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
+
 # Fix: ensure KIVA-CLI root is first in sys.path to avoid shadowing by NEXUS/tools
 _kiva_root = str(Path(__file__).resolve().parent.parent)
 # Remove any cached 'tools' module that may have been loaded from another path
