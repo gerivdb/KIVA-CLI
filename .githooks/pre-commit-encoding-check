@@ -1,0 +1,139 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+"""
+pre-commit-encoding-check — Bloque les commits contenant des caracteres hors CP1252
+dans les fichiers de config/gouvernance (*.yaml, *.md, *.sh, *.ps1).
+
+IntentHash: 0xPRE_COMMIT_ENCODING_CHECK_20260603
+Version: 1.0.0
+
+Installation:
+    git config core.hooksPath .githooks
+
+Ce hook est concu pour ENV2 (Windows 10 CP1252). Il verifie que les fichiers
+de config/gouvernance ne contiennent pas de caracteres Unicode > U+007F
+(emojis, box-drawing, fleches, symboles mathematiques).
+
+Les fichiers .md narratifs (README, docs/) sont tolerances.
+Les fichiers .html et .json avec BOM sont tolerances.
+"""
+
+import os
+import re
+import sys
+import subprocess
+from pathlib import Path
+
+VERSION = "1.0.0"
+INTENT_HASH = "0xPRE_COMMIT_ENCODING_CHECK_20260603"
+
+# Extensions verifiees
+CHECKED_EXTENSIONS = {".yaml", ".yml", ".md", ".sh", ".ps1"}
+
+# Dossiers tolerances (pas de check encoding)
+TOLERATED_DIRS = {"docs/", "DOCS/", "html/", "HTML/"}
+
+# Pattern: tout caractere > U+007F (hors ASCII de base)
+# On tolere U+0080-U+00FF (CP1252 etendu: accents FR, etc.)
+# On bloque U+0100+ (Unicode: emojis, box-drawing, fleches, etc.)
+NON_ASCII_PATTERN = re.compile(r"[\u0100-\uFFFF]")
+
+# Fichiers tolerances (narratifs)
+TOLERATED_FILES = {"README.md", "CHANGELOG.md", "CONTRIBUTING.md", "LICENSE"}
+
+
+def get_staged_files():
+    """Retourne la liste des fichiers staged pour le commit."""
+    result = subprocess.run(
+        ["git", "diff", "--cached", "--name-only", "--diff-filter=ACM"],
+        capture_output=True, text=True
+    )
+    if result.returncode != 0:
+        return []
+    return [f.strip() for f in result.stdout.splitlines() if f.strip()]
+
+
+def is_tolerated(filepath):
+    """Verifie si le fichier est tolerant (narratif ou dossier docs)."""
+    fname = os.path.basename(filepath)
+    if fname in TOLERATED_FILES:
+        return True
+    for d in TOLERATED_DIRS:
+        if d in filepath:
+            return True
+    return False
+
+
+def check_file(filepath):
+    """
+    Verifie un fichier. Retourne (ok, violations).
+    violations = liste de (ligne_num, ligne_content, chars_interdits)
+    """
+    ext = Path(filepath).suffix.lower()
+    if ext not in CHECKED_EXTENSIONS:
+        return True, []
+
+    if is_tolerated(filepath):
+        return True, []
+
+    if not os.path.exists(filepath):
+        return True, []
+
+    violations = []
+    try:
+        with open(filepath, "r", encoding="utf-8") as f:
+            for line_num, line in enumerate(f, 1):
+                match = NON_ASCII_PATTERN.search(line)
+                if match:
+                    # Extraire les caracteres problematiques
+                    bad_chars = set(NON_ASCII_PATTERN.findall(line))
+                    violations.append((line_num, line.rstrip(), bad_chars))
+    except (UnicodeDecodeError, IOError):
+        # Fichier binaire ou illisible — skip
+        return True, []
+
+    return len(violations) == 0, violations
+
+
+def main():
+    staged = get_staged_files()
+    if not staged:
+        sys.exit(0)
+
+    total_violations = 0
+    files_with_violations = []
+
+    for filepath in staged:
+        ok, violations = check_file(filepath)
+        if not ok:
+            total_violations += len(violations)
+            files_with_violations.append((filepath, violations))
+
+    if total_violations == 0:
+        sys.exit(0)
+
+    # Rapport
+    print(f"[ENCODING BLOCK] {total_violations} caractere(s) hors CP1252 detecte(s)")
+    print(f"[ENCODING BLOCK] IntentHash: {INTENT_HASH}")
+    print()
+
+    for filepath, violations in files_with_violations:
+        print(f"  {filepath}")
+        for line_num, line_content, bad_chars in violations[:5]:  # Max 5 par fichier
+            chars_str = ", ".join(f"U+{ord(c):04X}" for c in sorted(bad_chars))
+            safe_line = line_content[:80].encode("ascii", errors="replace").decode("ascii")
+            print(f"    L{line_num}: [{chars_str}] {safe_line}")
+        if len(violations) > 5:
+            print(f"    ... et {len(violations) - 5} autres lignes")
+        print()
+
+    print("Remplacer les emojis/box-drawing par des equivalents ASCII:")
+    print("  [OK] / [KO] / [WARN] / [CFG] / [HOT] / -> / != / ...")
+    print()
+    print("Pour forcer le commit (deconseille): git commit --no-verify")
+
+    sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()
