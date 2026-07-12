@@ -1,0 +1,63 @@
+#!/usr/bin/env bash
+# ============================================================
+# post-merge — Fetch explicite + sync post-merge
+# .githooks/post-merge
+# IntentHash: 0xPOST_MERGE_FETCH_VERIFY_20260629
+# ============================================================
+#
+# Problème résolu : après un `gh pr merge --squash` ou tout merge distant,
+# le `git pull --rebase` local peut ne pas récupérer le merge commit car
+# le fetch a eu lieu AVANT la création du merge commit côté distant.
+#
+# Ce hook :
+# 1. Fetch explicitement origin
+# 2. Compare HEAD local avec origin/main
+# 3. Si derrière → pull --rebase automatique
+# 4. Log l'événement dans SWARM.yaml
+#
+# Déclenché automatiquement par : git pull, git merge, gh pr merge
+# ============================================================
+
+set -e
+
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+REPO_NAME="$(basename "$REPO_ROOT")"
+
+echo ""
+echo "[POST-MERGE] Hook post-merge déclenché pour $REPO_NAME"
+echo "[POST-MERGE] Exécution de fetch-verify..."
+
+# Exécuter le script de fetch + verify
+if [ -f "$REPO_ROOT/scripts/post-merge/fetch-verify.py" ]; then
+    python "$REPO_ROOT/scripts/post-merge/fetch-verify.py" \
+        --repo-path "$REPO_ROOT" \
+        --repo-name "$REPO_NAME" || true
+else
+    # Fallback si le script n'existe pas
+    echo "[POST-MERGE] fetch-verify.py absent — fallback: git fetch + rebase check"
+    git -C "$REPO_ROOT" fetch origin || true
+    BEHIND=$(git -C "$REPO_ROOT" rev-list --left-right --count origin/main...HEAD 2>/dev/null | cut -f1 || echo "0")
+    if [ "$BEHIND" -gt 0 ] 2>/dev/null; then
+        echo "[POST-MERGE] Local en retard de $BEHIND commits → pull --rebase..."
+        git -C "$REPO_ROOT" pull --rebase origin main || true
+    fi
+fi
+
+# Vérifier les stashes en rappel
+STASH_COUNT=$(git -C "$REPO_ROOT" stash list 2>/dev/null | wc -l | tr -d ' ')
+if [ "${STASH_COUNT}" -gt 0 ]; then
+    echo ""
+    echo "[POST-MERGE INFO] ${STASH_COUNT} stash(es) en attente :"
+    git -C "$REPO_ROOT" stash list
+    echo ""
+    echo "Vérifier si un stash doit être appliqué : git stash pop"
+fi
+
+# Vérifier si des fichiers de config ont changé
+CHANGED=$(git -C "$REPO_ROOT" diff-tree -r --name-only --no-commit-id HEAD@{1} HEAD 2>/dev/null || true)
+if echo "${CHANGED}" | grep -qE "(requirements|package\.json|build\.zig|pyproject\.toml)"; then
+    echo ""
+    echo "[POST-MERGE INFO] Fichiers de dépendances modifiés :"
+    echo "${CHANGED}" | grep -E "(requirements|package\.json|build\.zig|pyproject\.toml)"
+    echo "Rebuild recommandé."
+fi
