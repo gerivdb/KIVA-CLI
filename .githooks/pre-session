@@ -1,0 +1,15 @@
+#!/bin/bash
+# Pre-session hook: Ecosystem Health Check
+# Must pass before any multi-repo operation
+
+echo "[BOOT] Running GATE-10: Ecosystem Health Check..."
+python3 "$(dirname "$0")/../scripts/ecosystem_health_verify.py" --strict
+
+if [ $? -ne 0 ]; then
+    echo "[BOOT] [FAIL] GATE-10 FAILED: Ecosystem incomplete"
+    echo "[BOOT] Fix missing repos before continuing"
+    exit 1
+fi
+
+echo "[BOOT] [OK] GATE-10 PASSED: Ecosystem healthy"
+exit 0
