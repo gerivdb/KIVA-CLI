@@ -1,0 +1,25 @@
+#!/bin/bash
+# post-push hook - VYOA verify push + branch protection check
+# Runs after successful push
+
+set -e
+
+REPO_ROOT=$(git rev-parse --show-toplevel)
+cd "$REPO_ROOT"
+
+# Read push info from stdin
+# Format: <local_ref> <local_sha> <remote_ref> <remote_sha>
+while read local_ref local_sha remote_ref remote_sha; do
+    remote=$(echo "$remote_ref" | cut -d'/' -f1)
+    branch=$(echo "$remote_ref" | cut -d'/' -f3-)
+    
+    echo "[POST-PUSH] Verifying push to $remote/$branch..."
+    
+    # VYOA verify push
+    python tools/vyoa/verify.py push "$remote" "$branch" 2>/dev/null || echo "[WARN] VYOA verify push failed"
+    
+    # Branch protection check
+    python tools/branch_protection_check.py --repo "$remote" --branch "$branch" 2>/dev/null || true
+done
+
+exit 0
