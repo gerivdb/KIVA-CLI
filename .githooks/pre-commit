@@ -1,43 +1,69 @@
-#!/bin/bash
-# ECOS Test Hook - Runs test daemon on every commit
-# Ensures all scripts pass before allowing commit
-#
-# RSS-v1 EXCEPTION (2026-05-19):
-# Commits with messages starting with "fix(rss-v1):" or "refactor(rss-v1):"
-# are exempt from test daemon validation to allow batch RSS migrations.
-# IntentHash: 0xRSS_V1_HOOK_EXCEPTION_20260519
+#!/usr/bin/env bash
+# ============================================================
+# pre-commit — Unified: secrets + encoding + large files
+# .githooks/pre-commit
+# IntentHash: 0xPRE_COMMIT_UNIFIED_20260626
+# ============================================================
 
-echo "=== ECOS Test Hook ==="
+echo "[PRE-COMMIT] Running checks..."
 
-# Check if this is an RSS-v1 migration commit (auto-exempt)
-COMMIT_MSG_FILE=".git/COMMIT_EDITMSG"
-if [ -f "$COMMIT_MSG_FILE" ]; then
-    COMMIT_MSG=$(head -1 "$COMMIT_MSG_FILE")
-    if echo "$COMMIT_MSG" | grep -qE "^(fix|refactor|docs|chore)\(rss-v1\):"; then
-        echo "[SKIP] RSS-v1 migration commit detected — test daemon bypassed."
-        echo "  Commit: $COMMIT_MSG"
-        exit 0
-    fi
+# --- Check 1: Secret scanning ---
+STAGED_FILES=$(git diff --cached --name-only --diff-filter=ACM 2>/dev/null)
+
+if [ -n "${STAGED_FILES}" ]; then
+    # Patterns de secrets
+    SECRET_PATTERNS='AKIA[0-9A-Z]{16}|ghp_[a-zA-Z0-9]{36}|gho_[a-zA-Z0-9]{36}|sk-[a-zA-Z0-9]{32,}|-----BEGIN (RSA |EC |DSA )?PRIVATE KEY-----'
+
+    for file in ${STAGED_FILES}; do
+        if [ -f "${file}" ]; then
+            MATCH=$(grep -Pn "${SECRET_PATTERNS}" "${file}" 2>/dev/null || true)
+            if [ -n "${MATCH}" ]; then
+                echo ""
+                echo "[PRE-COMMIT BLOCK] Secret detected in ${file}:"
+                echo "${MATCH}"
+                echo ""
+                echo "Remove the secret or use git commit --no-verify (NOT RECOMMENDED)"
+                exit 1
+            fi
+        fi
+    done
 fi
 
-TEST_DAEMON="C:/DevTools/bin/ecos-test-daemon.ps1"
-
-if [ -f "$TEST_DAEMON" ]; then
-    powershell -Command "& '$TEST_DAEMON'"
-    EXIT_CODE=$?
-    
-    if [ $EXIT_CODE -ne 0 ]; then
-        echo ""
-        echo "[FAILED] Tests failed. Commit aborted."
-        echo "Fix the errors and try again."
-        echo "Use 'git commit --no-verify' to bypass (not recommended)."
-        exit 1
-    fi
-    
+# --- Check 2: .env files should not be committed ---
+ENV_FILES=$(echo "${STAGED_FILES}" | grep -E '\.env($|\.)' || true)
+if [ -n "${ENV_FILES}" ]; then
     echo ""
-    echo "[OK] All tests passed"
-else
-    echo "[WARNING] Test daemon not found: $TEST_DAEMON"
+    echo "[PRE-COMMIT WARN] .env file detected in staging:"
+    echo "${ENV_FILES}"
+    echo ""
+    echo "If intentional, use git commit --no-verify"
+    echo "Otherwise: git rm --cached <file>"
 fi
 
-exit 0
+# --- Check 3: Large files (> 1MB) ---
+LARGE_FILES=""
+for file in ${STAGED_FILES}; do
+    if [ -f "${file}" ]; then
+        SIZE=$(stat -f%z "${file}" 2>/dev/null || stat -c%s "${file}" 2>/dev/null || echo 0)
+        if [ "${SIZE}" -gt 1048576 ]; then
+            LARGE_FILES="${LARGE_FILES}\n  ${file} ($(( SIZE / 1024 )) KB)"
+        fi
+    fi
+done
+
+if [ -n "${LARGE_FILES}" ]; then
+    echo ""
+    echo "[PRE-COMMIT WARN] Large files detected (> 1MB):"
+    echo -e "${LARGE_FILES}"
+    echo "Consider using Git LFS or .gitignore"
+fi
+
+echo "[PRE-COMMIT] Checks passed."
+
+# --- Check 4: Encoding (CP1252 / Unicode) via pre-commit-encoding-check ---
+REPO_ROOT=$(git rev-parse --show-toplevel)
+ENCODING_HOOK="${REPO_ROOT}/.githooks/pre-commit-encoding-check"
+
+if [ -f "${ENCODING_HOOK}" ]; then
+    python "${ENCODING_HOOK}" 2>/dev/null || exit $?
+fi
