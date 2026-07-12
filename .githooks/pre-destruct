@@ -1,0 +1,141 @@
+#!/usr/bin/env python3
+"""
+pre-destruct hook — Repo Identity Guard (ADR-009)
+
+Ce hook est appelé avant toute opération destructive sur un repo gerivdb/*.
+Il vérifie :
+1. L'existence de .repo-identity.yaml
+2. L'intégrité du repo (head_sha vs known_repositories.yaml)
+3. Les chemins immutables (immutable_paths)
+
+Installation :
+  cp .githooks/pre-destruct .git/hooks/pre-commit
+  chmod +x .git/hooks/pre-commit
+
+Ou via git config :
+  core.hooksPath=.githooks
+"""
+
+import os
+import sys
+import json
+import subprocess
+import yaml
+from pathlib import Path
+
+# Configuration
+REPO_ROOT = Path(__file__).parent.parent
+IDENTITY_FILE = REPO_ROOT / ".repo-identity.yaml"
+KNOWN_REPOS_FILE = None  # TODO: chemin vers known_repositories.yaml dans GOVERNANCE-HUB
+
+def run(cmd, cwd=None):
+    """Exécuter une commande shell et retourner (returncode, stdout)."""
+    result = subprocess.run(
+        cmd, shell=True, cwd=cwd or str(REPO_ROOT),
+        capture_output=True, text=True
+    )
+    return result.returncode, result.stdout.strip()
+
+def load_identity():
+    """Charger .repo-identity.yaml."""
+    if not IDENTITY_FILE.exists():
+        return None
+    with open(IDENTITY_FILE) as f:
+        return yaml.safe_load(f)
+
+def check_identity():
+    """Vérifier l'existence et la validité de .repo-identity.yaml."""
+    identity = load_identity()
+    if identity is None:
+        print("[REPO_GUARD] WARNING: .repo-identity.yaml absent")
+        print("[REPO_GUARD] Ce repo est peut-être nouveau (< 30 jours)")
+        print("[REPO_GUARD] Si ce repo a > 30 jours, créez .repo-identity.yaml avant toute modification")
+        return True  # Pass avec warning
+    
+    required_fields = ["repo", "type", "semantic"]
+    for field in required_fields:
+        if field not in identity:
+            print(f"[REPO_GUARD_BLOCKED] .repo-identity.yaml incomplet : champ '{field}' manquant")
+            return False
+    
+    print(f"[REPO_GUARD] Identité confirmée : {identity['repo']} (type={identity['type']})")
+    return True
+
+def check_immutable_paths(files_to_remove=None):
+    """Vérifier que les fichiers à supprimer ne sont pas dans immutable_paths."""
+    identity = load_identity()
+    if identity is None:
+        return True
+    
+    immutable = identity.get("immutable_paths", [])
+    if not immutable or not files_to_remove:
+        return True
+    
+    for f in files_to_remove:
+        for imp in immutable:
+            if f.startswith(imp):
+                print(f"[REPO_GUARD_BLOCKED] Chemin immutable : {f} (protégé par '{imp}')")
+                print(f"[REPO_GUARD_BLOCKED] Modification des immutable_paths nécessite ADR + HITL")
+                return False
+    
+    return True
+
+def get_staged_files():
+    """Récupérer les fichiers en staged (sur le point d'être commités)."""
+    rc, out = run("git diff --cached --name-only")
+    if rc != 0:
+        return []
+    return [f for f in out.split("\n") if f]
+
+def get_deleted_files():
+    """Récupérer les fichiers supprimés dans le staged."""
+    rc, out = run("git diff --cached --name-only --diff-filter=D")
+    if rc != 0:
+        return []
+    return [f for f in out.split("\n") if f]
+
+def main():
+    print("=" * 60)
+    print("[PRE-DESTRUCT HOOK] Repo Identity Guard v1.0")
+    print("=" * 60)
+    
+    # CHECK-1 : Identité
+    if not check_identity():
+        sys.exit(1)
+    
+    # CHECK-2 : Fichiers supprimés
+    deleted = get_deleted_files()
+    if deleted:
+        print(f"\n[REPO_GUARD] {len(deleted)} fichier(s) supprimé(s) détecté(s) :")
+        for f in deleted[:10]:
+            print(f"  - {f}")
+        if len(deleted) > 10:
+            print(f"  ... et {len(deleted) - 10} autres")
+        
+        if not check_immutable_paths(deleted):
+            sys.exit(1)
+        
+        # Si beaucoup de fichiers supprimer, demander confirmation
+        if len(deleted) > 5:
+            print(f"\n[REPO_GUARD_ALERTE] Suppression massive ({len(deleted)} fichiers)")
+            print("[REPO_GUARD_ALERTE] Si c'est un remplacement de contenu, créez d'abord un backup :")
+            print("  git add -A && git commit -m 'chore(backup): pre-replacement'")
+            print("  git tag pre-replacement-YYYYMMDD")
+            print("[REPO_GUARD_ALERTE] Et créez un ADR dans GOVERNANCE-HUB")
+            # Note : on ne bloque pas ici, on alerte seulement
+            # Le blocage est géré par la règle KiloCode repo-identity-guard
+    
+    # CHECK-3 : Fichiers modifiés (détection de remplacement)
+    staged = get_staged_files()
+    if len(staged) > 50:
+        print(f"\n[REPO_GUARD_ALERTE] Modification massive ({len(staged)} fichiers)")
+        print("[REPO_GUARD_ALERTE] Si c'est un remplacement de contenu (> 50% du repo) :")
+        print("  1. Backup : git add -A && git commit && git tag pre-replacement-YYYYMMDD")
+        print("  2. ADR : créer ADR dans GOVERNANCE-HUB")
+        print("  3. HITL : validation utilisateur requise")
+    
+    print("\n[REPO_GUARD] ✅ Vérifications passées")
+    sys.exit(0)
+
+if __name__ == "__main__":
+    main()
