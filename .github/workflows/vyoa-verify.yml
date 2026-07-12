@@ -1,0 +1,13 @@
+name: vyoa-verify
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+jobs:
+  vyoa_verify:
+    uses: gerivdb/KIVA-CLI/.github/workflows/vyoa-verify-reusable.yml@gov-workflows/v1
+    with:
+      action: commit
+      args: 
+    secrets: inherit
