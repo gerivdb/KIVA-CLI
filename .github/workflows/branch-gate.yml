@@ -2,19 +2,7 @@ name: Branch Gate
 
 # ─────────────────────────────────────────────────────────────────────────────
 # GitHub Action — Branch Routing & Governance System (BRGS) L4
-#
-# Runs on every push to verify that modified files don't violate
-# the branch_routing rules from multi-repo-governance.yaml.
-#
-# This is a NON-BLOQUING second defense layer — it creates a commit
-# status check and comments violations but does not prevent the push.
-#
-# IntentHash: 0xBRG_GITHUB_ACTION_20260526
-# Version: 1.1.0
-# Implements: ADR-2026-06-03-001 (GOVERNANCE-HUB) — Branch Governor
-# Bridge B3: Gate → ADR cross-reference
-# Repo type: cli (BRANCH-CHECK.yaml by_repo_type.cli)
-# ─────────────────────────────────────────────────────────────────────────────
+# Reusable workflow for branch governance checks
 # ─────────────────────────────────────────────────────────────────────────────
 
 on:
@@ -22,6 +10,7 @@ on:
     branches-ignore:
       - "dependabot/**"
       - "renovate/**"
+  workflow_call:
 
 permissions:
   contents: read
@@ -69,7 +58,7 @@ jobs:
 
   branch-naming:
     name: "BRANCH-GOVERNOR — Branch Naming Check"
-    runs-on: ubuntu-latest  # GHA-hosted runner (no self-hosted dependency)
+    runs-on: ubuntu-latest
     needs: ownership-check
 
     steps:
@@ -81,8 +70,6 @@ jobs:
         env:
           BRANCH_NAME: ${{ github.ref_name }}
         run: |
-          # BRANCH-CHECK.yaml global pattern: type/slug-id
-          # Valid types for cli repos: feat, fix, docs, chore, refactor, perf, test, hotfix, emergency, experiment
           PATTERN="^(feat|fix|docs|chore|refactor|perf|test|hotfix|emergency|experiment)/[a-z0-9-]+-[0-9]{3}$"
 
           if echo "$BRANCH_NAME" | grep -qE "$PATTERN"; then

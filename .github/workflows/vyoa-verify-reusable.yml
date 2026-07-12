@@ -1,0 +1,53 @@
+name: VYOA Verify Reusable
+
+on:
+  workflow_call:
+    inputs:
+      action:
+        type: string
+        required: true
+      args:
+        type: string
+        required: false
+        default: ''
+
+jobs:
+  verify:
+    name: VYOA Verify
+    runs-on: self-hosted
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Run VYOA Verify
+        id: vyoa
+        shell: pwsh
+        run: |
+          $action = "${{ inputs.action }}"
+          $args = "${{ inputs.args }}"
+          
+          if ($action -eq "push") { $vyoaAction = "push $args" }
+          elseif ($action -eq "pull_request_closed") { $vyoaAction = "merge" }
+          elseif ($action -eq "workflow_dispatch") { $vyoaAction = $args }
+          else { $vyoaAction = $action }
+          
+          $result = python tools/vyoa/verify.py $vyoaAction
+          echo "VYOA_OUTPUT<<EOF" >> $env:GITHUB_OUTPUT
+          echo "$result" >> $env:GITHUB_OUTPUT
+          echo "EOF" >> $env:GITHUB_OUTPUT
+          
+          if ($LASTEXITCODE -ne 0) {
+            Write-Error "VYOA verification failed for $vyoaAction"
+            exit 1
+          }
+
+      - name: Log Result
+        run: |
+          echo "✅ VYOA ${{ inputs.action }} verified"

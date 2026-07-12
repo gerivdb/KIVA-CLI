@@ -1,9 +1,11 @@
-name: Ecosystem Cross-Repo Sync
+name: Ecosystem Cross-Repo Sync + Governance Enforcement
 
 on:
   schedule:
-    # Run daily at 02:00 UTC
+    # Run daily at 02:00 UTC (sync), 02:15 UTC (forks), 02:30 UTC (dashboard)
     - cron: '0 2 * * *'
+    - cron: '15 2 * * *'
+    - cron: '30 2 * * *'
   
   push:
     branches:
@@ -11,6 +13,13 @@ on:
     paths:
       - 'ECOS_ROOT.json'
       - 'scripts/cross_repo_sync.py'
+      - 'scripts/sync_fork_upstream.py'
+      - 'scripts/bootstrap_repo.py'
+      - 'scripts/deploy_templates.py'
+      - 'scripts/configure_branch_protection.py'
+      - 'scripts/verify_constitutional_ci.py'
+      - 'scripts/conformance_dashboard.py'
+      - 'scripts/deploy_hooks.py'
       - '.github/workflows/ecosystem_sync.yml'
   
   workflow_dispatch:
@@ -22,24 +31,393 @@ on:
         type: choice
         options:
           - full
-          - ecos_root
-          - wal
           - validate
+          - bootstrap
+          - sync-forks
+          - enforce
+          - deploy-templates
+          - deploy-hooks
+          - configure-protection
+          - dashboard
       target_repos:
         description: 'Target repositories (comma-separated, or "all")'
         required: false
         default: 'all'
         type: string
+      force_enforcement:
+        description: 'Force enforcement on external forks (HITL)'
+        required: false
+        default: 'false'
+        type: boolean
+
+env:
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
 jobs:
-  sync:
-    name: Cross-Repo Sync
+  # ─── Job 0: Prepare ──────────────────────────────────────────────────
+  prepare:
+    name: Prepare Environment
     runs-on: ubuntu-latest
-    
-    permissions:
-      contents: write
-      issues: write
-    
+    outputs:
+      active_repos: ${{ steps.filter_repos.outputs.active_repos }}
+      operation: ${{ steps.set_operation.outputs.operation }}
+    steps:
+      - name: Checkout KIVA-CLI
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Checkout GOVERNANCE-HUB (for known_repositories.yaml)
+        uses: actions/checkout@v4
+        with:
+          repository: gerivdb/GOVERNANCE-HUB
+          path: GOVERNANCE-HUB
+          token: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+      
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pyyaml
+      
+      - name: Set operation
+        id: set_operation
+        run: |
+          OP="${{ github.event.inputs.operation || 'full' }}"
+          echo "operation=$OP" >> $GITHUB_OUTPUT
+      
+      - name: Filter active repos with enforcement_mode
+        id: filter_repos
+        run: |
+          python -c "
+import yaml, json, sys
+with open('GOVERNANCE-HUB/known_repositories.yaml') as f:
+    data = yaml.safe_load(f)
+
+active = []
+for tier in ['P0_REPOS', 'P1_REPOS', 'P2_REPOS', 'P3_REPOS']:
+    for repo in data.get(tier, []):
+        if repo.get('status') == 'ACTIVE' and repo.get('local_path'):
+            # Check enforcement_mode
+            em = repo.get('enforcement_mode', {})
+            if em.get('ci') != 'none':
+                active.append(repo['full_name'])
+print(json.dumps(active))
+" > active_repos.json
+          echo "active_repos=$(cat active_repos.json)" >> $GITHUB_OUTPUT
+
+  # ─── Job 1: Deploy Workflow Templates ────────────────────────────────
+  deploy-templates:
+    name: Deploy Governance Templates
+    needs: prepare
+    if: contains(needs.prepare.outputs.operation, 'validate') || contains(needs.prepare.outputs.operation, 'deploy-templates') || contains(needs.prepare.outputs.operation, 'full')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout KIVA-CLI
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Checkout GOVERNANCE-HUB
+        uses: actions/checkout@v4
+        with:
+          repository: gerivdb/GOVERNANCE-HUB
+          path: GOVERNANCE-HUB
+          token: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Deploy Workflow Templates
+        run: |
+          python scripts/deploy_templates.py \
+            --source REPO-STANDARDS/.github/workflows \
+            --target-repos "${{ needs.prepare.outputs.active_repos }}" \
+            --token ${{ secrets.GITHUB_TOKEN }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ─── Job 2: Deploy Hooks ─────────────────────────────────────────────
+  deploy-hooks:
+    name: Deploy Git Hooks
+    needs: [prepare, deploy-templates]
+    if: contains(needs.prepare.outputs.operation, 'validate') || contains(needs.prepare.outputs.operation, 'deploy-hooks') || contains(needs.prepare.outputs.operation, 'full')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout KIVA-CLI
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Checkout GOVERNANCE-HUB
+        uses: actions/checkout@v4
+        with:
+          repository: gerivdb/GOVERNANCE-HUB
+          path: GOVERNANCE-HUB
+          token: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Deploy Hooks
+        run: |
+          python scripts/deploy_hooks.py \
+            --source REPO-STANDARDS/.githooks \
+            --target-repos "${{ needs.prepare.outputs.active_repos }}" \
+            --token ${{ secrets.GITHUB_TOKEN }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ─── Job 3: Generate BRGS rules.sh ───────────────────────────────────
+  generate-brgs-rules:
+    name: Generate BRGS rules.sh
+    needs: prepare
+    if: contains(needs.prepare.outputs.operation, 'validate') || contains(needs.prepare.outputs.operation, 'full')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout GOVERNANCE-HUB
+        uses: actions/checkout@v4
+        with:
+          repository: gerivdb/GOVERNANCE-HUB
+          path: GOVERNANCE-HUB
+          token: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Generate BRGS rules.sh
+        run: |
+          python GOVERNANCE-HUB/scripts/generate_rules.py \
+            --governance GOVERNANCE-HUB/multi-repo-governance.yaml \
+            --output .githooks/rules.sh
+      
+      - name: Deploy rules.sh to repos
+        run: |
+          python scripts/deploy_hooks.py \
+            --source .githooks/rules.sh \
+            --target-repos "${{ needs.prepare.outputs.active_repos }}" \
+            --token ${{ secrets.GITHUB_TOKEN }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ─── Job 4: Configure Branch Protection ──────────────────────────────
+  configure-protection:
+    name: Configure Branch Protection
+    needs: [prepare, deploy-templates]
+    if: contains(needs.prepare.outputs.operation, 'validate') || contains(needs.prepare.outputs.operation, 'configure-protection') || contains(needs.prepare.outputs.operation, 'full')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout KIVA-CLI
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Checkout GOVERNANCE-HUB
+        uses: actions/checkout@v4
+        with:
+          repository: gerivdb/GOVERNANCE-HUB
+          path: GOVERNANCE-HUB
+          token: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Wait for Status Checks
+        run: |
+          # Wait for workflow runs to create status checks
+          python scripts/wait_for_checks.py \
+            --repos "${{ needs.prepare.outputs.active_repos }}" \
+            --checks "RSS-v2 Linter,BRGS — Branch Ownership Check,BRANCH-GOVERNOR — Branch Naming Check,VYOA Verify" \
+            --timeout 300
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Configure Branch Protection
+        run: |
+          python scripts/configure_branch_protection.py \
+            --repos "${{ needs.prepare.outputs.active_repos }}" \
+            --checks "RSS-v2 Linter,BRGS — Branch Ownership Check,BRANCH-GOVERNOR — Branch Naming Check,VYOA Verify" \
+            --token ${{ secrets.GITHUB_TOKEN }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ─── Job 5: Sync Fork Upstreams ──────────────────────────────────────
+  sync-forks:
+    name: Sync Fork Upstreams
+    needs: prepare
+    if: contains(needs.prepare.outputs.operation, 'sync-forks') || contains(needs.prepare.outputs.operation, 'full')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout KIVA-CLI
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Checkout GOVERNANCE-HUB
+        uses: actions/checkout@v4
+        with:
+          repository: gerivdb/GOVERNANCE-HUB
+          path: GOVERNANCE-HUB
+          token: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Sync Fork Upstreams
+        run: |
+          python scripts/sync_fork_upstream.py \
+            --config GOVERNANCE-HUB/known_repositories.yaml \
+            --token ${{ secrets.GITHUB_TOKEN }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Upload Fork Sync Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: fork-sync-report-${{ github.run_number }}
+          path: fork-sync-report.json
+          retention-days: 30
+
+  # ─── Job 6: Bootstrap New Repos ──────────────────────────────────────
+  bootstrap:
+    name: Bootstrap New ACTIVE Repos
+    needs: prepare
+    if: contains(needs.prepare.outputs.operation, 'bootstrap')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout KIVA-CLI
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Checkout GOVERNANCE-HUB
+        uses: actions/checkout@v4
+        with:
+          repository: gerivdb/GOVERNANCE-HUB
+          path: GOVERNANCE-HUB
+          token: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Bootstrap Target Repo
+        run: |
+          python scripts/bootstrap_repo.py \
+            --repo "${{ github.event.inputs.target_repos }}" \
+            --token ${{ secrets.GITHUB_TOKEN }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ─── Job 7: Constitutional CI Enforcement ────────────────────────────
+  enforce-constitutional-ci:
+    name: Enforce Constitutional CI
+    needs: prepare
+    if: contains(needs.prepare.outputs.operation, 'enforce') || contains(needs.prepare.outputs.operation, 'full')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout KIVA-CLI
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Checkout GOVERNANCE-HUB
+        uses: actions/checkout@v4
+        with:
+          repository: gerivdb/GOVERNANCE-HUB
+          path: GOVERNANCE-HUB
+          token: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Verify Constitutional CI
+        run: |
+          python scripts/verify_constitutional_ci.py \
+            --config GOVERNANCE-HUB/known_repositories.yaml \
+            --token ${{ secrets.GITHUB_TOKEN }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ─── Job 8: Conformance Dashboard ────────────────────────────────────
+  dashboard:
+    name: Generate Conformance Dashboard
+    needs: prepare
+    if: contains(needs.prepare.outputs.operation, 'dashboard') || contains(needs.prepare.outputs.operation, 'full') || github.event.schedule == '30 2 * * *'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout KIVA-CLI
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Checkout GOVERNANCE-HUB
+        uses: actions/checkout@v4
+        with:
+          repository: gerivdb/GOVERNANCE-HUB
+          path: GOVERNANCE-HUB
+          token: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Generate Dashboard
+        run: |
+          python scripts/conformance_dashboard.py \
+            --config GOVERNANCE-HUB/known_repositories.yaml \
+            --output conformance-${{ github.run_number }}.md
+      
+      - name: Upload Dashboard
+        uses: actions/upload-artifact@v4
+        with:
+          name: conformance-dashboard-${{ github.run_number }}
+          path: conformance-*.md
+          retention-days: 90
+      
+      - name: Commit Dashboard to GOVERNANCE-HUB
+        run: |
+          cp conformance-*.md ../GOVERNANCE-HUB/reports/
+          cd ../GOVERNANCE-HUB
+          git config user.name "ECOS-AUTO"
+          git config user.email "ecos-auto@ecosystem-1.dev"
+          git add reports/conformance-*.md
+          git commit -m "report(conformance): daily dashboard ${{ github.run_number }}" || true
+          git push origin main || true
+
+  # ─── Job 9: Legacy Cross-Repo Sync (ECOYSTEM/DevTools) ───────────────
+  legacy-sync:
+    name: Legacy Cross-Repo Sync
+    needs: prepare
+    if: contains(needs.prepare.outputs.operation, 'legacy') || contains(needs.prepare.outputs.operation, 'full')
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout KIVA-CLI
         uses: actions/checkout@v4
@@ -72,82 +450,36 @@ jobs:
           python -m pip install --upgrade pip
           pip install pyyaml
       
-      - name: Validate ECOS_ROOT.json
-        run: |
-          python -c "import json; json.load(open('ECOS_ROOT.json'))"
-          echo "✅ ECOS_ROOT.json is valid JSON"
-      
-      - name: Run Cross-Repo Sync
+      - name: Run Legacy Cross-Repo Sync
         id: sync
         run: |
           OPERATION="${{ github.event.inputs.operation || 'full' }}"
           TARGET_REPOS="${{ github.event.inputs.target_repos || 'all' }}"
           
-          echo "🚀 Starting sync operation: $OPERATION"
-          echo "🎯 Target repos: $TARGET_REPOS"
-          
-          # Run sync script
           python scripts/cross_repo_sync.py \
             --root .. \
             --source KIVA-CLI \
             --operation "$OPERATION" \
             --output sync_report.md
           
-          # Check if sync report was generated
           if [ -f "sync_report.md" ]; then
-            echo "✅ Sync report generated"
             echo "sync_success=true" >> $GITHUB_OUTPUT
-          else
-            echo "⚠️ No sync report generated"
-            echo "sync_success=false" >> $GITHUB_OUTPUT
           fi
-      
+
       - name: Commit changes to ECOYSTEM
         if: steps.sync.outputs.sync_success == 'true'
         run: |
           cd ../ECOYSTEM
-          
-          # Configure git
           git config user.name "ECOS-AUTO"
           git config user.email "ecos-auto@ecosystem-1.dev"
-          
-          # Check if there are changes
           if [ -n "$(git status --porcelain)" ]; then
             git add .
             git commit -m "[ECOS-AUTO] Sync from KIVA-CLI via GitHub Actions
             
             IntentHash: 0x9C7E4D2A8F5B1E3A-ACTIONS-SYNC
-            Δφ-CPS: +0.001
             Workflow: ecosystem_sync.yml"
-            
             git push
-            echo "✅ Changes pushed to ECOYSTEM"
-          else
-            echo "ℹ️ No changes to commit in ECOYSTEM"
           fi
-
-      # KIVA-006/007 — NEXUS Sync Agent v2 (dry-run, CI-safe)
-      # ⚠️  --chain is intentionally absent: AutoChainManager requires a local NEXUS
-      #     checkout which is not present on the ubuntu-latest runner.
-      #     HAS_AUTOCHAIN will always be False here → subprocess fallback.
-      #     To use --chain, run `kiva cicd nexus-sync --chain` locally.
-      - name: NEXUS Sync v2 — Reconcile (dry-run, no --chain)
-        id: nexus_sync
-        run: |
-          python -m kiva_cli.commands.cicd_commands nexus-sync --dry-run
-        env:
-          ECOS_ROOT: ${{ vars.ECOS_ROOT || '/tmp/ecos' }}
-        continue-on-error: true
-
-      - name: Upload reconciliation report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: nexus-reconciliation-${{ github.run_id }}
-          # Report lands in the NEXUS reports/ dir relative to the runner workspace
-          # (absent on CI → if-no-files-found: ignore keeps the step green)
-          path: /tmp/ecos/L0-CANON/NEXUS/reports/reconciliation_*.md
-          if-no-files-found: ignore
 
       - name: Upload sync report
         if: steps.sync.outputs.sync_success == 'true'
@@ -156,162 +488,3 @@ jobs:
           name: sync-report-${{ github.run_number }}
           path: sync_report.md
           retention-days: 30
-      
-      - name: Generate metrics dashboard
-        if: steps.sync.outputs.sync_success == 'true'
-        run: |
-          python scripts/ecosystem_metrics_dashboard.py \
-            --root .. \
-            --format markdown \
-            --output metrics_dashboard.md
-          
-          echo "📊 Metrics dashboard generated"
-      
-      - name: Upload metrics dashboard
-        if: steps.sync.outputs.sync_success == 'true'
-        uses: actions/upload-artifact@v4
-        with:
-          name: metrics-dashboard-${{ github.run_number }}
-          path: metrics_dashboard.md
-          retention-days: 30
-      
-      - name: Check φ-CPS drift
-        id: phi_check
-        if: steps.sync.outputs.sync_success == 'true'
-        run: |
-          # Extract φ-CPS from ECOS_ROOT.json
-          PHI_GENESIS=$(python -c "import json; print(json.load(open('ECOS_ROOT.json'))['phi_cps_genesis'])")
-          PHI_CURRENT=$(python -c "import json; print(json.load(open('ECOS_ROOT.json'))['phi_cps_current'])")
-          PHI_DRIFT=$(python -c "print(abs($PHI_CURRENT - $PHI_GENESIS))")
-          PHI_THRESHOLD=0.05
-          
-          echo "φ_genesis: $PHI_GENESIS"
-          echo "φ_current: $PHI_CURRENT"
-          echo "φ_drift: $PHI_DRIFT"
-          
-          # Check if drift exceeds threshold
-          DRIFT_EXCEEDED=$(python -c "print('true' if $PHI_DRIFT > $PHI_THRESHOLD else 'false')")
-          echo "drift_exceeded=$DRIFT_EXCEEDED" >> $GITHUB_OUTPUT
-          
-          if [ "$DRIFT_EXCEEDED" = "true" ]; then
-            echo "⚠️ WARNING: φ-CPS drift ($PHI_DRIFT) exceeds threshold ($PHI_THRESHOLD)"
-          else
-            echo "✅ φ-CPS drift within acceptable threshold"
-          fi
-      
-      - name: Create issue if drift exceeds threshold
-        if: steps.phi_check.outputs.drift_exceeded == 'true'
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const fs = require('fs');
-            const ecosRoot = JSON.parse(fs.readFileSync('ECOS_ROOT.json', 'utf8'));
-            
-            const phiGenesis = ecosRoot.phi_cps_genesis;
-            const phiCurrent = ecosRoot.phi_cps_current;
-            const phiDrift = Math.abs(phiCurrent - phiGenesis);
-            
-            const issueBody = `## ⚠️ φ-CPS Drift Threshold Exceeded
-            
-            **Detected by**: GitHub Actions Workflow \`ecosystem_sync.yml\`
-            **Timestamp**: ${new Date().toISOString()}
-            **Run**: ${{ github.run_number }}
-            
-            ### Metrics
-            
-            | Metric | Value |
-            |--------|-------|
-            | φ_genesis | ${phiGenesis.toFixed(4)} |
-            | φ_current | ${phiCurrent.toFixed(4)} |
-            | φ_drift | ${phiDrift.toFixed(4)} |
-            | φ_threshold | 0.05 |
-            | Status | ⚠️ **THRESHOLD EXCEEDED** |
-            
-            ### Actions Required
-            
-            1. Review recent commits and their φ-CPS impact
-            2. Validate IntentHash¹¹ chain integrity
-            3. Check for semantic drift in ECOS_ROOT.json
-            4. Consider auto-rollback if drift is critical
-            
-            ### Recent Events
-            
-            \`\`\`json
-            ${JSON.stringify(ecosRoot.recent_events.slice(-5), null, 2)}
-            \`\`\`
-            
-            ### Next Steps
-            
-            - [ ] Investigate drift cause
-            - [ ] Validate all IntentHash entries
-            - [ ] Review φ-CPS calculation formula
-            - [ ] Update ECOS_ROOT.json if necessary
-            - [ ] Run comprehensive φ-CPS audit
-            
-            **Auto-generated by**: ECOS-AUTO H0 Autonomous System`;
-            
-            await github.rest.issues.create({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              title: '⚠️ φ-CPS Drift Threshold Exceeded',
-              body: issueBody,
-              labels: ['φ-CPS', 'drift-alert', 'automated']
-            });
-      
-      - name: Notify on failure
-        if: failure()
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const issueBody = `## ❌ Ecosystem Sync Failed
-            
-            **Workflow**: \`ecosystem_sync.yml\`
-            **Run**: ${{ github.run_number }}
-            **Timestamp**: ${new Date().toISOString()}
-            
-            ### Error Details
-            
-            The automated cross-repo sync workflow failed. Please review the workflow logs:
-            
-            [View Logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
-            
-            ### Possible Causes
-            
-            - GitHub API rate limiting
-            - Repository permission issues
-            - Invalid ECOS_ROOT.json structure
-            - Network connectivity issues
-            - Script execution errors
-            
-            ### Next Steps
-            
-            1. Check workflow logs for error details
-            2. Verify GitHub token permissions
-            3. Validate ECOS_ROOT.json syntax
-            4. Re-run workflow manually if transient error
-            5. Investigate and fix script issues
-            
-            **Auto-generated by**: ECOS-AUTO H0 Autonomous System`;
-            
-            await github.rest.issues.create({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              title: '❌ Ecosystem Sync Workflow Failed',
-              body: issueBody,
-              labels: ['sync-failure', 'automated', 'ci-cd']
-            });
-      
-      - name: Summary
-        if: always()
-        run: |
-          echo "## 🌐 Ecosystem Sync Summary" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Operation**: ${{ github.event.inputs.operation || 'full' }}" >> $GITHUB_STEP_SUMMARY
-          echo "**Status**: ${{ job.status }}" >> $GITHUB_STEP_SUMMARY
-          echo "**Timestamp**: $(date -u +"%Y-%m-%dT%H:%M:%SZ")" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          
-          if [ -f "sync_report.md" ]; then
-            echo "### Sync Report" >> $GITHUB_STEP_SUMMARY
-            cat sync_report.md >> $GITHUB_STEP_SUMMARY
-          fi
