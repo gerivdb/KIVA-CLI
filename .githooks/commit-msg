@@ -1,26 +1,46 @@
-#!/bin/bash
-# ECOS Commit-msg Hook - Validation
-# Version: 1.0.0 | IntentHash: 0xECOS_HOOK_MSG_20260403
+#!/usr/bin/env bash
+# ============================================================
+# commit-msg — Validate Conventional Commits format
+# .githooks/commit-msg
+# IntentHash: 0xCOMMIT_MSG_VALIDATOR_20260626
+# ============================================================
 
-COMMIT_MSG_FILE=$1
-COMMIT_MSG=$(cat "$COMMIT_MSG_FILE")
+COMMIT_MSG_FILE="${1}"
+COMMIT_MSG=$(cat "${COMMIT_MSG_FILE}")
 
-# Conventional commits format: type(scope): description
-# Types: feat, fix, docs, refactor, test, chore, perf, ci, build
+# Patterns valides
+VALID_PATTERN="^(feat|fix|refactor|docs|chore|adr|break|test|style|wip)(\(.+\))?: .{1,72}"
 
-VALID_TYPES="feat|fix|docs|refactor|test|chore|perf|ci|build|style|revert"
+# Ignorer les messages de merge (tout format)
+if echo "${COMMIT_MSG}" | grep -qE "^Merge "; then
+    exit 0
+fi
 
-if ! echo "$COMMIT_MSG" | grep -qE "^[a-z]+(\(.+\))?: "; then
+# Ignorer les messages de revert
+if echo "${COMMIT_MSG}" | grep -qE "^Revert "; then
+    exit 0
+fi
+
+# Première ligne du message
+FIRST_LINE=$(echo "${COMMIT_MSG}" | head -1)
+
+# Vérifier le format
+if ! echo "${FIRST_LINE}" | grep -qE "${VALID_PATTERN}"; then
     echo ""
-    echo "[ERROR] Commit message does not follow conventional commits format"
-    echo "Expected: type(scope): description"
-    echo "Valid types: $VALID_TYPES"
+    echo "[COMMIT-MSG BLOCK] Message non conforme au format Conventional Commits"
     echo ""
-    echo "Example: feat(ecos): add registry scanner"
-    echo "Example: fix(blo): resolve audit failure"
+    echo "Format: <type>(<scope>): <description>"
     echo ""
+    echo "Types valides: feat | fix | refactor | docs | chore | adr | break | test | style | wip"
+    echo ""
+    echo "Votre message: ${FIRST_LINE}"
+    echo ""
+    echo "Pour forcer: git commit --no-verify"
     exit 1
 fi
 
-echo "[OK] Commit message follows conventional format"
-exit 0
+# Vérifier la longueur de la première ligne
+if [ "${#FIRST_LINE}" -gt 72 ]; then
+    echo ""
+    echo "[COMMIT-MSG WARN] Première ligne trop longue (${#FIRST_LINE} chars, max 72)"
+fi
