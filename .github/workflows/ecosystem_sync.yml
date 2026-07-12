@@ -94,22 +94,7 @@ jobs:
       
       - name: Filter active repos with enforcement_mode
         id: filter_repos
-        run: |
-          python -c "
-import yaml, json, sys
-with open('GOVERNANCE-HUB/known_repositories.yaml') as f:
-    data = yaml.safe_load(f)
-
-active = []
-for tier in ['P0_REPOS', 'P1_REPOS', 'P2_REPOS', 'P3_REPOS']:
-    for repo in data.get(tier, []):
-        if repo.get('status') == 'ACTIVE' and repo.get('local_path'):
-            em = repo.get('enforcement_mode', {})
-            if em.get('ci') != 'none':
-                active.append(repo['full_name'])
-print(json.dumps(active))
-" > active_repos.json
-          echo "active_repos=$(cat active_repos.json)" >> $GITHUB_OUTPUT
+        run: python scripts/filter_active_repos.py
 
   # Job 1: Deploy Workflow Templates
   deploy-templates:
