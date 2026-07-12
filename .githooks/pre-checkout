@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+# ============================================================
+# pre-checkout — Warn if stash is not empty
+# .githooks/pre-checkout
+# IntentHash: 0xPRE_CHECKOUT_STASH_WARN_20260626
+# ============================================================
+
+STASH_COUNT=$(git stash list 2>/dev/null | wc -l | tr -d ' ')
+
+if [ "${STASH_COUNT}" -gt 0 ]; then
+    echo ""
+    echo "============================================================"
+    echo "[PRE-CHECKOUT WARN] ${STASH_COUNT} stash(es) en attente :"
+    echo "============================================================"
+    git stash list
+    echo ""
+    echo "Options :"
+    echo "  1. Continuer le checkout (stash preserved)"
+    echo "  2. Commit WIP : git stash pop && git commit -m 'WIP: ...'"
+    echo "  3. Create branch : git stash branch wip/<slug> stash@{0}"
+    echo "============================================================"
+    # Niveau WARN — ne bloque PAS le checkout
+fi
