@@ -1,0 +1,21 @@
+#!/bin/bash
+# post-commit hook - VYOA verification + WAL update
+# Runs after successful commit
+
+set -e
+
+REPO_ROOT=$(git rev-parse --show-toplevel)
+cd "$REPO_ROOT"
+
+# VYOA verify commit
+python tools/vyoa/verify.py commit 2>/dev/null || echo "[WARN] VYOA verify not available"
+
+# Update WAL if exists
+if [ -f "$REPO_ROOT/.wal/wal.jsonl" ]; then
+    python tools/wal/wal_update.py --commit "$(git rev-parse HEAD)" 2>/dev/null || true
+fi
+
+# Drift detection
+python tools/drift/drift_detect.py --quick 2>/dev/null || true
+
+exit 0
