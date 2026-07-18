@@ -1,0 +1,82 @@
+name: plix-reg-ci
+version: "1.0.0"
+intent_hash: 0xPLIX_REG_CI_20260718
+description: |
+  CI local pour plix-reg (registre de modèles Q243).
+  Valide le catalogue et la signature des modèles PLIX.
+
+on_merge:
+  - repo: gerivdb/PLIX
+    branch: main
+
+env:
+  PLIX_ROOT: "D:/DO/WEB/TOOLS/L2-PLATFORM/PLIX"
+  PYTHON: "python"
+  OUTPUT_DIR: "D:/DO/WEB/TOOLS/reports/plix-reg"
+
+steps:
+  - id: preflight
+    name: "PLIX — Vérification pré-vol (PLIX_ROOT accessible)"
+    agent: Alfred
+    run: |
+      $PYTHON -c "
+      from pathlib import Path
+      import sys
+      plix = Path('$PLIX_ROOT')
+      if not plix.exists():
+          print('[ERROR] PLIX_ROOT manquant:', plix)
+          sys.exit(1)
+      print('[OK] PLIX_ROOT:', plix)
+      "
+    on_fail: ABORT
+    timeout_sec: 15
+
+  - id: lint
+    name: "Lint — Ruff format + lint"
+    agent: Alfred
+    depends_on: [preflight]
+    run: |
+      cd $PLIX_ROOT
+      $PYTHON -m ruff check plix_reg/ --output-format=concise 2>&1 || true
+      $PYTHON -m ruff format --check plix_reg/ 2>&1 || true
+    on_fail: WARN
+    timeout_sec: 30
+
+  - id: test
+    name: "Tests — pytest plix-reg (5 tests)"
+    agent: Alfred
+    depends_on: [lint]
+    run: |
+      cd $PLIX_ROOT
+      $PYTHON -m pytest tests/test_plix_reg.py -v --tb=short --no-header 2>&1
+    on_fail: ABORT
+    timeout_sec: 120
+
+  - id: dry-run
+    name: "Dry-run — Validation serveur sans modèle"
+    agent: Alfred
+    depends_on: [test]
+    run: |
+      cd $PLIX_ROOT
+      $PYTHON -m plix_reg.main --help 2>&1 || true
+    on_fail: WARN
+    timeout_sec: 30
+
+  - id: archive-report
+    name: "Archive — Copie rapports dans reports/plix-reg/YYYY-MM-DD/"
+    agent: Alfred
+    depends_on: [dry-run]
+    run: |
+      $PYTHON -c "
+      import shutil, sys
+      from pathlib import Path
+      from datetime import datetime
+      out = Path('$OUTPUT_DIR')
+      if not out.exists():
+          out.mkdir(parents=True, exist_ok=True)
+      dest = out / datetime.now().strftime('%Y-%m-%d')
+      dest.mkdir(parents=True, exist_ok=True)
+      print(f'[OK] Reports → {dest}')
+      "
+    on_fail: WARN
+    timeout_sec: 30

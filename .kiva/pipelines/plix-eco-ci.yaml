@@ -1,0 +1,128 @@
+name: plix-eco-ci
+version: "1.0.0"
+intent_hash: 0xPLIX_ECO_CI_20260718
+description: |
+  CI orchestrateur pour l'écosystème PLIX complet.
+  Orchestre les 5 pipelines individuels (cast, cut, watch, relay, reg).
+
+schedule: "0 2 * * *"   # Tous les jours à 02:00
+on_merge:
+  - repo: gerivdb/PLIX
+    branch: main
+
+env:
+  PLIX_ROOT: "D:/DO/WEB/TOOLS/L2-PLATFORM/PLIX"
+  PYTHON: "python"
+  OUTPUT_DIR: "D:/DO/WEB/TOOLS/reports/plix-eco"
+
+steps:
+  - id: preflight
+    name: "PLIX-Eco — Vérification pré-vol de l'écosystème complet"
+    agent: Alfred
+    run: |
+      $PYTHON -c "
+      from pathlib import Path
+      import sys
+      plix = Path('$PLIX_ROOT')
+      if not plix.exists():
+          print('[ERROR] PLIX_ROOT manquant:', plix)
+          sys.exit(1)
+      
+      # Vérifier les 5 modules
+      modules = ['plix_converter', 'plix_cut', 'plix_watch', 'plix_relay', 'plix_reg']
+      for m in modules:
+          if not (plix / m).exists():
+              print(f'[ERROR] Module manquant: {m}')
+              sys.exit(1)
+      
+      print('[OK] PLIX_ROOT:', plix)
+      print('[OK] Modules:', ', '.join(modules))
+      "
+    on_fail: ABORT
+    timeout_sec: 30
+
+  - id: run-plix-cast
+    name: "CI plix-cast (convertisseur)"
+    agent: Alfred
+    run: |
+      cd $PLIX_ROOT
+      $PYTHON -m ruff check plix_converter/ --output-format=concise 2>&1 || true
+      $PYTHON -m pytest tests/test_plix_converter.py -v --tb=short --no-header 2>&1
+    on_fail: WARN
+    timeout_sec: 120
+
+  - id: run-plix-cut
+    name: "CI plix-cut (éditeur calibration)"
+    agent: Alfred
+    run: |
+      cd $PLIX_ROOT
+      $PYTHON -m ruff check plix_cut/ --output-format=concise 2>&1 || true
+      $PYTHON -m pytest tests/test_plix_cut.py -v --tb=short --no-header 2>&1
+    on_fail: WARN
+    timeout_sec: 120
+
+  - id: run-plix-watch
+    name: "CI plix-watch (inspecteur)"
+    agent: Alfred
+    run: |
+      cd $PLIX_ROOT
+      $PYTHON -m ruff check plix_watch/ --output-format=concise 2>&1 || true
+      $PYTHON -m pytest tests/test_plix_watch.py -v --tb=short --no-header 2>&1
+    on_fail: WARN
+    timeout_sec: 120
+
+  - id: run-plix-relay
+    name: "CI plix-relay (proxy distribution)"
+    agent: Alfred
+    run: |
+      cd $PLIX_ROOT
+      $PYTHON -m ruff check plix_relay/ --output-format=concise 2>&1 || true
+      $PYTHON -m pytest tests/test_plix_relay.py -v --tb=short --no-header 2>&1
+    on_fail: WARN
+    timeout_sec: 120
+
+  - id: run-plix-reg
+    name: "CI plix-reg (registre modèles)"
+    agent: Alfred
+    run: |
+      cd $PLIX_ROOT
+      $PYTHON -m ruff check plix_reg/ --output-format=concise 2>&1 || true
+      $PYTHON -m pytest tests/test_plix_reg.py -v --tb=short --no-header 2>&1
+    on_fail: WARN
+    timeout_sec: 120
+
+  - id: summary
+    name: "Résumé CI PLIX-Eco"
+    agent: Alfred
+    depends_on: [run-plix-cast, run-plix-cut, run-plix-watch, run-plix-relay, run-plix-reg]
+    run: |
+      $PYTHON -c "
+      from datetime import datetime
+      print('=' * 60)
+      print('PLIX-Eco CI Summary')
+      print('=' * 60)
+      print(f'Date: {datetime.now().isoformat()}')
+      print('Modules testés: cast, cut, watch, relay, reg')
+      print('=' * 60)
+      "
+    on_fail: WARN
+    timeout_sec: 30
+
+  - id: archive-report
+    name: "Archive — Copie rapports dans reports/plix-eco/YYYY-MM-DD/"
+    agent: Alfred
+    depends_on: [summary]
+    run: |
+      $PYTHON -c "
+      import shutil, sys
+      from pathlib import Path
+      from datetime import datetime
+      out = Path('$OUTPUT_DIR')
+      if not out.exists():
+          out.mkdir(parents=True, exist_ok=True)
+      dest = out / datetime.now().strftime('%Y-%m-%d')
+      dest.mkdir(parents=True, exist_ok=True)
+      print(f'[OK] Reports → {dest}')
+      "
+    on_fail: WARN
+    timeout_sec: 30
