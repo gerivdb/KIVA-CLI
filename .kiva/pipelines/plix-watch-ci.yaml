@@ -2,8 +2,8 @@ name: plix-watch-ci
 version: "1.0.0"
 intent_hash: 0xPLIX_WATCH_CI_20260718
 description: |
-  CI local pour plix-watch (inspecteur Q243).
-  Valide l'inspection et la détection d'anomalies dans les modèles PLIX.
+  CI local pour plix-watch (inspecteur de modeles Q243).
+  Valide l'inspection et la detection d'anomalies dans les modeles PLIX.
 
 on_merge:
   - repo: gerivdb/PLIX
@@ -16,7 +16,7 @@ env:
 
 steps:
   - id: preflight
-    name: "PLIX — Vérification pré-vol (PLIX_ROOT accessible)"
+    name: "PLIX - Verification pre-vol (PLIX_ROOT accessible)"
     agent: Alfred
     run: |
       $PYTHON -c "
@@ -32,7 +32,7 @@ steps:
     timeout_sec: 15
 
   - id: lint
-    name: "Lint — Ruff format + lint"
+    name: "Lint - Ruff format + lint"
     agent: Alfred
     depends_on: [preflight]
     run: |
@@ -43,7 +43,7 @@ steps:
     timeout_sec: 30
 
   - id: test
-    name: "Tests — pytest plix-watch (4 tests)"
+    name: "Tests - pytest plix-watch (4 tests)"
     agent: Alfred
     depends_on: [lint]
     run: |
@@ -53,7 +53,7 @@ steps:
     timeout_sec: 120
 
   - id: dry-run
-    name: "Dry-run — Validation inspecteur sans fichier"
+    name: "Dry-run - Validation inspecteur sans fichier"
     agent: Alfred
     depends_on: [test]
     run: |
@@ -63,7 +63,7 @@ steps:
     timeout_sec: 30
 
   - id: archive-report
-    name: "Archive — Copie rapports dans reports/plix-watch/YYYY-MM-DD/"
+    name: "Archive - Copie rapports dans reports/plix-watch/YYYY-MM-DD/"
     agent: Alfred
     depends_on: [dry-run]
     run: |
@@ -76,7 +76,7 @@ steps:
           out.mkdir(parents=True, exist_ok=True)
       dest = out / datetime.now().strftime('%Y-%m-%d')
       dest.mkdir(parents=True, exist_ok=True)
-      print(f'[OK] Reports → {dest}')
+      print(f'[OK] Reports -> {dest}')
       "
     on_fail: WARN
     timeout_sec: 30
