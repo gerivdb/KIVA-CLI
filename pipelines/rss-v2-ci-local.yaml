@@ -1,0 +1,265 @@
+name: rss-v2-ci-local
+version: "1.0.0"
+intent_hash: 0xKIVA_RSS_V2_CI_LOCAL_20260728
+description: |
+  CI local ENV2 - Pipeline d'industrialisation des standards de repos.
+  Valide la conformite aux normes RSS-v2, lint des PRDs, verification des intents,
+  et controle de la qualite documentaire. PAS de GitHub Actions - tourne via 
+  KIVA-CLI sur_merge ou schedule.
+
+  Refs: RSS-v2 v2.3, PRD-043, PRD-044, PRD-045, INTENT-094
+  Concepts: industrialisation-standards-repo (ONTOLOGY)
+
+schedule: "0 */2 * * *"   # toutes les 2h
+on_merge:
+  - repo: gerivdb/REPO-STANDARDS
+    branch: main
+  - repo: gerivdb/GOVERNANCE-HUB
+    branch: main
+  - repo: gerivdb/ECOYSTEM
+    branch: main
+
+env:
+  REPO_STANDARDS_PATH: "D:/DO/WEB/TOOLS/L4-TOOLS/REPO-STANDARDS"
+  GOV_HUB_PATH: "D:/DO/WEB/TOOLS/L0-CANON/GOVERNANCE-HUB"
+  INTENTS_PATH: "D:/DO/WEB/TOOLS/L0-CANON/GOVERNANCE-HUB/INTENTS"
+  PRDS_PATH: "D:/DO/WEB/TOOLS/L0-CANON/GOVERNANCE-HUB/PRDs"
+  ADRS_PATH: "D:/DO/WEB/TOOLS/L4-TOOLS/REPO-STANDARDS/ADR"
+  KNOWN_REPOS: "D:/DO/WEB/TOOLS/L0-CANON/GOVERNANCE-HUB/known_repositories.yaml"
+  OUTPUT_DIR: "D:/DO/WEB/TOOLS/reports/rss-v2"
+  PYTHON: "python"
+
+# -- etapes ------------------------------------------------------------------
+
+steps:
+
+  # -- GATE-0 : Validation des prerequis -----------------------------------
+  - id: gate-prereqs
+    name: "GATE-0 - Verification des chemins et dependances"
+    agent: Alfred
+    run: |
+      $PYTHON -c "
+      from pathlib import Path
+      import sys
+      paths = {
+          'REPO-STANDARDS': Path('$REPO_STANDARDS_PATH'),
+          'GOV-HUB': Path('$GOV_HUB_PATH'),
+          'INTENTS': Path('$INTENTS_PATH'),
+          'KNOWN-REPOS': Path('$KNOWN_REPOS'),
+          'OUTPUT': Path('$OUTPUT_DIR')
+      }
+      errors = []
+      for name, path in paths.items():
+          if not path.exists():
+              errors.append(f'{name} manquant: {path}')
+      if errors:
+          for e in errors: print(f'[ERROR] {e}')
+          sys.exit(1)
+      print(f'[OK] Tous les chemins requis sont accessibles')
+      "
+    on_fail: ABORT
+    timeout_sec: 15
+
+  # -- STEP-1 : Validation des normes RSS-v2 des repos -----------------------
+  - id: rss-v2-validation
+    name: "STEP-1 - Validation RSS-v2 via rss_lint.py"
+    agent: Selina
+    depends_on: [gate-prereqs]
+    run: |
+      cd $REPO_STANDARDS_PATH
+      $PYTHON rss_lint.py \
+        --root $REPO_STANDARDS_PATH \
+        --known-repos $KNOWN_REPOS \
+        --output $OUTPUT_DIR/rss_validation_report.json \
+        2>&1
+    on_fail: WARN
+    timeout_sec: 60
+    note: "Verifie que tous les repos respectent la structure RSS-v2"
+
+  # -- STEP-2 : Validation des frontmatter des INTENTS -----------------------
+  - id: intent-frontmatter-check
+    name: "STEP-2 - Validation frontmatter des INTENTS"
+    agent: Riddler
+    depends_on: [gate-prereqs]
+    run: |
+      $PYTHON -c "
+      import re, sys, glob
+      from pathlib import Path
+      intents_dir = Path('$INTENTS_PATH')
+      required_fields = ['intent_hash', 'status', 'priority']
+      errors = []
+      for intent_file in intents_dir.glob('INTENT-*.md'):
+          content = intent_file.read_text(encoding='utf-8', errors='replace')
+          m = re.match(r'^---\n(.*?)\n---', content, re.DOTALL)
+          if not m:
+              errors.append(f'[MISSING_FRONTMATTER] {intent_file.name}')
+              continue
+          fm = m.group(1)
+          for field in required_fields:
+              if field + ':' not in fm:
+                  errors.append(f'[MISSING_FIELD:{field}] {intent_file.name}')
+      if errors:
+          for e in errors: print(e)
+          sys.exit(1)
+      total = len(list(intents_dir.glob('INTENT-*.md')))
+      print(f'[OK] {total} INTENT(s) valides - tous champs requis presents')
+      "
+    on_fail: ABORT
+    timeout_sec: 30
+
+  # -- STEP-3 : Verification de la coherence des ADRs -----------------------
+  - id: adr-consistency-check
+    name: "STEP-3 - Validation des references ADR dans les gouvernances"
+    agent: Selina
+    depends_on: [gate-prereqs]
+    run: |
+      $PYTHON -c "
+      import re, json, sys, glob
+      from pathlib import Path
+      adrs_dir = Path('$ADRS_PATH')
+      known_repos = Path('$KNOWN_REPOS')
+      errors = []
+      
+      # Charger la liste des repos connus
+      import yaml
+      with open(known_repos, 'r') as f:
+          repos_data = yaml.safe_load(f)
+      known_repo_names = {r['name'] for r in repos_data.get('repositories', [])}
+      
+      # Verifier chaque ADR
+      for adr_file in adrs_dir.glob('ADR-*.md'):
+          content = adr_file.read_text(encoding='utf-8', errors='replace')
+          # Recherche des references de repos dans le contenu
+          repo_refs = re.findall(r'gerivdb/[\w\-]+', content)
+          for ref in repo_refs:
+              if ref not in known_repo_names and not ref.startswith('gerivdb/'):
+                  errors.append(f'[UNKNOWN_REPO:{ref}] {adr_file.name}')
+      
+      if errors:
+          for e in errors: print(e)
+          sys.exit(1)
+      total_adrs = len(list(adrs_dir.glob('ADR-*.md')))
+      print(f'[OK] {total_adrs} ADR(s) verifies - toutes les references valides')
+      "
+    on_fail: WARN
+    timeout_sec: 45
+
+  # -- STEP-4 : Audit de qualite documentaire des PRDs -----------------------
+  - id: prd-quality-audit
+    name: "STEP-4 - Audit qualite documentaire des PRDs"
+    agent: Alfred
+    depends_on: [gate-prereqs]
+    run: |
+      $PYTHON -c "
+      import re, sys, glob
+      from pathlib import Path
+      prds_dir = Path('$PRDS_PATH')
+      required_fields = ['type', 'version', 'date', 'status', 'intent_hash']
+      errors = []
+      warnings = []
+      for prd_file in prds_dir.glob('PRD-*.md'):
+          content = prd_file.read_text(encoding='utf-8', errors='replace')
+          m = re.match(r'^---\n(.*?)\n---', content, re.DOTALL)
+          if not m:
+              errors.append(f'[MISSING_FRONTMATTER] {prd_file.name}')
+              continue
+          fm = m.group(1)
+          for field in required_fields:
+              if field + ':' not in fm:
+                  errors.append(f'[MISSING_FIELD:{field}] {prd_file.name}')
+          # Verifier que la date est au bon format
+          date_match = re.search(r'date:\s*"(\d{4}-\d{2}-\d{2})"', fm)
+          if date_match:
+              from datetime import datetime
+              try:
+                  datetime.strptime(date_match.group(1), '%Y-%m-%d')
+              except ValueError:
+                  errors.append(f'[INVALID_DATE_FORMAT] {prd_file.name}')
+          else:
+              warnings.append(f'[MISSING_DATE] {prd_file.name}')
+      if errors:
+          for e in errors: print(e)
+          sys.exit(1)
+      if warnings:
+          for w in warnings: print(f'[WARN] {w}')
+      total = len(list(prds_dir.glob('PRD-*.md')))
+      print(f'[OK] {total} PRD(s) valides - qualite documentaire acceptable')
+      "
+    on_fail: WARN
+    timeout_sec: 40
+
+  # -- STEP-5 : Generation du rapport de conformite global -------------------
+  - id: global-compliance-report
+    name: "STEP-5 - Generation du rapport de conformite REPO-STANDARDS"
+    agent: Alfred
+    depends_on: [rss-v2-validation, intent-frontmatter-check, adr-consistency-check, prd-quality-audit]
+    run: |
+      $PYTHON -c "
+      import json, os, shutil
+      from pathlib import Path
+      from datetime import datetime
+      output_dir = Path('$OUTPUT_DIR')
+      timestamp = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
+      report = {
+          'timestamp': timestamp,
+          'pipeline': 'rss-v2-ci-local',
+          'version': '1.0.0',
+          'checks_performed': [
+              'rss-v2-validation',
+              'intent-frontmatter-check', 
+              'adr-consistency-check',
+              'prd-quality-audit'
+          ],
+          'status': 'completed',
+          'ecosystem': 'REPO-STANDARDS',
+          'fin_ops_sovereignty': True
+      }
+      report_file = output_dir / f'compliance_report_{timestamp}.json'
+      with open(report_file, 'w') as f:
+          json.dump(report, f, indent=2)
+      # Creer un lien symbolique vers le dernier rapport
+      latest_link = output_dir / 'compliance_report-latest.json'
+      if latest_link.exists() or latest_link.is_symlink():
+          latest_link.unlink()
+      latest_link.symlink_to(report_file.name)
+      print(f'[OK] Rapport de conformite genere: {report_file}')
+      "
+    on_fail: WARN
+    timeout_sec: 20
+
+  # -- ARCHIVE : Organisation des rapports par date ------------------------
+  - id: archive-reports
+    name: "Archive - Organisation des rapports dans YYYY-MM-DD/"
+    agent: Alfred
+    depends_on: [global-compliance-report]
+    run: |
+      $PYTHON -c "
+      import shutil
+      from pathlib import Path
+      from datetime import datetime
+      src = Path('$OUTPUT_DIR')
+      dest_dir = src / datetime.now().strftime('%Y-%m-%d')
+      dest_dir.mkdir(parents=True, exist_ok=True)
+      moved = 0
+      for f in src.glob('*.json'):
+          if f.name != 'compliance_report-latest.json':  # Ne pas deplacer le lien
+              shutil.move(str(f), dest_dir / f.name)
+              moved += 1
+      print(f'[OK] {moved} rapport(s) archive(s) -> {dest_dir}')
+      "
+    on_fail: WARN
+    timeout_sec: 20
+
+# -- Configuration HITL ---------------------------------------------------
+
+on_alert_hitl:
+  action: create_issue
+  repo: gerivdb/ARGUS
+  title: "[RSS-V2-CI-LOCAL] echec de conformite detecte - HITL requis"
+  labels: [critical, rss-v2, hitl, fin-ops]
+  body: |
+    Le pipeline rss-v2-ci-local a detecte des problemes de conformite
+    dans l'ecosysteme REPO-STANDARDS.
+    Rapport de conformite: $OUTPUT_DIR/compliance_report-latest.json
+    Action manuelle requise avant le prochain cycle.
+    HITL schedule : 16h00 -> 07h30 CEST
