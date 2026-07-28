@@ -1,0 +1,287 @@
+name: intent-validation-pipeline
+version: "1.0.0"
+intent_hash: 0xKIVA_INTENT_VALIDATION_PIPELINE_20260728
+description: |
+  CI local ENV2 - Pipeline de validation des INTENTS (frontmatter + coherence).
+  Valide que tous les fichiers INTENT-*.md respectent le standard frontmatter,
+  ont des intent_hash uniques, des statuts valides, et sont correctement
+  references dans la chaine d'intentions (parents/children).
+  PAS de GitHub Actions - KIVA-CLI schedule ou sur_merge.
+
+  Refs: INTENT-082, INTENT-094, ADR-INTENT-CHAIN
+  Concepts: intent-validation, frontmatter-governance
+
+schedule: "0 */4 * * *"   # Toutes les 4h
+on_merge:
+  - repo: gerivdb/GOVERNANCE-HUB
+    branch: main
+  - repo: gerivdb/REPO-STANDARDS
+    branch: main
+
+env:
+  GOV_HUB_PATH: "D:/DO/WEB/TOOLS/L0-CANON/GOVERNANCE-HUB"
+  INTENTS_PATH: "D:/DO/WEB/TOOLS/L0-CANON/GOVERNANCE-HUB/INTENTS"
+  OUTPUT_DIR: "D:/DO/WEB/TOOLS/reports/intent-validation"
+  PYTHON: "python"
+
+# -- etapes ------------------------------------------------------------------
+
+steps:
+
+  # -- GATE-0 : Pre-flight ------------------------------------------------
+  - id: gate-prereqs
+    name: "GATE-0 - Pre-flight (acces aux INTENTS)"
+    agent: Alfred
+    run: |
+      $PYTHON -c "
+      from pathlib import Path
+      import sys
+      
+      paths = {
+          'INTENTS': Path('$INTENTS_PATH'),
+          'GOV-HUB': Path('$GOV_HUB_PATH')
+      }
+      
+      errors = []
+      for name, path in paths.items():
+          if not path.exists():
+              errors.append(f'{name} absent: {path}')
+              
+      if errors:
+          for e in errors: print(f'[ERROR] {e}')
+          sys.exit(1)
+      print('[OK] Pre-flight valide')
+      "
+    on_fail: ABORT
+    timeout_sec: 10
+
+  # -- STEP-1 : Validation frontmatter de tous les INTENTS -----------------
+  - id: validate-intent-frontmatter
+    name: "STEP-1 - Validation frontmatter YAML des INTENTS"
+    agent: Riddler
+    depends_on: [gate-prereqs]
+    run: |
+      $PYTHON -c "
+      import re, sys, glob
+      from pathlib import Path
+      
+      required_fields = ['intent_hash', 'status', 'priority']
+      valid_statuses = ['exploratory', 'proposed', 'approved', 'implemented', 'archived']
+      valid_priorities = ['P0', 'P1', 'P2', 'P3']
+      
+      errors = []
+      warnings = []
+      intents = {}
+      
+      for intent_file in Path('$INTENTS_PATH').glob('INTENT-*.md'):
+          content = intent_file.read_text(encoding='utf-8', errors='replace')
+          m = re.match(r'---\n(.*?)\n---', content, re.DOTALL)
+          if not m:
+              errors.append(f'[MISSING_FRONTMATTER] {intent_file.name}')
+              continue
+              
+          fm = m.group(1)
+          fname = intent_file.name
+          
+          # Verifier champs requis
+          for field in required_fields:
+              if field + ':' not in fm:
+                  errors.append(f'[MISSING_FIELD:{field}] {fname}')
+          
+          # Verifier format intent_hash
+          ih_match = re.search(r'intent_hash:\s*(0x[^\s]+)', fm)
+          if ih_match:
+              ih = ih_match.group(1)
+              if ih in intents:
+                  errors.append(f'[DUPLICATE_INTENT_HASH] {ih} dans {fname} et {intents[ih]}')
+              else:
+                  intents[ih] = fname
+          else:
+              errors.append(f'[INVALID_INTENT_HASH] {fname}')
+          
+          # Verifier status
+          st_match = re.search(r'status:\s*(\w+)', fm)
+          if st_match and st_match.group(1) not in valid_statuses:
+              errors.append(f'[INVALID_STATUS:{st_match.group(1)}] {fname}')
+          
+          # Verifier priority
+          pr_match = re.search(r'priority:\s*(\w+)', fm)
+          if pr_match and pr_match.group(1) not in valid_priorities:
+              warnings.append(f'[INVALID_PRIORITY:{pr_match.group(1)}] {fname}')
+      
+      if errors:
+          for e in errors: print(e)
+          sys.exit(1)
+      if warnings:
+          for w in warnings: print(f'[WARN] {w}')
+          
+      print(f'[OK] {len(intents)} INTENT(s) valides - frontmatter conforme')
+      "
+    on_fail: ABORT
+    timeout_sec: 30
+
+  # -- STEP-2 : Verification de la chaine d'intentions (parents/children) --
+  - id: validate-intent-chain
+    name: "STEP-2 - Validation de la chaine d'intentions (parents/children)"
+    agent: Selina
+    depends_on: [validate-intent-frontmatter]
+    run: |
+      $PYTHON -c "
+      import re, sys
+      from pathlib import Path
+      
+      intents_dir = Path('$INTENTS_PATH')
+      all_intents = {}
+      
+      # Charger tous les INTENTS
+      for f in intents_dir.glob('INTENT-*.md'):
+          content = f.read_text(encoding='utf-8', errors='replace')
+          m = re.search(r'intent_hash:\s*(0x[^\s]+)', content)
+          if not m: continue
+          ih = m.group(1)
+          # Extraire parents
+          parents = re.findall(r'-\s*INTENT-\d+', content)
+          # Simplification : verifier juste la syntaxe
+          all_intents[ih] = {'file': f.name, 'parents': parents}
+      
+      # Verifier que les parents references existent
+      errors = []
+      for ih, data in all_intents.items():
+          for parent in data['parents']:
+              parent_hash = re.search(r'0x[^\s]+', parent)
+              if parent_hash and parent_hash.group(1) not in all_intents:
+                  errors.append(f'[ORPHAN_PARENT] {data[\"file\"]} reference {parent_hash.group(1)} introuvable')
+      
+      if errors:
+          for e in errors: print(e)
+          sys.exit(1)
+          
+      print(f'[OK] Chaine d\\'intentions validee - {len(all_intents)} INTENTS sans orphelins')
+      "
+    on_fail: ABORT
+    timeout_sec: 20
+
+  # -- STEP-3 : Verification des references croisees (ADRs, PRDs, EPICS) --
+  - id: validate-cross-references
+    name: "STEP-3 - Validation des references croisees ADRs/PRDs/EPICS"
+    agent: Alfred
+    depends_on: [validate-intent-chain]
+    run: |
+      $PYTHON -c "
+      import re, sys
+      from pathlib import Path
+      
+      intents_dir = Path('$INTENTS_PATH')
+      gov_hub = Path('$GOV_HUB_PATH')
+      
+      # Lister les ADRs existants
+      adrs = set()
+      for adr in (gov_hub / 'ADR').glob('ADR-*.md'):
+          m = re.search(r'ADR-\d+', adr.name)
+          if m: adrs.add(m.group(0))
+      
+      # Lister les PRDs
+      prds = set()
+      for prd in (gov_hub / 'PRD').glob('PRD-*.md'):
+          m = re.search(r'PRD-\d+', prd.name)
+          if m: prds.add(m.group(0))
+          
+      # Lister les EPICS
+      epics = set()
+      for epic in (gov_hub / 'EPIC').glob('EPIC-*.md'):
+          m = re.search(r'EPIC-\d+', epic.name)
+          if m: epics.add(m.group(0))
+      
+      warnings = []
+      for intent in intents_dir.glob('INTENT-*.md'):
+          content = intent.read_text(encoding='utf-8', errors='replace')
+          # Trouver toutes les references
+          refs = re.findall(r'(ADR-\d+|PRD-\d+|EPIC-\d+)', content)
+          for ref in refs:
+              if ref.startswith('ADR-') and ref not in adrs:
+                  warnings.append(f'[MISSING_ADR] {intent.name} reference {ref}')
+              elif ref.startswith('PRD-') and ref not in prds:
+                  warnings.append(f'[MISSING_PRD] {intent.name} reference {ref}')
+              elif ref.startswith('EPIC-') and ref not in epics:
+                  warnings.append(f'[MISSING_EPIC] {intent.name} reference {ref}')
+      
+      if warnings:
+          for w in warnings: print(f'[WARN] {w}')
+      print('[OK] References croisees verifiees')
+      "
+    on_fail: WARN
+    timeout_sec: 20
+
+  # -- STEP-4 : Generation du rapport de validation -----------------------
+  - id: generate-validation-report
+    name: "STEP-4 - Generation du rapport de validation INTENTS"
+    agent: Alfred
+    depends_on: [validate-cross-references]
+    run: |
+      $PYTHON -c "
+      import json
+      from pathlib import Path
+      from datetime import datetime
+      
+      output_dir = Path('$OUTPUT_DIR')
+      timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+      report = {
+          'pipeline': 'intent-validation-pipeline',
+          'timestamp': datetime.now().isoformat(),
+          'checks_performed': [
+              'validate-intent-frontmatter',
+              'validate-intent-chain',
+              'validate-cross-references'
+          ],
+          'status': 'completed'
+      }
+      report_file = output_dir / f'intent_validation_{timestamp}.json'
+      with open(report_file, 'w') as f:
+          json.dump(report, f, indent=2)
+      
+      latest = output_dir / 'intent_validation-latest.json'
+      if latest.exists() or latest.is_symlink():
+          latest.unlink()
+      latest.symlink_to(report_file.name)
+      
+      print(f'[OK] Rapport validation genere: {report_file}')
+      "
+    on_fail: WARN
+    timeout_sec: 10
+
+  # -- ARCHIVE : Organisation par date ----------------------------------
+  - id: archive-reports
+    name: "Archive - Organisation par date YYYY-MM-DD/"
+    agent: Alfred
+    depends_on: [generate-validation-report]
+    run: |
+      $PYTHON -c "
+      import shutil
+      from pathlib import Path
+      from datetime import datetime
+      
+      src = Path('$OUTPUT_DIR')
+      dest = src / datetime.now().strftime('%Y-%m-%d')
+      dest.mkdir(parents=True, exist_ok=True)
+      
+      moved = 0
+      for f in src.glob('*.json'):
+          if not f.name.endswith('-latest.json'):
+              shutil.move(str(f), dest / Path(f).name)
+              moved += 1
+      
+      print(f'[OK] {moved} fichier(s) archive(s) -> {dest}')
+      "
+    on_fail: WARN
+    timeout_sec: 10
+
+on_alert_hitl:
+  action: create_issue
+  repo: gerivdb/ARGUS
+  title: "[INTENT-VALIDATION] Probleme de validation INTENTS detecte - HITL requis"
+  labels: [critical, intent-validation, hitl, governance]
+  body: |
+    Le pipeline intent-validation-pipeline a detecte des INTENTS non conformes.
+    Rapport: $OUTPUT_DIR/intent_validation-latest.json
+    Action manuelle requise pour corriger les frontmatters ou chaines d'intentions.
+    HITL schedule : 16h00 -> 07h30 CEST

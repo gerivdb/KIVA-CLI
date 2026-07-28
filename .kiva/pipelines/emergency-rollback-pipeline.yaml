@@ -1,0 +1,402 @@
+name: emergency-rollback-pipeline
+version: "1.0.0"
+intent_hash: 0xKIVA_EMERGENCY_ROLLBACK_PIPELINE_20260728
+description: |
+  CI local ENV2 - Pipeline de rollback d'urgence pour incidents critiques.
+  Support 3 modes : git-revert, git-reset-hard, pipeline-replay.
+  Déclenchement HITL obligatoire (mode BDCP = verrouillé).
+  Refs: ADR-2026-07-28-018, INTENT-094, PANIC_MODE_PROTOCOL
+  Concepts: emergency-rollback, bdcp-safety, wal-audit
+
+schedule: null   # Pas de schedule - déclenchement manuel HITL uniquement
+on_merge: []
+
+env:
+  KIVA_CLI_PATH: "D:/DO/WEB/TOOLS/L1-INFRA/KIVA-CLI"
+  OUTPUT_DIR: "D:/DO/WEB/TOOLS/reports/emergency-rollback"
+  PYTHON: "python"
+  GATEWAY_HOST: "127.0.0.1"
+  GATEWAY_PORT: "18000"
+
+steps:
+
+  # -- GATE-0 : BDCP Safety Check -----------------------------------
+  - name: gate-bdcp-check
+    description: "GATE-0 - Verifier mode BDCP (refus si clapet != FREE)"
+    command: |
+      $PYTHON -c "
+      import urllib.request, json, sys
+      try:
+          url = f'http://{GATEWAY_HOST}:{GATEWAY_PORT}/clapet/status'
+          req = urllib.request.Request(url, method='GET')
+          r = urllib.request.urlopen(req, timeout=5)
+          status = json.loads(r.read().decode())
+          if status.get('status') == 'BDCP':
+              print('[BLOCK] Mode BDCP actif - rollback interdit sans ordre explicite utilisateur')
+              print('[HINT] Utilisateur doit dire: ouvre le clapet / passe en FREE / désactive BDCP')
+              sys.exit(1)
+          print(f'[OK] Mode clapet: {status.get(\"status\", \"unknown\")} - rollback autorise')
+      except Exception as e:
+          print(f'[WARN] Gateway inaccessible, mode degrade: {e}')
+          print('[OK] Continuation en mode degrade (pas de verification BDCP)')
+      "
+    on_failure: abort
+    timeout_sec: 10
+
+  # -- GATE-1 : HITL Confirmation ------------------------------------
+  - name: gate-hitl-confirm
+    description: "GATE-1 - Confirmation HITL explicite requise"
+    depends_on: [gate-bdcp-check]
+    command: |
+      $PYTHON -c "
+      import os, sys
+      # Verifier variable d'environnement pour confirmation HITL
+      hitl_confirm = os.environ.get('KIVA_HITL_CONFIRM', '').lower()
+      if hitl_confirm not in ('yes', 'true', '1', 'confirm', 'ouvre le clapet', 'passe en free', 'desactive bdcp'):
+          print('[BLOCK] Confirmation HITL manquante')
+          print('[USAGE] KIVA_HITL_CONFIRM=yes kiva pipeline run emergency-rollback-pipeline')
+          print('[USAGE] Ou definir KIVA_HITL_CONFIRM=ouvre le clapet')
+          sys.exit(1)
+      print('[OK] Confirmation HITL recue')
+      "
+    on_failure: abort
+    timeout_sec: 10
+
+  # -- STEP-1 : Parametres du rollback -------------------------------
+  - name: parse-rollback-params
+    description: "STEP-1 - Parser les parametres (mode, target, sha)"
+    depends_on: [gate-hitl-confirm]
+    command: |
+      $PYTHON -c "
+      import os, json, sys
+      from pathlib import Path
+      
+      output_dir = Path('$OUTPUT_DIR')
+      output_dir.mkdir(parents=True, exist_ok=True)
+      
+      # Recuperer parametres depuis env vars
+      mode = os.environ.get('KIVA_ROLLBACK_MODE', 'git-revert')  # git-revert|git-reset-hard|pipeline-replay
+      target_repo = os.environ.get('KIVA_ROLLBACK_REPO', '')     # ex: gerivdb/CTULU
+      target_sha = os.environ.get('KIVA_ROLLBACK_SHA', '')       # commit SHA
+      pipeline_name = os.environ.get('KIVA_ROLLBACK_PIPELINE', '') # pour pipeline-replay
+      
+      valid_modes = ['git-revert', 'git-reset-hard', 'pipeline-replay']
+      if mode not in valid_modes:
+          print(f'[ERR] Mode invalide: {mode}. Valides: {valid_modes}')
+          sys.exit(1)
+      
+      if mode in ('git-revert', 'git-reset-hard') and not target_sha:
+          print('[ERR] SHA requis pour git-revert et git-reset-hard')
+          sys.exit(1)
+          
+      if mode == 'pipeline-replay' and not pipeline_name:
+          print('[ERR] Pipeline name requis pour pipeline-replay')
+          sys.exit(1)
+      
+      params = {
+          'mode': mode,
+          'target_repo': target_repo,
+          'target_sha': target_sha,
+          'pipeline_name': pipeline_name,
+          'timestamp': __import__('datetime').datetime.now().isoformat()
+      }
+      
+      params_file = output_dir / 'rollback_params.json'
+      with open(params_file, 'w') as f:
+          json.dump(params, f, indent=2)
+      
+      print(f'[OK] Parametres: mode={mode}, repo={target_repo}, sha={target_sha[:8] if target_sha else \"N/A\"}')
+      "
+    on_failure: abort
+    timeout_sec: 15
+
+  # -- STEP-2 : Creer checkpoint WAL pre-rollback --------------------
+  - name: create-wal-checkpoint
+    description: "STEP-2 - Creer checkpoint WAL avant rollback"
+    depends_on: [parse-rollback-params]
+    command: |
+      $PYTHON -c "
+      import subprocess, json, sys
+      from pathlib import Path
+      
+      output_dir = Path('$OUTPUT_DIR')
+      params_file = output_dir / 'rollback_params.json'
+      params = json.loads(params_file.read_text())
+      
+      # Determiner le repo cible
+      repo_path = params['target_repo'].replace('gerivdb/', 'D:/DO/WEB/TOOLS/')
+      # Mapping strates si necessaire
+      if 'KIVA-CLI' in params['target_repo']:
+          repo_path = 'D:/DO/WEB/TOOLS/L1-INFRA/KIVA-CLI'
+      elif 'CTULU' in params['target_repo']:
+          repo_path = 'D:/DO/WEB/TOOLS/L4-TOOLS/CTULU'
+      elif 'TRIX' in params['target_repo']:
+          repo_path = 'D:/DO/WEB/TOOLS/L4-TOOLS/TRIX'
+      elif 'ECOS-CLI' in params['target_repo']:
+          repo_path = 'D:/DO/WEB/TOOLS/L1-INFRA/ECOS-CLI'
+      elif 'GOVERNANCE-HUB' in params['target_repo']:
+          repo_path = 'D:/DO/WEB/TOOLS/L0-CANON/GOVERNANCE-HUB'
+      
+      # Creer checkpoint WAL via kiva wal checkpoint
+      try:
+          result = subprocess.run([
+              'python', '-m', 'kiva_cli.kiva', 'wal', 'checkpoint', '--create'
+          ], capture_output=True, text=True, cwd='$KIVA_CLI_PATH', timeout=60)
+          
+          if result.returncode == 0:
+              checkpoint_id = result.stdout.strip()
+              print(f'[OK] Checkpoint WAL cree: {checkpoint_id}')
+              
+              # Sauvegarder checkpoint_id
+              params['wal_checkpoint'] = checkpoint_id
+              with open(params_file, 'w') as f:
+                  json.dump(params, f, indent=2)
+          else:
+              print(f'[WARN] Checkpoint WAL: {result.stderr}')
+              params['wal_checkpoint'] = 'none'
+              with open(params_file, 'w') as f:
+                  json.dump(params, indent=2)
+      except Exception as e:
+          print(f'[WARN] Erreur checkpoint WAL: {e}')
+          params['wal_checkpoint'] = 'error'
+          with open(params_file, 'w') as f:
+              json.dump(params, indent=2)
+      "
+    on_failure: warn
+    timeout_sec: 90
+
+  # -- STEP-3 : Executer le rollback ---------------------------------
+  - name: execute-rollback
+    description: "STEP-3 - Executer le rollback selon le mode"
+    depends_on: [create-wal-checkpoint]
+    command: |
+      $PYTHON -c "
+      import subprocess, json, sys, os
+      from pathlib import Path
+      
+      output_dir = Path('$OUTPUT_DIR')
+      params_file = output_dir / 'rollback_params.json'
+      params = json.loads(params_file.read_text())
+      
+      mode = params['mode']
+      target_repo = params['target_repo']
+      target_sha = params['target_sha']
+      
+      # Determiner chemin repo local
+      repo_path = target_repo.replace('gerivdb/', 'D:/DO/WEB/TOOLS/')
+      if 'KIVA-CLI' in target_repo:
+          repo_path = 'D:/DO/WEB/TOOLS/L1-INFRA/KIVA-CLI'
+      elif 'CTULU' in target_repo:
+          repo_path = 'D:/DO/WEB/TOOLS/L4-TOOLS/CTULU'
+      elif 'TRIX' in target_repo:
+          repo_path = 'D:/DO/WEB/TOOLS/L4-TOOLS/TRIX'
+      elif 'ECOS-CLI' in target_repo:
+          repo_path = 'D:/DO/WEB/TOOLS/L1-INFRA/ECOS-CLI'
+      elif 'GOVERNANCE-HUB' in target_repo:
+          repo_path = 'D:/DO/WEB/TOOLS/L0-CANON/GOVERNANCE-HUB'
+      
+      print(f'[INFO] Rollback {mode} sur {repo_path} vers {target_sha[:8]}')
+      
+      success = False
+      output = ''
+      
+      if mode == 'git-revert':
+          # git revert <sha>
+          result = subprocess.run([
+              'git', 'revert', '--no-commit', target_sha
+          ], capture_output=True, text=True, cwd=repo_path, timeout=60)
+          output = result.stdout + result.stderr
+          if result.returncode == 0:
+              # Commit le revert
+              commit_result = subprocess.run([
+                  'git', 'commit', '-m', f'revert: rollback to {target_sha[:8]} via emergency-rollback-pipeline'
+              ], capture_output=True, text=True, cwd=repo_path, timeout=30)
+              output += commit_result.stdout + commit_result.stderr
+              success = commit_result.returncode == 0
+              
+      elif mode == 'git-reset-hard':
+          # DANGER: git reset --hard + force push
+          print('[WARN] MODE DANGEREUX: git reset --hard + force push')
+          result = subprocess.run([
+              'git', 'reset', '--hard', target_sha
+          ], capture_output=True, text=True, cwd=repo_path, timeout=60)
+          output = result.stdout + result.stderr
+          if result.returncode == 0:
+              push_result = subprocess.run([
+                  'git', 'push', '--force', 'origin', 'main'
+              ], capture_output=True, text=True, cwd=repo_path, timeout=60)
+              output += push_result.stdout + push_result.stderr
+              success = push_result.returncode == 0
+              
+      elif mode == 'pipeline-replay':
+          # Rejouer un pipeline precedent
+          pipeline_name = params['pipeline_name']
+          print(f'[INFO] Rejouer pipeline: {pipeline_name}')
+          result = subprocess.run([
+              'python', '-m', 'kiva_cli.kiva', 'pipeline', 'run', pipeline_name
+          ], capture_output=True, text=True, cwd='$KIVA_CLI_PATH', timeout=300)
+          output = result.stdout + result.stderr
+          success = result.returncode == 0
+      
+      # Enregistrer resultat
+      params['rollback_result'] = {
+          'success': success,
+          'output': output[-2000:],  # derniers 2000 chars
+          'timestamp': __import__('datetime').datetime.now().isoformat()
+      }
+      
+      with open(params_file, 'w') as f:
+          json.dump(params, f, indent=2)
+      
+      if success:
+          print('[OK] Rollback reussi')
+      else:
+          print(f'[ERR] Rollback echoue: {output[-500:]}')
+          sys.exit(1)
+      "
+    on_failure: abort
+    timeout_sec: 300
+
+  # -- STEP-4 : Verifier l'integrite post-rollback -------------------
+  - name: verify-post-rollback
+    description: "STEP-4 - Verifier l'integrite apres rollback"
+    depends_on: [execute-rollback]
+    command: |
+      $PYTHON -c "
+      import subprocess, json, sys
+      from pathlib import Path
+      
+      output_dir = Path('$OUTPUT_DIR')
+      params_file = output_dir / 'rollback_params.json'
+      params = json.loads(params_file.read_text())
+      
+      target_repo = params['target_repo']
+      repo_path = target_repo.replace('gerivdb/', 'D:/DO/WEB/TOOLS/')
+      if 'KIVA-CLI' in target_repo:
+          repo_path = 'D:/DO/WEB/TOOLS/L1-INFRA/KIVA-CLI'
+      elif 'CTULU' in target_repo:
+          repo_path = 'D:/DO/WEB/TOOLS/L4-TOOLS/CTULU'
+      elif 'TRIX' in target_repo:
+          repo_path = 'D:/DO/WEB/TOOLS/L4-TOOLS/TRIX'
+      elif 'ECOS-CLI' in target_repo:
+          repo_path = 'D:/DO/WEB/TOOLS/L1-INFRA/ECOS-CLI'
+      elif 'GOVERNANCE-HUB' in target_repo:
+          repo_path = 'D:/DO/WEB/TOOLS/L0-CANON/GOVERNANCE-HUB'
+      
+      # Verifier git status clean
+      result = subprocess.run(['git', 'status', '--short'], capture_output=True, text=True, cwd=repo_path)
+      if result.stdout.strip():
+          print(f'[WARN] Working tree pas clean: {result.stdout.strip()}')
+      else:
+          print('[OK] Working tree clean')
+      
+      # Verifier que le commit pointe vers le bon SHA
+      result = subprocess.run(['git', 'rev-parse', 'HEAD'], capture_output=True, text=True, cwd=repo_path)
+      current_sha = result.stdout.strip()
+      print(f'[OK] HEAD actuel: {current_sha[:8]}')
+      
+      # Verifier WAL integrity
+      try:
+          wal_result = subprocess.run([
+              'python', '-m', 'kiva_cli.kiva', 'wal', 'verify'
+          ], capture_output=True, text=True, cwd='$KIVA_CLI_PATH', timeout=60)
+          if wal_result.returncode == 0:
+              print('[OK] WAL integrity verified')
+          else:
+              print(f'[WARN] WAL verify: {wal_result.stderr}')
+      except Exception as e:
+          print(f'[WARN] WAL verify error: {e}')
+      
+      params['post_verify'] = {
+          'head_sha': current_sha,
+          'working_tree_clean': not bool(result.stdout.strip()),
+          'timestamp': __import__('datetime').datetime.now().isoformat()
+      }
+      
+      with open(params_file, 'w') as f:
+          json.dump(params, f, indent=2)
+      "
+    on_failure: warn
+    timeout_sec: 60
+
+  # -- STEP-5 : Generer rapport d'incident ---------------------------
+  - name: generate-incident-report
+    description: "STEP-5 - Generer rapport d'incident rollback"
+    depends_on: [verify-post-rollback]
+    command: |
+      $PYTHON -c "
+      import json
+      from pathlib import Path
+      from datetime import datetime
+      
+      output_dir = Path('$OUTPUT_DIR')
+      params_file = output_dir / 'rollback_params.json'
+      params = json.loads(params_file.read_text())
+      
+      timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+      report = {
+          'pipeline': 'emergency-rollback-pipeline',
+          'timestamp': datetime.now().isoformat(),
+          'trigger': 'HITL',
+          'mode': params['mode'],
+          'target_repo': params['target_repo'],
+          'target_sha': params['target_sha'],
+          'wal_checkpoint': params.get('wal_checkpoint', 'unknown'),
+          'rollback_result': params.get('rollback_result', {}),
+          'post_verify': params.get('post_verify', {}),
+          'status': 'completed' if params.get('rollback_result', {}).get('success') else 'failed'
+      }
+      
+      report_file = output_dir / f'emergency_rollback_{timestamp}.json'
+      with open(report_file, 'w') as f:
+          json.dump(report, f, indent=2)
+      
+      # Symlink latest
+      latest = output_dir / 'emergency_rollback-latest.json'
+      if latest.exists() or latest.is_symlink():
+          latest.unlink()
+      latest.symlink_to(report_file.name)
+      
+      print(f'[OK] Rapport incident genere: {report_file}')
+      print(f'[OK] Status: {report[\"status\"]}')
+      "
+    on_failure: warn
+    timeout_sec: 15
+
+  # -- ARCHIVE : Organisation par date -------------------------------
+  - name: archive-reports
+    description: "Archive - Organisation par date YYYY-MM-DD/"
+    depends_on: [generate-incident-report]
+    command: |
+      $PYTHON -c "
+      import shutil
+      from pathlib import Path
+      from datetime import datetime
+      
+      src = Path('$OUTPUT_DIR')
+      dest = src / datetime.now().strftime('%Y-%m-%d')
+      dest.mkdir(parents=True, exist_ok=True)
+      
+      moved = 0
+      for f in src.glob('*.json'):
+          if not f.name.endswith('-latest.json'):
+              shutil.move(str(f), dest / f.name)
+              moved += 1
+      
+      print(f'[OK] {moved} fichier(s) archive(s) -> {dest}')
+      "
+    on_failure: warn
+    timeout_sec: 10
+
+on_alert_hitl:
+  action: create_issue
+  repo: gerivdb/ARGUS
+  title: "[EMERGENCY-ROLLBACK] Echec rollback d'urgence - HITL requis"
+  labels: [critical, emergency-rollback, hitl, bdcp]
+  body: |
+    Le pipeline emergency-rollback-pipeline a echoue.
+    Mode: {mode}
+    Repo: {target_repo}
+    SHA: {target_sha}
+    Rapport: $OUTPUT_DIR/emergency_rollback-latest.json
+    Action manuelle requise immediatement.

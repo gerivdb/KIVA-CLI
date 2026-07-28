@@ -1,0 +1,82 @@
+name: plix-cast-ci
+version: "1.0.0"
+intent_hash: 0xPLIX_CAST_CI_20260718
+description: |
+  CI local pour plix-cast (convertisseur HuggingFace->Q243).
+  Valide la conversion de modeles et la generation de conteneurs PLIX.
+
+on_merge:
+  - repo: gerivdb/PLIX
+    branch: main
+
+env:
+  PLIX_ROOT: "D:/DO/WEB/TOOLS/L2-PLATFORM/PLIX"
+  PYTHON: "python"
+  OUTPUT_DIR: "D:/DO/WEB/TOOLS/reports/plix-cast"
+
+steps:
+  - id: preflight
+    name: "PLIX - Verification pre-vol (PLIX_ROOT accessible)"
+    agent: Alfred
+    run: |
+      $PYTHON -c "
+      from pathlib import Path
+      import sys
+      plix = Path('$PLIX_ROOT')
+      if not plix.exists():
+          print('[ERROR] PLIX_ROOT manquant:', plix)
+          sys.exit(1)
+      print('[OK] PLIX_ROOT:', plix)
+      "
+    on_fail: ABORT
+    timeout_sec: 15
+
+  - id: lint
+    name: "Lint - Ruff format + lint"
+    agent: Alfred
+    depends_on: [preflight]
+    run: |
+      cd $PLIX_ROOT
+      $PYTHON -m ruff check plix_converter/ --output-format=concise 2>&1 || true
+      $PYTHON -m ruff format --check plix_converter/ 2>&1 || true
+    on_fail: WARN
+    timeout_sec: 30
+
+  - id: test
+    name: "Tests - pytest plix-cast (4 tests)"
+    agent: Alfred
+    depends_on: [lint]
+    run: |
+      cd $PLIX_ROOT
+      $PYTHON -m pytest tests/test_plix_converter.py -v --tb=short --no-header 2>&1
+    on_fail: ABORT
+    timeout_sec: 120
+
+  - id: dry-run
+    name: "Dry-run - Validation convertisseur sans modele"
+    agent: Alfred
+    depends_on: [test]
+    run: |
+      cd $PLIX_ROOT
+      $PYTHON -m plix_converter.converter --model "tinyllama/tinyllama-1.1b-chat-v1.0" --out "/tmp/test.plx" --dry-run 2>&1 || true
+    on_fail: WARN
+    timeout_sec: 60
+
+  - id: archive-report
+    name: "Archive - Copie rapports dans reports/plix-cast/YYYY-MM-DD/"
+    agent: Alfred
+    depends_on: [dry-run]
+    run: |
+      $PYTHON -c "
+      import shutil, sys
+      from pathlib import Path
+      from datetime import datetime
+      out = Path('$OUTPUT_DIR')
+      if not out.exists():
+          out.mkdir(parents=True, exist_ok=True)
+      dest = out / datetime.now().strftime('%Y-%m-%d')
+      dest.mkdir(parents=True, exist_ok=True)
+      print(f'[OK] Reports -> {dest}')
+      "
+    on_fail: WARN
+    timeout_sec: 30

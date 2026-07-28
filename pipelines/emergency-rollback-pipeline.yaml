@@ -1,0 +1,280 @@
+name: emergency-rollback-pipeline
+version: "1.0.0"
+intent_hash: 0xKIVA_EMERGENCY_ROLLBACK_PIPELINE_20260728
+description: |
+  CI local ENV1 - Pipeline d'annulation d'urgence via SPIDX WAL.
+  Permet de restaurer un etat anterieur de l'ecosysteme a partir
+  des snapshots WAL (fichiers .snap) en cas de deploiement defectueux,
+  corruption de repo, ou mauvaise mutation d'etat (ADR deprecated, etc.).
+  PAS de GitHub Actions - KIVA-CLI on_demand ou via schedule hebdomadaire.
+
+  Refs: SPIDX_PROTOCOL, ROLLBACK_STRATEGY, INTENT-094
+  Concepts: emergency-rollback, spidx-wal-restore
+
+schedule: "0 3 * * 0"   # Hebdomadaire: dimanche a 03:00 UTC
+on_merge:
+  - repo: gerivdb/GOVERNANCE-HUB
+    branch: main
+  - repo: gerivdb/ECOYSTEM
+    branch: main
+
+env:
+  SPIDX_PATH: "D:/DO/WEB/TOOLS/L4-TOOLS/SPIDX"
+  GOV_HUB_PATH: "D:/DO/WEB/TOOLS/L0-CANON/GOVERNANCE-HUB"
+  KNOWN_REPOS: "D:/DO/WEB/TOOLS/L0-CANON/GOVERNANCE-HUB/known_repositories.yaml"
+  OUTPUT_DIR: "D:/DO/WEB/TOOLS/reports/emergency-rollback"
+  PYTHON: "python"
+
+# -- etapes -------------------------------------------------------
+
+steps:
+
+  # -- GATE-0 : Pre-flight ------------------------------
+  - id: gate-prereqs
+    name: "GATE-0 - Pre-flight (verifier SPIDX et snap disponibles)"
+    agent: Alfred
+    run: |
+      $PYTHON -c "
+      from pathlib import Path
+      import sys
+      
+      paths = {
+          'SPIDX': Path('$SPIDX_PATH'),
+          'GOV-HUB': Path('$GOV_HUB_PATH'),
+          'KNOWN-REPOS': Path('$KNOWN_REPOS')
+      }
+      
+      errors = []
+      for name, path in paths.items():
+          if not path.exists():
+              errors.append(f'{name} absent: {path}')
+              
+      if errors:
+          for e in errors: print(f'[ERROR] {e}')
+          sys.exit(1)
+      print('[OK] Pre-flight valide - SPIDX et SNAP accessibles')
+      "
+    on_fail: ABORT
+    timeout_sec: 10
+
+  # -- STEP-1 : Lister les snapshots WAL disponibles ------
+  - id: list-snapshots
+    name: "STEP-1 - Lister les snapshots WAL disponibles"
+    agent: Riddler
+    depends_on: [gate-prereqs]
+    run: |
+      $PYTHON -c "
+      import json, os, datetime
+      from pathlib import Path
+      
+      output_dir = Path('$OUTPUT_DIR')
+      output_dir.mkdir(parents=True, exist_ok=True)
+      timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
+      
+      spidx_dir = Path('$SPIDX_PATH')
+      # Chercher les fichiers .snap dans SPIDX
+      snapshot_files = list(spidx_dir.glob('**/*.snap'))
+      print(f'[INFO] {len(snapshot_files)} snapshot(s) WAL trouve(s)')
+      
+      # Lister les 10 plus recents
+      snapshots_sorted = sorted(snapshot_files, key=lambda f: f.stat().st_mtime, reverse=True)
+      top_10 = snapshots_sorted[:10]
+      
+      for s in top_10:
+          size_mb = s.stat().st_size / (1024*1024)
+          mtime = datetime.datetime.fromtimestamp(s.stat().st_mtime).isoformat()
+          print(f'  {mtime} {s.name} ({size_mb:.1f} MB)')
+      
+      # Sauvegarder la liste
+      report = {
+          'timestamp': datetime.datetime.now().isoformat(),
+          'pipeline': 'emergency-rollback-pipeline',
+          'snapshots_available': len(snapshot_files),
+          'top_10_recent': [str(f) for f in top_10]
+      }
+      report_file = output_dir / f'rollback_info_{timestamp}.json'
+      with open(report_file, 'w') as f:
+          json.dump(report, f, indent=2, default=str)
+      
+      print(f'[OK] {len(snapshot_files)} snapshot(s) liste(s)')
+      "
+    on_fail: WARN
+    timeout_sec: 15
+
+  # -- STEP-2 : Verifier la coherence du WAL --------------
+  - id: verify-wal-integrity
+    name: "STEP-2 - Verifier la coherence du WAL (checksum)"
+    agent: Selina
+    depends_on: [list-snapshots]
+    run: |
+      $PYTHON -c "
+      import hashlib, json, os, datetime, glob
+      from pathlib import Path
+      
+      output_dir = Path('$OUTPUT_DIR')
+      spidx_dir = Path('$SPIDX_PATH')
+      
+      # Verifier le checksum des fichiers .snap les plus recents
+      snapshot_files = list(spidx_dir.glob('**/*.snap'))
+      snapshots_sorted = sorted(snapshot_files, key=lambda f: f.stat().st_mtime, reverse=True)
+      
+      corrupted = []
+      for snap in snapshots_sorted[:5]:  # Verifier les 5 plus recents
+          try:
+              # Calculer SHA-256 du snapshot
+              sha256 = hashlib.sha256()
+              with open(snap, 'rb') as f:
+                  for chunk in iter(lambda: f.read(8192), b''):
+                      sha256.update(chunk)
+              
+              current_hash = sha256.hexdigest()
+              
+              # Verifier si un fichier .checksum existe
+              checksum_file = snap.with_suffix('.checksum')
+              if checksum_file.exists():
+                  stored_hash = checksum_file.read_text().strip()
+                  if stored_hash == current_hash:
+                      print(f'[OK] {snap.name}: checksum OK')
+                  else:
+                      corrupted.append(snap.name)
+                      print(f'[WARN] {snap.name}: checksum MISMATCH')
+              else:
+                  print(f'[INFO] {snap.name}: checksum non disponible (normal pour nouveaux snapshots)')
+          except Exception as e:
+              corrupted.append({'name': snap.name, 'error': str(e)})
+              print(f'[ERROR] {snap.name}: {e}')
+      
+      if corrupted:
+          print(f'[ALERT] {len(corrupted)} snapshot(s) corrompu(s) detecte(s)')
+      else:
+          print('[OK] Coherence WAL verifiee - aucune corruption')
+      "
+    on_fail: WARN
+    timeout_sec: 30
+
+  # -- STEP-3 : Simuler un rollback sur le dernier snapshot --
+  - id: simulate-rollback
+    name: "STEP-3 - Simulation rollback sur dernier snapshot (dry-run)"
+    agent: Alfred
+    depends_on: [verify-wal-integrity]
+    run: |
+      $PYTHON -c "
+      import json, glob, datetime
+      from pathlib import Path
+      
+      output_dir = Path('$OUTPUT_DIR')
+      spidx_dir = Path('$SPIDX_PATH')
+      
+      # Trouver le snapshot le plus recent
+      snapshot_files = sorted(
+          spidx_dir.glob('**/*.snap'),
+          key=lambda f: f.stat().st_mtime,
+          reverse=True
+      )
+      
+      if not snapshot_files:
+          print('[INFO] Aucun snapshot WAL trouve - rollback simulation skipped')
+          exit(0)
+          
+      latest_snapshot = snapshot_files[0]
+      timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
+      
+      # Simuler le dry-run
+      print(f'[DRY-RUN] Snapshot cible: {latest_snapshot.name}')
+      print(f'[DRY-RUN] Taille: {latest_snapshot.stat().st_size / (1024*1024):.1f} MB')
+      print(f'[DRY-RUN] Modifie le: {datetime.datetime.fromtimestamp(latest_snapshot.stat().st_mtime).isoformat()}')
+      
+      # En mode dry-run, on ne restaure pas reellement
+      # On genere juste le rapport de simulation
+      report = {
+          'pipeline': 'emergency-rollback-pipeline',
+          'timestamp': datetime.datetime.now().isoformat(),
+          'mode': 'dry-run',
+          'target_snapshot': latest_snapshot.name,
+          'rollback_simulated': True,
+          'dry_run': True,
+          'next_steps': 'Pour executer reellement: kiva rollback --snapshot <SNAPSHOT> --apply'
+      }
+      
+      report_file = output_dir / f'rollback_simulation_{timestamp}.json'
+      report_file.write_text(json.dumps(report, indent=2, default=str))
+      
+      # Symlink latest
+      latest = output_dir / 'rollback_simulation-latest.json'
+      if latest.exists() or latest.is_symlink():
+          latest.unlink()
+      latest.symlink_to(report_file.name)
+      
+      print('[OK] Simulation rollback terminee (dry-run)')
+      "
+    on_fail: WARN
+    timeout_sec: 20
+
+  # -- STEP-4 : Generer le rapport de rollback --------------
+  - id: generate-rollback-report
+    name: "STEP-4 - Generation du rapport de rollback"
+    agent: Alfred
+    depends_on: [simulate-rollback]
+    run: |
+      $PYTHON -c "
+      import json
+      from pathlib import Path
+      from datetime import datetime
+      
+      output_dir = Path('$OUTPUT_DIR')
+      timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+      report = {
+          'pipeline': 'emergency-rollback-pipeline',
+          'timestamp': datetime.now().isoformat(),
+          'checks_performed': [
+              'list-snapshots',
+              'verify-wal-integrity',
+              'simulate-rollback'
+          ],
+          'status': 'completed'
+      }
+      report_file = output_dir / f'rollback_report_{timestamp}.json'
+      with open(report_file, 'w') as f:
+          json.dump(report, f, indent=2)
+      
+      print(f'[OK] Rapport rollback genere: {report_file}')
+      "
+    on_fail: WARN
+    timeout_sec: 10
+
+  # -- ARCHIVE : Organisation par date ----------------------
+  - id: archive-reports
+    name: "Archive - Organisation par date YYYY-MM-DD/"
+    agent: Alfred
+    depends_on: [generate-rollback-report]
+    run: |
+      $PYTHON -c "
+      import shutil
+      from pathlib import Path
+      from datetime import datetime
+      
+      src = Path('$OUTPUT_DIR')
+      dest = src / datetime.now().strftime('%Y-%m-%d')
+      dest.mkdir(parents=True, exist_ok=True)
+      
+      moved = 0
+      for f in src.glob('*.json'):
+          if not f.name.endswith('-latest.json'):
+              shutil.move(str(f), dest / Path(f).name)
+              moved += 1
+      
+      print(f'[OK] {moved} fichier(s) archive(s) -> {dest}')
+      "
+    on_fail: WARN
+    timeout_sec: 10
+
+on_alert_hitl:
+  action: create_issue
+  repo: gerivdb/ARGUS
+  title: "[EMERGENCY-ROLLBACK] Snapshot WAL corrompu ou rollback echoue - HITL requis"
+  labels: [critical, emergency-rollback, hitl, spidx]
+  body: |
+    Le pipeline emergency-rollback-pipeline a detecte des problemes.
+    Rapport: $OUTPUT_DIR/rollback_simulation-latest.json
+    Action manuelle requise pour restaurer l'etat anterieur.
+    HITL schedule : 16h00 -> 07h30 CEST

@@ -64,3 +64,8 @@ logs/
 *.temp
 tmp/
 temp/
+
+# Diagnostic scripts (temporary)
+check_jobs.py
+scripts/check_single_repo.py
+scripts/filter_active_repos.py
