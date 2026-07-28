@@ -1,0 +1,406 @@
+name: intent-validation-pipeline
+version: "1.0.0"
+intent_hash: 0xKIVA_INTENT_VALIDATION_PIPELINE_20260728
+description: |
+  CI local ENV2 - Pipeline de validation des INTENTs (frontmatter, syntaxe, references).
+  Valide: frontmatter YAML, intent_hash unicite, status/priority valides, refs gerivdb/* existantes.
+  Schedule: quotidien 03:00 UTC + sur merge vers main (GOVERNANCE-HUB, ECOYSTEM, BRAIN, REPO-STANDARDS).
+  Refs: ADR-2026-07-28-019, ADR-2026-06-07-001, INTENT-094
+  Concepts: intent-validation, frontmatter-guardian, cross-repo-refs
+
+schedule: "0 3 * * *"   # Quotidien a 03:00 UTC
+on_merge:
+  - repo: gerivdb/GOVERNANCE-HUB
+    branch: main
+  - repo: gerivdb/ECOYSTEM
+    branch: main
+  - repo: gerivdb/BRAIN
+    branch: main
+  - repo: gerivdb/REPO-STANDARDS
+    branch: main
+
+env:
+  GOVERNANCE_HUB: "D:/DO/WEB/TOOLS/L0-CANON/GOVERNANCE-HUB"
+  INTENTS_PATH: "D:/DO/WEB/TOOLS/L0-CANON/GOVERNANCE-HUB/INTENTS"
+  KNOWN_REPOS: "D:/DO/WEB/TOOLS/L0-CANON/GOVERNANCE-HUB/known_repositories.yaml"
+  INDEX_JSON: "D:/DO/WEB/TOOLS/L0-CANON/GOVERNANCE-HUB/INDEX.json"
+  OUTPUT_DIR: "D:/DO/WEB/TOOLS/reports/intent-validation"
+  PYTHON: "python"
+
+steps:
+
+  # -- GATE-0 : Pre-flight -------------------------------------------
+  - name: gate-prereqs
+    description: "GATE-0 - Pre-flight (acces aux fichiers INTENTS et registres)"
+    command: |
+      $PYTHON -c "
+      from pathlib import Path
+      import sys
+      
+      paths = {
+          'INTENTS': Path('$INTENTS_PATH'),
+          'KNOWN_REPOS': Path('$KNOWN_REPOS'),
+          'INDEX_JSON': Path('$INDEX_JSON'),
+          'GOV_HUB': Path('$GOVERNANCE_HUB')
+      }
+      
+      errors = []
+      for name, path in paths.items():
+          if not path.exists():
+              errors.append(f'{name} absent: {path}')
+              
+      if errors:
+          for e in errors: print(f'[ERROR] {e}')
+          sys.exit(1)
+      print('[OK] Pre-flight valide - tous chemins accessibles')
+      "
+    on_failure: abort
+    timeout_sec: 10
+
+  # -- STEP-1 : Lister tous les INTENTs -------------------------------
+  - name: list-intents
+    description: "STEP-1 - Lister tous les fichiers INTENT-*.md"
+    depends_on: [gate-prereqs]
+    command: |
+      $PYTHON -c "
+      import json
+      from pathlib import Path
+      
+      intents_dir = Path('$INTENTS_PATH')
+      intent_files = list(intents_dir.glob('INTENT-*.md'))
+      total = len(intent_files)
+      print(f'[OK] {total} INTENTs trouves')
+      
+      # Sauvegarder liste pour etapes suivantes
+      output_dir = Path('$OUTPUT_DIR')
+      output_dir.mkdir(parents=True, exist_ok=True)
+      
+      intent_list = [f.name for f in intent_files]
+      import datetime
+      timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
+      list_file = output_dir / f'intent_list_{timestamp}.json'
+      with open(list_file, 'w') as f:
+          json.dump({'files': intent_list, 'count': total, 'timestamp': timestamp}, f, indent=2)
+      "
+    on_failure: warn
+    timeout_sec: 15
+
+  # -- STEP-2 : Valider frontmatter YAML ------------------------------
+  - name: validate-frontmatter
+    description: "STEP-2 - Validation frontmatter YAML (champs requis, statuts valides)"
+    depends_on: [list-intents]
+    command: |
+      $PYTHON -c "
+      import re, sys, glob
+      from pathlib import Path
+      import yaml
+      
+      required_fields = ['intent_hash', 'status', 'priority', 'owner', 'repo']
+      valid_statuses = ['exploratory', 'proposed', 'approved', 'implemented', 'archived']
+      valid_priorities = ['P0', 'P1', 'P2', 'P3']
+      
+      errors = []
+      warnings = []
+      
+      for intent_file in glob.glob('$INTENTS_PATH/INTENT-*.md'):
+          try:
+              content = open(intent_file, encoding='utf-8').read()
+              # Extraire frontmatter entre ---\n...\n---
+              m = re.match(r'---\n(.*?)\n---', content, re.DOTALL)
+              if not m:
+                  errors.append(f'[CRITICAL:MISSING_FRONTMATTER] {intent_file}')
+                  continue
+              
+              fm_block = m.group(1)
+              fm = yaml.safe_load(fm_block)
+              
+              if not isinstance(fm, dict):
+                  errors.append(f'[CRITICAL:INVALID_YAML] {intent_file}')
+                  continue
+              
+              # Verifier champs requis
+              for field in required_fields:
+                  if field not in fm:
+                      errors.append(f'[MISSING_FIELD:{field}] {intent_file}')
+              
+              # Verifier status
+              if 'status' in fm and fm['status'] not in valid_statuses:
+                  errors.append(f'[INVALID_STATUS:{fm[\"status\"]}] {intent_file} (valides: {valid_statuses})')
+              
+              # Verifier priority
+              if 'priority' in fm and fm['priority'] not in valid_priorities:
+                  errors.append(f'[INVALID_PRIORITY:{fm[\"priority\"]}] {intent_file} (valides: {valid_priorities})')
+              
+              # Verifier format intent_hash
+              if 'intent_hash' in fm:
+                  ih = fm['intent_hash']
+                  if not ih.startswith('0xINTENT_'):
+                      warnings.append(f'[INTENT_HASH_FORMAT] {intent_file}: {ih} (attendu 0xINTENT_*)')
+              
+              # Verifier owner/repo defaults
+              if fm.get('owner') != 'gerivdb':
+                  warnings.append(f'[OWNER_NON_DEFAULT] {intent_file}: owner={fm.get(\"owner\")}')
+              if fm.get('repo') != 'gerivdb/GOVERNANCE-HUB':
+                  warnings.append(f'[REPO_NON_DEFAULT] {intent_file}: repo={fm.get(\"repo\")}')
+                  
+          except yaml.YAMLError as e:
+              errors.append(f'[YAML_PARSE_ERROR] {intent_file}: {e}')
+          except Exception as e:
+              errors.append(f'[UNEXPECTED_ERROR] {intent_file}: {e}')
+      
+      if warnings:
+          for w in warnings: print(w)
+      
+      if errors:
+          for e in errors: print(e)
+          sys.exit(1)
+      
+      print('[OK] Tous les INTENTs ont un frontmatter valide')
+      "
+    on_failure: abort
+    timeout_sec: 30
+
+  # -- STEP-3 : Verifier unicite intent_hash -------------------------
+  - name: check-intent-hash-uniqueness
+    description: "STEP-3 - Verifier unicite globale intent_hash (vs INDEX.json)"
+    depends_on: [list-intents]
+    command: |
+      $PYTHON -c "
+      import re, sys, json
+      import glob
+      from pathlib import Path
+      import yaml
+      
+      # Charger INDEX.json
+      try:
+          with open('$INDEX_JSON', 'r') as f:
+              index_data = json.load(f)
+          # INDEX.json peut etre une liste ou un dict
+          if isinstance(index_data, list):
+              known_hashes = {item.get('intent_hash', '') for item in index_data if item.get('intent_hash')}
+          elif isinstance(index_data, dict):
+              known_hashes = {v.get('intent_hash', '') for v in index_data.values() if isinstance(v, dict) and v.get('intent_hash')}
+          else:
+              known_hashes = set()
+          print(f'[OK] {len(known_hashes)} intent_hash connus dans INDEX.json')
+      except Exception as e:
+          print(f'[WARN] Impossible de charger INDEX.json: {e}')
+          known_hashes = set()
+      
+      # Verifier unicite parmi les INTENTs actuels
+      seen_hashes = {}
+      duplicates = []
+      
+      for intent_file in glob.glob('$INTENTS_PATH/INTENT-*.md'):
+          try:
+              content = open(intent_file, encoding='utf-8').read()
+              m = re.match(r'---\n(.*?)\n---', content, re.DOTALL)
+              if not m:
+                  continue
+              fm = yaml.safe_load(m.group(1))
+              ih = fm.get('intent_hash', '')
+              if ih:
+                  if ih in seen_hashes:
+                      duplicates.append(f'[DUPLICATE_INTENT_HASH] {intent_file} == {seen_hashes[ih]} : {ih}')
+                  else:
+                      seen_hashes[ih] = intent_file
+                      
+                  # Verifier contre INDEX.json
+                  if ih in known_hashes:
+                      print(f'[INFO] intent_hash deja dans INDEX.json: {ih} ({intent_file})')
+          except Exception as e:
+              pass
+      
+      if duplicates:
+          for d in duplicates: print(d)
+          sys.exit(1)
+      
+      print(f'[OK] {len(seen_hashes)} intent_hash uniques verifies')
+      "
+    on_failure: abort
+    timeout_sec: 20
+
+  # -- STEP-4 : Valider references gerivdb/* -------------------------
+  - name: validate-gerivdb-references
+    description: "STEP-4 - Valider references gerivdb/* vers repos existants"
+    depends_on: [list-intents]
+    command: |
+      $PYTHON -c "
+      import re, sys, glob
+      from pathlib import Path
+      import yaml
+      
+      # Charger known_repositories.yaml
+      try:
+          with open('$KNOWN_REPOS', 'r') as f:
+              repos_data = yaml.safe_load(f)
+          known_repo_names = {r['name'] for r in repos_data.get('repositories', [])}
+          print(f'[OK] {len(known_repo_names)} repos connus dans known_repositories.yaml')
+      except Exception as e:
+          print(f'[WARN] Impossible de charger known_repos: {e}')
+          known_repo_names = set()
+      
+      reference_pattern = r'gerivdb/[\w\-]+'
+      suspect_refs = []
+      
+      for intent_file in glob.glob('$INTENTS_PATH/INTENT-*.md'):
+          try:
+              content = open(intent_file, encoding='utf-8').read()
+              refs = re.findall(reference_pattern, content)
+              for ref in refs:
+                  # Format: gerivdb/repo-name
+                  parts = ref.split('/')
+                  if len(parts) == 2:
+                      repo_name = parts[1]
+                      if known_repo_names and repo_name not in known_repo_names:
+                          suspect_refs.append(f'[UNKNOWN_REPO_REF] {intent_file}: {ref} (repo \"{repo_name}\" pas dans known_repositories.yaml)')
+          except Exception as e:
+              pass
+      
+      if suspect_refs:
+          for s in suspect_refs: print(s)
+          # Warn seulement, pas abort (nouveaux repos possibles)
+          print('[WARN] References suspectes detectees (non bloquant)')
+      
+      print('[OK] Validation references terminee')
+      "
+    on_failure: warn
+    timeout_sec: 20
+
+  # -- STEP-5 : Auto-correction mineure (frontmatter-guardian) ---------
+  - name: auto-fix-minor
+    description: "STEP-5 - Auto-correction mineure frontmatter (owner, repo defaults)"
+    depends_on: [validate-frontmatter, check-intent-hash-uniqueness, validate-gerivdb-references]
+    command: |
+      $PYTHON -c "
+      import re, sys, glob
+      from pathlib import Path
+      import yaml
+      
+      fixed_count = 0
+      
+      for intent_file in glob.glob('$INTENTS_PATH/INTENT-*.md'):
+          try:
+              content = open(intent_file, encoding='utf-8').read()
+              m = re.match(r'(---\n.*?\n---)', content, re.DOTALL)
+              if not m:
+                  continue
+              
+              fm_block = m.group(1)
+              fm = yaml.safe_load(fm_block)
+              if not isinstance(fm, dict):
+                  continue
+              
+              modified = False
+              
+              # Appliquer defaults
+              if fm.get('owner') != 'gerivdb':
+                  fm['owner'] = 'gerivdb'
+                  modified = True
+              if fm.get('repo') != 'gerivdb/GOVERNANCE-HUB':
+                  fm['repo'] = 'gerivdb/GOVERNANCE-HUB'
+                  modified = True
+              
+              if modified:
+                  # Reconstruire frontmatter
+                  new_fm = '---\n' + yaml.dump(fm, default_flow_style=False, sort_keys=False).rstrip() + '\n---'
+                  new_content = new_fm + content[len(m.group(0)):]
+                  
+                  # Ecrire seulement si different
+                  if new_content != content:
+                      with open(intent_file, 'w', encoding='utf-8') as f:
+                          f.write(new_content)
+                      fixed_count += 1
+                      print(f'[FIXED] {intent_file}: owner/repo defaults appliques')
+          except Exception as e:
+              pass
+      
+      if fixed_count > 0:
+          print(f'[OK] {fixed_count} INTENT(s) auto-corriges (owner/repo defaults)')
+      else:
+          print('[OK] Aucune correction mineure necessaire')
+      "
+    on_failure: warn
+    timeout_sec: 30
+
+  # -- STEP-6 : Generer rapport de validation -------------------------
+  - name: generate-validation-report
+    description: "STEP-6 - Generation du rapport de validation INTENTs"
+    depends_on: [validate-frontmatter, check-intent-hash-uniqueness, validate-gerivdb-references, auto-fix-minor]
+    command: |
+      $PYTHON -c "
+      import json
+      from pathlib import Path
+      from datetime import datetime
+      import glob
+      
+      output_dir = Path('$OUTPUT_DIR')
+      timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+      
+      # Compter INTENTs
+      intent_files = list(glob.glob('$INTENTS_PATH/INTENT-*.md'))
+      
+      report = {
+          'pipeline': 'intent-validation-pipeline',
+          'timestamp': datetime.now().isoformat(),
+          'checks_performed': [
+              'validate-frontmatter',
+              'check-intent-hash-uniqueness',
+              'validate-gerivdb-references',
+              'auto-fix-minor'
+          ],
+          'intent_count': len(intent_files),
+          'status': 'completed'
+      }
+      
+      report_file = output_dir / f'intent_validation_{timestamp}.json'
+      with open(report_file, 'w') as f:
+          json.dump(report, f, indent=2)
+      
+      # Symlink latest
+      latest = output_dir / 'intent_validation-latest.json'
+      if latest.exists() or latest.is_symlink():
+          latest.unlink()
+      latest.symlink_to(report_file.name)
+      
+      print(f'[OK] Rapport genere: {report_file}')
+      print(f'[OK] {len(intent_files)} INTENTs valides')
+      "
+    on_failure: warn
+    timeout_sec: 15
+
+  # -- ARCHIVE : Organisation par date ---------------------------------
+  - name: archive-reports
+    description: "Archive - Organisation par date YYYY-MM-DD/"
+    depends_on: [generate-validation-report]
+    command: |
+      $PYTHON -c "
+      import shutil
+      from pathlib import Path
+      from datetime import datetime
+      
+      src = Path('$OUTPUT_DIR')
+      dest = src / datetime.now().strftime('%Y-%m-%d')
+      dest.mkdir(parents=True, exist_ok=True)
+      
+      moved = 0
+      for f in src.glob('*.json'):
+          if not f.name.endswith('-latest.json'):
+              shutil.move(str(f), dest / f.name)
+              moved += 1
+      
+      print(f'[OK] {moved} fichier(s) archive(s) -> {dest}')
+      "
+    on_failure: warn
+    timeout_sec: 10
+
+on_alert_hitl:
+  action: create_issue
+  repo: gerivdb/ARGUS
+  title: "[INTENT-VALIDATION] Probleme de validation INTENTs detecte - HITL requis"
+  labels: [critical, intent-validation, hitl, frontmatter]
+  body: |
+    Validation des INTENTs echouee : {error_description}
+    Rapport : $OUTPUT_DIR/intent_validation-latest.json
+    Action manuelle requise pour corriger les INTENTs non conformes.
+    HITL schedule : 16h00 -> 07h30 CEST
