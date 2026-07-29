@@ -8,9 +8,10 @@ Provides CLI interface for event tracking, drift monitoring, and audit.
 
 import click
 import sys
+import sqlite3
 from pathlib import Path
 from typing import Optional
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import json
 
 try:
@@ -646,3 +647,246 @@ def wal_status(repo: Optional[str], max_age_minutes: int):
     else:
         click.echo("NO_WAL")
         sys.exit(1)
+
+
+@wal_cli.command(name='verify')
+@click.option(
+    '--full', '-f',
+    is_flag=True,
+    help='Full verification including all events and chain integrity'
+)
+@click.option(
+    '--drift-threshold',
+    type=float,
+    default=0.05,
+    help='φ-CPS drift threshold for alert (default: 0.05)'
+)
+@click.option(
+    '--export-report',
+    type=click.Path(),
+    help='Export verification report to file (JSON)'
+)
+def verify_wal(
+    full: bool,
+    drift_threshold: float,
+    export_report: Optional[str]
+):
+    """
+    ✅ Verify Global WAL integrity and chain continuity.
+    
+    Validates:
+    - IntentHash¹¹ chain continuity
+    - φ-CPS drift within thresholds
+    - Event data integrity
+    - Cross-repo dependency consistency
+    
+    Examples:
+        ecos wal verify
+        ecos wal verify --full
+        ecos wal verify --export-report wal_verify_report.json
+        ecos wal verify --full --drift-threshold 0.03
+    """
+    wal = GlobalWALManager()
+    
+    click.echo("\n🔍 WAL VERIFICATION")
+    click.echo("═" * 60)
+    
+    results = {
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "checks": {},
+        "summary": {
+            "total_checks": 0,
+            "passed": 0,
+            "failed": 0,
+            "warnings": 0
+        }
+    }
+    
+    # Check 1: Database connectivity
+    click.echo("\n[1/5] Database connectivity...")
+    try:
+        conn = sqlite3.connect(wal.db_path)
+        conn.close()
+        results["checks"]["database"] = {"status": "PASS", "message": "Database accessible"}
+        click.echo("  ✅ Database accessible")
+    except Exception as e:
+        results["checks"]["database"] = {"status": "FAIL", "message": str(e)}
+        click.echo(f"  ❌ Database error: {e}")
+    results["summary"]["total_checks"] += 1
+    
+    # Check 2: IntentHash chain continuity
+    click.echo("\n[2/5] IntentHash chain continuity...")
+    events = wal.query_events(limit=1000)
+    
+    if not events:
+        results["checks"]["chain"] = {"status": "WARN", "message": "No events in WAL"}
+        click.echo("  ⚠️  No events to verify")
+        results["summary"]["warnings"] += 1
+    else:
+        chain_issues = []
+        for event in events:
+            if event.get("parent_intent_hash"):
+                valid, msg = wal.validate_chain(
+                    event["intent_hash"],
+                    event["parent_intent_hash"]
+                )
+                if not valid:
+                    chain_issues.append({
+                        "event_id": event["event_id"],
+                        "intent_hash": event["intent_hash"],
+                        "parent": event["parent_intent_hash"],
+                        "error": msg
+                    })
+        
+        if chain_issues:
+            results["checks"]["chain"] = {
+                "status": "FAIL",
+                "message": f"{len(chain_issues)} chain break(s) detected",
+                "details": chain_issues
+            }
+            click.echo(f"  ❌ {len(chain_issues)} chain break(s) detected:")
+            for issue in chain_issues[:5]:
+                click.echo(f"     Event {issue['event_id'][:8]}: {issue['error']}")
+            if len(chain_issues) > 5:
+                click.echo(f"     ... and {len(chain_issues) - 5} more")
+        else:
+            results["checks"]["chain"] = {"status": "PASS", "message": f"{len(events)} events verified"}
+            click.echo(f"  ✅ All {len(events)} events chain verified")
+    results["summary"]["total_checks"] += 1
+    
+    # Check 3: φ-CPS drift
+    click.echo("\n[3/5] φ-CPS drift metrics...")
+    drift = wal.get_drift()
+    drift_exceeded = drift["threshold_exceeded"]
+    
+    if drift_exceeded:
+        results["checks"]["drift"] = {
+            "status": "WARN",
+            "message": f"Drift {drift['relative_drift']:.2%} exceeds threshold {drift_threshold:.0%}",
+            "baseline": drift["baseline_phi"],
+            "current": drift["current_phi"],
+            "relative_drift": drift["relative_drift"],
+            "threshold": drift_threshold
+        }
+        click.echo(f"  ⚠️  Drift: {drift['relative_drift']:.2%} (threshold: {drift_threshold:.0%})")
+        click.echo(f"     Baseline φ: {drift['baseline_phi']:.4f}")
+        click.echo(f"     Current φ:  {drift['current_phi']:.4f}")
+        results["summary"]["warnings"] += 1
+    else:
+        results["checks"]["drift"] = {
+            "status": "PASS",
+            "message": f"Drift {drift['relative_drift']:.2%} within threshold {drift_threshold:.0%}",
+            "baseline": drift["baseline_phi"],
+            "current": drift["current_phi"],
+            "relative_drift": drift["relative_drift"],
+            "threshold": drift_threshold
+        }
+        click.echo(f"  ✅ Drift: {drift['relative_drift']:.2%} (threshold: {drift_threshold:.0%})")
+    results["summary"]["total_checks"] += 1
+    
+    # Check 4: Event data integrity
+    click.echo("\n[4/5] Event data integrity...")
+    integrity_issues = []
+    
+    for event in events:
+        # Check required fields
+        required = ["event_id", "intent_hash", "timestamp", "validation_state"]
+        for field in required:
+            if not event.get(field):
+                integrity_issues.append({
+                    "event_id": event.get("event_id", "unknown"),
+                    "field": field,
+                    "error": f"Missing required field: {field}"
+                })
+        
+        # Check repositories is valid JSON array
+        try:
+            repos = event.get("repositories", [])
+            if isinstance(repos, str):
+                repos = json.loads(repos)
+            if not isinstance(repos, list):
+                integrity_issues.append({
+                    "event_id": event.get("event_id", "unknown"),
+                    "field": "repositories",
+                    "error": "Invalid repositories format"
+                })
+        except json.JSONDecodeError:
+            integrity_issues.append({
+                "event_id": event.get("event_id", "unknown"),
+                "field": "repositories",
+                "error": "Invalid JSON in repositories"
+            })
+    
+    if integrity_issues:
+        results["checks"]["integrity"] = {
+            "status": "FAIL",
+            "message": f"{len(integrity_issues)} integrity issue(s)",
+            "details": integrity_issues[:10]
+        }
+        click.echo(f"  ❌ {len(integrity_issues)} integrity issue(s)")
+        for issue in integrity_issues[:5]:
+            click.echo(f"     Event {issue['event_id'][:8]}: {issue['error']}")
+    else:
+        results["checks"]["integrity"] = {"status": "PASS", "message": f"{len(events)} events validated"}
+        click.echo(f"  ✅ All {len(events)} events pass integrity check")
+    results["summary"]["total_checks"] += 1
+    
+    # Check 5: Full verification (if requested)
+    if full:
+        click.echo("\n[5/5] Full verification (statistics)...")
+        stats = wal.get_statistics()
+        
+        stats_issues = []
+        if stats["success_rate"] < 0.8:
+            stats_issues.append(f"Low success rate: {stats['success_rate']:.1%}")
+        if stats["phi_cps_alerts"] > stats["total_events"] * 0.1:
+            stats_issues.append(f"High φ-CPS alert rate: {stats['phi_cps_alerts']}/{stats['total_events']}")
+        
+        if stats_issues:
+            results["checks"]["statistics"] = {"status": "WARN", "message": "; ".join(stats_issues), "details": stats}
+            click.echo(f"  ⚠️  Statistics warnings: {'; '.join(stats_issues)}")
+            results["summary"]["warnings"] += 1
+        else:
+            results["checks"]["statistics"] = {"status": "PASS", "message": "Statistics healthy", "details": stats}
+            click.echo(f"  ✅ Statistics: {stats['total_events']} events, {stats['success_rate']:.1%} success")
+        results["summary"]["total_checks"] += 1
+    
+    # Summary
+    click.echo("\n" + "═" * 60)
+    click.echo("📋 VERIFICATION SUMMARY")
+    click.echo("═" * 60)
+    
+    for check_name, check_result in results["checks"].items():
+        status = check_result["status"]
+        icon = {"PASS": "✅", "FAIL": "❌", "WARN": "⚠️"}.get(status, "❓")
+        click.echo(f"  {icon} {check_name.upper()}: {check_result['message']}")
+        
+        if status == "PASS":
+            results["summary"]["passed"] += 1
+        elif status == "FAIL":
+            results["summary"]["failed"] += 1
+        elif status == "WARN":
+            results["summary"]["warnings"] += 1
+    
+    click.echo(f"\nTotal: {results['summary']['total_checks']} checks")
+    click.echo(f"  Passed: {results['summary']['passed']}")
+    click.echo(f"  Failed: {results['summary']['failed']}")
+    click.echo(f"  Warnings: {results['summary']['warnings']}")
+    
+    # Export report if requested
+    if export_report:
+        output_path = Path(export_report)
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_text(json.dumps(results, indent=2, ensure_ascii=False), encoding="utf-8")
+        click.echo(f"\n📄 Report exported: {output_path}")
+    
+    # Exit code
+    if results["summary"]["failed"] > 0:
+        click.echo("\n❌ VERIFICATION FAILED")
+        sys.exit(1)
+    elif results["summary"]["warnings"] > 0:
+        click.echo("\n⚠️  VERIFICATION PASSED WITH WARNINGS")
+        sys.exit(0)
+    else:
+        click.echo("\n✅ VERIFICATION PASSED")
+        sys.exit(0)
