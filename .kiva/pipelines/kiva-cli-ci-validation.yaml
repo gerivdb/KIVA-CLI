@@ -1,0 +1,227 @@
+name: kiva-cli-ci-validation
+version: "1.0.0"
+intent_hash: 0XKIVA_CLI_CI_VALIDATION_20260730
+description: |
+  CI validation pipeline pour KIVA-CLI.
+  Exécute rapidement les validations critiques avant tout commit ou merge.
+  Durée cible: < 30 secondes pour les checks rapides.
+  
+schedule: "*/15 * * * *"  # Toutes les 15 minutes
+on_merge:
+  - repo: gerivdb/KIVA-CLI
+    branch: main
+  - repo: gerivdb/GOVERNANCE-HUB
+    branch: main
+
+env:
+  KIVA_CLI_PATH: "D:/DO/WEB/TOOLS/L1-INFRA/KIVA-CLI"
+  VALIDATION_REPORT_DIR: "D:/DO/WEB/TOOLS/reports/kiva-validation"
+
+steps:
+  # -- GATE-0 : Validation rapide (timeout court)
+  - name: gate-quick-validation
+    description: "GATE-0 - Validation environnement (max 5s)"
+    command: |
+      python -c "
+      import sys, os, json
+      from pathlib import Path
+      
+      kiva_path = Path(os.environ.get('KIVA_CLI_PATH', 'D:/DO/WEB/TOOLS/L1-INFRA/KIVA-CLI'))
+      
+      errors = []
+      
+      # Vérifier structure de base
+      if not (kiva_path / '.kiva').exists():
+          errors.append('[ERROR] .kiva directory missing')
+      if not (kiva_path / 'kiva_cli' / 'core').exists():
+          errors.append('[ERROR] kiva_cli/core directory missing')
+      if not (kiva_path / 'scripts').exists():
+          errors.append('[ERROR] scripts directory missing')
+      
+      # Vérifier pipelines
+      pipelines = list((kiva_path / '.kiva' / 'pipelines').glob('*.yaml')) if (kiva_path / '.kiva' / 'pipelines').exists() else []
+      if len(pipelines) < 5:
+          errors.append(f'[WARN] Only {len(pipelines)} pipelines found (expected >5)')
+      
+      if errors:
+          for e in errors: print(e)
+          sys.exit(1)
+      
+      print('[OK] Quick validation passed')
+      "
+    timeout_sec: 5
+
+  # -- STEP-1 : Validation syntaxe YAML
+  - name: validate-yaml-syntax
+    description: "STEP-1 - Validation syntaxe YAML pipelines"
+    depends_on: [gate-quick-validation]
+    command: |
+      python -c "
+      import sys, os, json
+      from pathlib import Path
+      import yaml
+      
+      kiva_path = Path(os.environ.get('KIVA_CLI_PATH', 'D:/DO/WEB/TOOLS/L1-INFRA/KIVA-CLI'))
+      pipelines_dir = kiva_path / '.kiva' / 'pipelines'
+      
+      errors = []
+      warnings = []
+      
+      for yaml_file in pipelines_dir.glob('*.yaml'):
+          try:
+              with open(yaml_file, 'r') as f:
+                  data = yaml.safe_load(f)
+              
+              # Vérifier champs requis
+              if not data:
+                  warnings.append(f'[WARN] Empty YAML: {yaml_file.name}')
+                  continue
+                  
+              if 'name' not in data:
+                  errors.append(f'[ERROR] Missing name in {yaml_file.name}')
+              if 'version' not in data:
+                  warnings.append(f'[WARN] Missing version in {yaml_file.name}')
+              if 'steps' not in data:
+                  warnings.append(f'[WARN] Missing steps in {yaml_file.name}')
+              
+          except yaml.YAMLError as e:
+              errors.append(f'[ERROR] YAML parse error in {yaml_file.name}: {e}')
+          except Exception as e:
+              errors.append(f'[ERROR] Read error {yaml_file.name}: {e}')
+      
+      if errors:
+          for e in errors: print(e)
+          sys.exit(1)
+      
+      if warnings:
+          for w in warnings: print(w)
+      
+      print(f'[OK] Validated {len(list(pipelines_dir.glob(\"*.yaml\")))} pipeline YAML files')
+      "
+    timeout_sec: 10
+
+  # -- STEP-2 : Vérification imports Python
+  - name: validate-python-imports
+    description: "STEP-2 - Vérification imports modules Python"
+    depends_on: [gate-quick-validation]
+    command: |
+      python -c "
+      import sys, os
+      from pathlib import Path
+      
+      kiva_path = Path(os.environ.get('KIVA_CLI_PATH', 'D:/DO/WEB/TOOLS/L1-INFRA/KIVA-CLI'))
+      scripts_dir = kiva_path / 'scripts'
+      
+      # Ajouter scripts au path
+      if str(scripts_dir) not in sys.path:
+          sys.path.insert(0, str(scripts_dir))
+      
+      errors = []
+      
+      # Tester les imports critiques
+      critical_modules = ['pipeline_loader', 'pipeline_runner', 'config_manager', 'security_manager']
+      
+      for module in critical_modules:
+          try:
+              __import__(f'kiva_cli.core.{module}')
+              print(f'  OK Module: {module}')
+          except ImportError as e:
+              errors.append(f'[ERROR] Cannot import kiva_cli.core.{module}: {e}')
+      
+      if errors:
+          for e in errors: print(e)
+          sys.exit(1)
+      
+      print('[OK] All critical modules importable')
+      "
+    timeout_sec: 10
+
+  # -- STEP-3 : Test unitaires rapides
+  - name: run-unit-tests
+    description: "STEP-3 - Tests unitaires rapides KIVA-CLI"
+    depends_on: [gate-quick-validation, validate-yaml-syntax]
+    command: |
+      python -c "
+      import sys, os, subprocess
+      from pathlib import Path
+      
+      kiva_path = Path(os.environ.get('KIVA_CLI_PATH', 'D:/DO/WEB/TOOLS/L1-INFRA/KIVA-CLI'))
+      
+      # Exécuter seulement les tests les plus rapides
+      test_files = [
+          'test_dispatch.py',
+          'test_env.py',
+          'test_simple_shell.py'
+      ]
+      
+      passed = 0
+      failed = 0
+      
+      for test_file in test_files:
+          test_path = kiva_path / test_file
+          if test_path.exists():
+              result = subprocess.run([sys.executable, str(test_path)], capture_output=True, timeout=30)
+              if result.returncode == 0:
+                  print(f'  PASS {test_file}')
+                  passed += 1
+              else:
+                  print(f'  FAIL {test_file}')
+                  failed += 1
+      
+      print(f'[OK] {passed} tests passed, {failed} tests failed')
+      if failed > 0:
+          sys.exit(1)
+      "
+    timeout_sec: 30
+
+  # -- STEP-4 : Générer rapport
+  - name: generate-validation-report
+    description: "STEP-4 - Génération rapport CI KIVA-CLI"
+    depends_on: [validate-python-imports, run-unit-tests]
+    command: |
+      python -c "
+      import sys, os, json
+      from pathlib import Path
+      from datetime import datetime
+      
+      report_dir = Path(os.environ.get('VALIDATION_REPORT_DIR', 'D:/DO/WEB/TOOLS/reports/kiva-validation'))
+      report_dir.mkdir(parents=True, exist_ok=True)
+      
+      report = {
+          'pipeline': 'kiva-cli-ci-validation',
+          'timestamp': datetime.now().isoformat(),
+          'status': 'passed',
+          'checks': [
+              {'name': 'quick-validation', 'status': 'passed'},
+              {'name': 'yaml-syntax', 'status': 'passed'},
+              {'name': 'python-imports', 'status': 'passed'},
+              {'name': 'unit-tests', 'status': 'passed'}
+          ],
+          'total_checks': 4,
+          'passed_checks': 4
+      }
+      
+      timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+      report_file = report_dir / f'kiva_ci_validation_{timestamp}.json'
+      with open(report_file, 'w') as f:
+          json.dump(report, f, indent=2)
+      
+      latest = report_dir / 'kiva_ci_validation-latest.json'
+      if latest.exists() or latest.is_symlink():
+          latest.unlink()
+      latest.symlink_to(report_file.name)
+      
+      print(f'[OK] Report generated: {report_file}')
+      "
+    timeout_sec: 5
+
+on_alert_hitl:
+  action: create_issue
+  repo: gerivdb/ARGUS
+  title: "[KIVA-CLI-CI] Validation failure - HITL requis"
+  labels: [kiva-cli, ci-validation, hitl]
+  body: |
+    Pipeline kiva-cli-ci-validation a detecte une erreur de validation.
+    Rapport: {VALIDATION_REPORT_DIR}/kiva_ci_validation-latest.json
+    Checks a echoue: verifier les erreurs ci-dessus et resoudre.
+    Action requise: correction manuelle des pipelines ou modules.

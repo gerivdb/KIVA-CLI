@@ -1,0 +1,184 @@
+name: kiva-cli-dashboard-reporting
+version: "1.0.0"
+intent_hash: 0XKIVA_CLI_DASHBOARD_REPORTING_20260730
+description: |
+  Rapport en temps réel pour KIVA-CLI.
+  Génère des dashboard live avec métriques, alertes et tendances de performance.
+  Intègre le tableau de bord Pixel 243 pour analyse visuelle instantanée.
+  
+schedule: "* * * * *"  # Chaque minute pour monitorage en temps réel
+
+env:
+  KIVA_CLI_PATH: "D:/DO/WEB/TOOLS/L1-INFRA/KIVA-CLI"
+  DASHBOARD_OUTPUT: "D:/DO/WEB/TOOLS/reports/kiva-dashboard"
+  PIXEL_DATA_DIR: "D:/DO/WEB/TOOLS/L4-TOOLS/TRIX/pixel_data"
+
+steps:
+  # -- GATE-0 : Prérequis système
+  - name: gate-system-check
+    description: "GATE-0 - Vérification prérequis dashboard (1s)"
+    command: |
+      python -c "
+      import sys, os
+      from pathlib import Path
+      
+      kiva_path = Path(os.environ.get('KIVA_CLI_PATH', 'D:/DO/WEB/TOOLS/L1-INFRA/KIVA-CLI'))
+      
+      if not (kiva_path / 'kiva_cli' / 'reporting').exists():
+          sys.exit(1)
+      
+      # Test import dashboard
+      try:
+          sys.path.insert(0, str(kiva_path))
+          from kiva_cli.reporting.dashboard import DashboardClient
+          print('[OK] Dashboard module loaded')
+      except Exception as e:
+          print(f'[ERROR] Cannot load dashboard: {e}')
+          sys.exit(1)
+      
+      print('[OK] System ready for dashboard reporting')
+      "
+    timeout_sec: 1
+
+  # -- STEP-1 : Collecte métriques pipelines
+  - name: collect-pipeline-metrics
+    description: "STEP-1 - Collecte métriques tous les pipelines KIVA-CLI"
+    depends_on: [gate-system-check]
+    command: |
+      python -c "
+      import sys, os, json, subprocess
+      from pathlib import Path
+      
+      kiva_path = Path(os.environ.get('KIVA_CLI_PATH', 'D:/DO/WEB/TOOLS/L1-INFRA/KIVA-CLI'))
+      
+      # Compter pipelines actifs
+      pipelines_dir = kiva_path / '.kiva' / 'pipelines'
+      total_pipelines = len(list(pipelines_dir.glob('*.yaml'))) if pipelines_dir.exists() else 0
+      
+      # Compter modules disponibles
+      core_modules = len(list((kiva_path / 'kiva_cli' / 'core').glob('*.py')))
+      reporting_available = (kiva_path / 'kiva_cli' / 'reporting').exists()
+      
+      metrics = {
+          'total_pipelines': total_pipelines,
+          'core_modules': core_modules,
+          'reporting_available': reporting_available,
+          'timestamp_seconds': int(time.time()),
+          'system_status': 'operational' if total_pipelines > 5 else 'degraded'
+      }
+      
+      # Sauvegarder métriques collectées
+      metrics_file = kiva_path / 'kiva_cli' / 'reporting' / 'latest_metrics.json'
+      metrics_file.parent.mkdir(exist_ok=True)
+      with open(metrics_file, 'w') as f:
+          json.dump(metrics, f, indent=2)
+      
+      print(f'[OK] Collected metrics: {total_pipelines} pipelines, {core_modules} modules')
+      "
+    timeout_sec: 5
+
+  # -- STEP-2 : Génération dashboard
+  - name: generate-dashboard
+    description: "STEP-2 - Génération tableau de bord temps réel"
+    depends_on: [collect-pipeline-metrics]
+    command: |
+      python -c "
+      import sys, os, json, time
+      from pathlib import Path
+      
+      kiva_path = Path(os.environ.get('KIVA_CLI_PATH', 'D:/DO/WEB/TOOLS/L1-INFRA/KIVA-CLI'))
+      dashboard_out = Path(os.environ.get('DASHBOARD_OUTPUT', 'D:/DO/WEB/TOOLS/reports/kiva-dashboard'))
+      dashboard_out.mkdir(parents=True, exist_ok=True)
+      
+      # Importer dashboard
+      sys.path.insert(0, str(kiva_path))
+      from kiva_cli.reporting.dashboard import DashboardClient
+      
+      # Charger métriques collectées
+      metrics_file = kiva_path / 'kiva_cli' / 'reporting' / 'latest_metrics.json'
+      metrics = {}
+      if metrics_file.exists():
+          with open(metrics_file, 'r') as f:
+              metrics = json.load(f)
+      
+      # Générer dashboard
+      dashboard = DashboardClient()
+      report_path = dashboard.generate_report(
+          'kiva-cli-real-time-dashboard',
+          metrics,
+          status='active'
+      )
+      
+      print(f'[OK] Dashboard generated: {report_path}')
+      "
+    timeout_sec: 8
+
+  # -- STEP-3 : Analyse performance
+  - name: performance-analysis
+    description: "STEP-3 - Analyse performance et alertes proactives"
+    depends_on: [generate-dashboard]
+    command: |
+      python -c "
+      import sys, os, json
+      from pathlib import Path
+      
+      kiva_path = Path(os.environ.get('KIVA_CLI_PATH', 'D:/DO/WEB/TOOLS/L1-INFRA/KIVA-CLI'))
+      
+      # Charger métriques
+      metrics_file = kiva_path / 'kiva_cli' / 'reporting' / 'latest_metrics.json'
+      if not metrics_file.exists():
+          print('[WARN] No metrics file found for analysis')
+          sys.exit(0)
+      
+      with open(metrics_file, 'r') as f:
+          metrics = json.load(f)
+      
+      # Importer dashboard étendu
+      sys.path.insert(0, str(kiva_path))
+      from kiva_cli.reporting.dashboard import DashboardClientPlus
+      
+      dashboard_plus = DashboardClientPlus()
+      
+      # Vérifier seuils de performance
+      alerts = []
+      
+      if metrics.get('total_pipelines', 0) < 3:
+          alerts.append(('warning', 'Low pipeline count detected'))
+      
+      if metrics.get('core_modules', 0) < 5:
+          alerts.append(('warning', 'Core module count below threshold'))
+      
+      # Générer alertes si nécessaire
+      for severity, message in alerts:
+          dashboard_plus.generate_alert(
+              'kiva-cli-performance',
+              message,
+              severity=severity
+          )
+      
+      if alerts:
+          print(f'[WARN] Generated {len(alerts)} performance alerts')
+      else:
+          print('[OK] Performance within normal parameters')
+      "
+    timeout_sec: 5
+
+  # -- STEP-4 : Publication résultats
+  - name: publish-results
+    description: "STEP-4 - Publication résultats tableau de bord"
+    depends_on: [performance-analysis]
+    command: |
+      python -c "
+      import sys, os
+      from pathlib import Path
+      
+      dashboard_out = Path(os.environ.get('DASHBOARD_OUTPUT', 'D:/DO/WEB/TOOLS/reports/kiva-dashboard'))
+      
+      # Lister tous les rapports récents
+      recent_reports = list(dashboard_out.glob('*dashboard*.json'))
+      recent_alerts = list(dashboard_out.glob('*alert*.json'))
+      
+      print(f'[OK] Dashboard status: {len(recent_reports)} reports, {len(recent_alerts)} active alerts')
+      print(f'[OK] Dashboard ready at: {dashboard_out}')
+      "
+    timeout_sec: 3
