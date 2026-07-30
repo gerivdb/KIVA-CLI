@@ -1,0 +1,12 @@
+name: unified-design
+description: Pipeline de validation souverain pour unified-design (KIVA-CLI local)
+
+steps:
+  - name: Validate meta-design schema
+    run: python scripts/validate_meta_design.py --schema schemas/meta-design.schema.json meta-design.yaml
+
+  - name: Validate atoms registry
+    run: python scripts/validate_atom_registry.py --registry atoms_registry.yaml --atoms-dir atoms
+
+  - name: Extract atom dependencies
+    run: python scripts/extract_atom_deps.py --write

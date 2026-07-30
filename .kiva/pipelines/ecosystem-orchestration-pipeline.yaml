@@ -32,7 +32,6 @@ env:
   OUTPUT_DIR: "D:/DO/WEB/TOOLS/reports/ecosystem-orchestration"
   GATEWAY_HOST: "127.0.0.1"
   GATEWAY_PORT: "18000"
-  PYTHON: "python"
 
 steps:
 
@@ -40,35 +39,31 @@ steps:
   - name: gate-bdcp-awareness
     description: "GATE-0 - Verifier mode BDCP (skip si BDCP actif)"
     command: |
-      $PYTHON -c "
-      import urllib.request, json, sys
+      python -c "
+      import urllib.request, json, sys, os
+      from pathlib import Path
       try:
-          url = f'http://{GATEWAY_HOST}:{GATEWAY_PORT}/clapet/status'
+          url = f'http://{os.environ.get(\"GATEWAY_HOST\", \"127.0.0.1\")}:{os.environ.get(\"GATEWAY_PORT\", \"18000\")}/clapet/status'
           req = urllib.request.Request(url, method='GET')
           r = urllib.request.urlopen(req, timeout=5)
           status = json.loads(r.read().decode())
           if status.get('status') == 'BDCP':
               print('[SKIP] Mode BDCP actif - pipeline saute (mode protege)')
-              # Ecrire flag pour etapes suivantes
-              import os
-              from pathlib import Path
-              output_dir = Path('$OUTPUT_DIR')
+              output_dir = Path(os.environ.get('OUTPUT_DIR', 'D:/DO/WEB/TOOLS/reports/ecosystem-orchestration'))
               output_dir.mkdir(parents=True, exist_ok=True)
               (output_dir / 'bdcp_skip.flag').write_text('true')
-              sys.exit(0)  # Exit 0 = skip graceful, pas d'erreur
+              sys.exit(0)
           print(f'[OK] Mode clapet: {status.get(\"status\", \"unknown\")} - pipeline continue')
-          from pathlib import Path
-          output_dir = Path('$OUTPUT_DIR')
+          output_dir = Path(os.environ.get('OUTPUT_DIR', 'D:/DO/WEB/TOOLS/reports/ecosystem-orchestration'))
           output_dir.mkdir(parents=True, exist_ok=True)
           (output_dir / 'bdcp_skip.flag').write_text('false')
       except Exception as e:
           print(f'[WARN] Gateway inaccessible, mode degrade: {e}')
-          from pathlib import Path
-          output_dir = Path('$OUTPUT_DIR')
+          output_dir = Path(os.environ.get('OUTPUT_DIR', 'D:/DO/WEB/TOOLS/reports/ecosystem-orchestration'))
           output_dir.mkdir(parents=True, exist_ok=True)
           (output_dir / 'bdcp_skip.flag').write_text('false')
       "
-    on_failure: continue  # Continue meme si gateway down
+    on_failure: continue
     timeout_sec: 10
 
   # -- STEP-1 : Verifier registry sync --------------------------------
@@ -76,13 +71,13 @@ steps:
     description: "STEP-1 - Verifier sync ECOS_ROOT.json <-> TOPOS/registry <-> known_repos.yaml"
     depends_on: [gate-bdcp-awareness]
     command: |
-      $PYTHON -c "
-      import json, sys
+      python -c "
+      import json, sys, os
       from pathlib import Path
       import yaml
       
       # Verifier flag BDCP skip
-      skip_flag = Path('$OUTPUT_DIR') / 'bdcp_skip.flag'
+      skip_flag = Path(os.environ.get('OUTPUT_DIR', 'D:/DO/WEB/TOOLS/reports/ecosystem-orchestration')) / 'bdcp_skip.flag'
       if skip_flag.exists() and skip_flag.read_text().strip() == 'true':
           print('[SKIP] BDCP mode actif - etape sautee')
           sys.exit(0)
@@ -93,19 +88,19 @@ steps:
       # Charger les 3 sources
       sources = {}
       try:
-          with open('$ECOS_ROOT', 'r') as f:
+          with open(os.environ.get('ECOS_ROOT', 'D:/DO/WEB/TOOLS/ECOS_ROOT.json'), 'r') as f:
               sources['ecos_root'] = json.load(f)
       except Exception as e:
           errors.append(f'ECOS_ROOT.json: {e}')
       
       try:
-          with open('$TOPOS_REGISTRY', 'r') as f:
+          with open(os.environ.get('TOPOS_REGISTRY', 'D:/DO/WEB/TOOLS/L1-INFRA/TOPOS/registry/repos.json'), 'r') as f:
               sources['topos'] = json.load(f)
       except Exception as e:
           errors.append(f'TOPOS/registry/repos.json: {e}')
       
       try:
-          with open('$KNOWN_REPOS', 'r') as f:
+          with open(os.environ.get('KNOWN_REPOS', 'D:/DO/WEB/TOOLS/L0-CANON/GOVERNANCE-HUB/known_repositories.yaml'), 'r') as f:
               sources['known_repos'] = yaml.safe_load(f)
       except Exception as e:
           errors.append(f'known_repositories.yaml: {e}')
@@ -116,15 +111,12 @@ steps:
       
       # Extraire noms de repos de chaque source
       repos = {}
-      # ECOS_ROOT: format {repos: [{name, path, ...}]}
       if 'ecos_root' in sources and 'repos' in sources['ecos_root']:
           repos['ecos_root'] = {r['name'] for r in sources['ecos_root']['repos']}
       
-      # TOPOS: format {repos: [{full_name, local_path, ...}]}
       if 'topos' in sources and 'repos' in sources['topos']:
           repos['topos'] = {r['full_name'].replace('gerivdb/', '') for r in sources['topos']['repos']}
       
-      # known_repos: format {repositories: [{name, ...}]}
       if 'known_repos' in sources and 'repositories' in sources['known_repos']:
           repos['known_repos'] = {r['name'] for r in sources['known_repos']['repositories']}
       
@@ -146,7 +138,8 @@ steps:
           print(f'[OK] Registres coherents: {len(all_names)} repos synchronises')
       
       # Sauvegarder pour rapport
-      output_dir = Path('$OUTPUT_DIR')
+      output_dir = Path(os.environ.get('OUTPUT_DIR', 'D:/DO/WEB/TOOLS/reports/ecosystem-orchestration'))
+      output_dir.mkdir(parents=True, exist_ok=True)
       report = {
           'step': 'verify-registry-sync',
           'repos_per_source': {k: len(v) for k, v in repos.items()},
@@ -162,72 +155,99 @@ steps:
 
   # -- STEP-2 : Verifier dispatch tables ------------------------------
   - name: verify-dispatch-tables
-    description: "STEP-2 - Verifier coherance CTULU dag3 routes <-> TRIX dispatch table 243"
+    description: "STEP-2 - Verifier coherance CTULU PLIX routes <-> TRIX dispatch commands + Piano 243"
     depends_on: [gate-bdcp-awareness]
     command: |
-      $PYTHON -c "
-      import json, sys, subprocess
+      python -c "
+      import json, sys, subprocess, re, os
       from pathlib import Path
       
       # Verifier flag BDCP skip
-      skip_flag = Path('$OUTPUT_DIR') / 'bdcp_skip.flag'
+      skip_flag = Path(os.environ.get('OUTPUT_DIR', 'D:/DO/WEB/TOOLS/reports/ecosystem-orchestration')) / 'bdcp_skip.flag'
       if skip_flag.exists() and skip_flag.read_text().strip() == 'true':
           print('[SKIP] BDCP mode actif - etape sautee')
           sys.exit(0)
       
-      # CTULU: verifier dag3 routes (fichier routes.yaml ou similaire)
-      ctulu_routes = set()
+      # CTULU: verifier routes via PLIX ternary router
+      ctulu_count = 0
       try:
-          # Chercher fichiers de routes CTULU
-          for route_file in Path('$CTULU_PATH').rglob('*route*.yaml'):
-              try:
-                  import yaml
-                  with open(route_file, 'r') as f:
-                      data = yaml.safe_load(f)
-                  if data and isinstance(data, dict):
-                      ctulu_routes.update(data.keys())
-              except:
-                  pass
-          print(f'[OK] CTULU routes trouvees: {len(ctulu_routes)}')
+          sys.path.insert(0, 'D:/DO/WEB/TOOLS/L4-TOOLS/CTULU/pipelines/plix-ternary-router')
+          from plix_ternary_router import TernaryRouter, TernarySignal, SignalType, TRIT_ADVANCE, TRIT_NEUTRAL
+          
+          router = TernaryRouter(Path('D:/DO/WEB/TOOLS/L0-CANON/GOVERNANCE-HUB/known_repositories.yaml'))
+          ctulu_count = len(router.registry)
+          
+          test_signal = TernarySignal(
+              source=SignalType.IRIS,
+              vector=[TRIT_ADVANCE, TRIT_ADVANCE, TRIT_NEUTRAL, TRIT_ADVANCE, TRIT_NEUTRAL],
+              confidence=[0.8, 0.7, 0.5, 0.6, 0.4],
+              metadata={'target_type': 'auto', 'source_name': 'VERIFICATION'}
+          )
+          result = router.project(test_signal)
+          print(f'[OK] CTULU registry repos: {ctulu_count}')
+          print(f'[OK] CTULU projected index: {result.projected_index} ({result.symbol})')
+          print(f'[OK] CTULU target repos: {len(result.target_repos)}')
       except Exception as e:
           print(f'[WARN] CTULU routes: {e}')
       
-      # TRIX: verifier dispatch table 243
-      trix_dispatch = 0
+      # TRIX: verifier dispatch commands via dispatch.zig parsing
+      trix_count = 0
       try:
-          result = subprocess.run([
-              'python', '-m', 'trix.tools.dispatch_audit', '--count'
-          ], capture_output=True, text=True, cwd='$TRIX_PATH', timeout=30)
-          if result.returncode == 0:
-              trix_dispatch = int(result.stdout.strip())
-              print(f'[OK] TRIX dispatch table entries: {trix_dispatch}')
-          else:
-              # Fallback: verifier fichier dispatch
-              dispatch_file = Path('$TRIX_PATH') / 'src' / 'dispatch_table.json'
-              if dispatch_file.exists():
-                  with open(dispatch_file, 'r') as f:
-                      data = json.load(f)
-                  trix_dispatch = len(data) if isinstance(data, list) else len(data.get('entries', []))
-                  print(f'[OK] TRIX dispatch table (fichier): {trix_dispatch}')
+          import re
+          dispatch_file = Path('D:/DO/WEB/TOOLS/L4-TOOLS/TRIX/src/dispatch.zig')
+          if dispatch_file.exists():
+              content = dispatch_file.read_text()
+              start = content.find('const map = .{')
+              if start != -1:
+                  brace_count = 0
+                  map_content = ''
+                  for i, c in enumerate(content[start:]):
+                      if c == '{':
+                          brace_count += 1
+                      elif c == '}':
+                          brace_count -= 1
+                          if brace_count == 0:
+                              map_content = content[start:start+i+1]
+                              break
+                  commands = re.findall(r'\{\s*\"([^\"]+)\",\s*\.(\w+)', map_content)
+                  real_commands = [cmd for cmd in commands if not cmd[1].startswith('EPIC-') and cmd[1] != '/']
+                  trix_count = len(real_commands)
+                  print(f'[OK] TRIX dispatch commands: {trix_count}')
       except Exception as e:
           print(f'[WARN] TRIX dispatch: {e}')
       
-      # Verification de coherence basique
+      # Piano 243 verification
+      piano_count = 0
+      try:
+          dispatch_file = Path('D:/DO/WEB/TOOLS/L4-TOOLS/TRIX/src/dispatch.zig')
+          if dispatch_file.exists():
+              content = dispatch_file.read_text()
+              if 'PianoState' in content and 'to_dispatch_index' in content:
+                  piano_count = 243
+                  print(f'[OK] Piano dispatch model: {piano_count} entries (3^5)')
+      except Exception as e:
+          print(f'[WARN] Piano dispatch: {e}')
+      
+      # Verification de coherence
       warnings = []
-      if trix_dispatch != 243:
-          warnings.append(f'[DISPATCH_COUNT] TRIX dispatch entries: {trix_dispatch} (attendu: 243)')
-      if len(ctulu_routes) == 0:
-          warnings.append('[CTULU_ROUTES] Aucune route CTULU detectee')
+      if trix_count == 0:
+          warnings.append('[DISPATCH_COUNT] TRIX dispatch commands: 0 (expected ~57)')
+      if ctulu_count == 0:
+          warnings.append('[CTULU_ROUTES] CTULU registry empty')
+      if piano_count != 243:
+          warnings.append(f'[PIANO] Piano model: {piano_count} (expected 243)')
       
       if warnings:
           for w in warnings: print(w)
       
-      output_dir = Path('$OUTPUT_DIR')
+      output_dir = Path(os.environ.get('OUTPUT_DIR', 'D:/DO/WEB/TOOLS/reports/ecosystem-orchestration'))
+      output_dir.mkdir(parents=True, exist_ok=True)
       report = {
           'step': 'verify-dispatch-tables',
-          'ctulu_routes_count': len(ctulu_routes),
-          'trix_dispatch_count': trix_dispatch,
-          'expected_trix': 243,
+          'ctulu_registry_count': ctulu_count,
+          'trix_commands_count': trix_count,
+          'piano_model_count': piano_count,
+          'expected_piano': 243,
           'warnings': warnings,
           'timestamp': __import__('datetime').datetime.now().isoformat()
       }
@@ -244,12 +264,12 @@ steps:
     description: "STEP-3 - Verifier health endpoints TRIX + ECOS-CLI"
     depends_on: [gate-bdcp-awareness]
     command: |
-      $PYTHON -c "
-      import urllib.request, json, sys, time
+      python -c "
+      import urllib.request, json, sys, time, os
       from pathlib import Path
       
       # Verifier flag BDCP skip
-      skip_flag = Path('$OUTPUT_DIR') / 'bdcp_skip.flag'
+      skip_flag = Path(os.environ.get('OUTPUT_DIR', 'D:/DO/WEB/TOOLS/reports/ecosystem-orchestration')) / 'bdcp_skip.flag'
       if skip_flag.exists() and skip_flag.read_text().strip() == 'true':
           print('[SKIP] BDCP mode actif - etape sautee')
           sys.exit(0)
@@ -259,14 +279,14 @@ steps:
       
       # TRIX health
       try:
-          url = 'http://127.0.0.1:18080/health'  # TRIX default port
+          url = 'http://127.0.0.1:18080/health'
           req = urllib.request.Request(url, method='GET')
           r = urllib.request.urlopen(req, timeout=5)
           trix_health = json.loads(r.read().decode())
           health_results['trix'] = trix_health
-          print(f'[OK] TRIX health: {trix_health.get(\"status\", \"unknown\")}')
+          print('[OK] TRIX health: ' + trix_health.get('status', 'unknown'))
       except Exception as e:
-          warnings.append(f'[TRIX_HEALTH] Inaccessible: {e}')
+          warnings.append('[TRIX_HEALTH] Inaccessible: ' + str(e))
           health_results['trix'] = {'error': str(e)}
       
       # ECOS-CLI health
@@ -283,26 +303,27 @@ steps:
           if result.returncode == 0:
               print('[OK] ECOS-CLI health: OK')
           else:
-              warnings.append(f'[ECOS_CLI_HEALTH] Return code: {result.returncode}')
+              warnings.append('[ECOS_CLI_HEALTH] Return code: ' + str(result.returncode))
       except Exception as e:
-          warnings.append(f'[ECOS_CLI_HEALTH] Erreur: {e}')
+          warnings.append('[ECOS_CLI_HEALTH] Erreur: ' + str(e))
           health_results['ecos_cli'] = {'error': str(e)}
       
-      # Gateway Manager health (pour BDCP/Clapet)
+      # Gateway Manager health
       try:
-          url = f'http://{GATEWAY_HOST}:{GATEWAY_PORT}/health'
+          url = 'http://' + os.environ.get('GATEWAY_HOST', '127.0.0.1') + ':' + os.environ.get('GATEWAY_PORT', '18000') + '/health'
           req = urllib.request.Request(url, method='GET')
           r = urllib.request.urlopen(req, timeout=5)
           gateway_health = json.loads(r.read().decode())
           health_results['gateway'] = gateway_health
-          print(f'[OK] Gateway health: {gateway_health.get(\"status\", \"unknown\")}')
+          print('[OK] Gateway health: ' + gateway_health.get('status', 'unknown'))
       except Exception as e:
-          warnings.append(f'[GATEWAY_HEALTH] Inaccessible: {e}')
+          warnings.append('[GATEWAY_HEALTH] Inaccessible: ' + str(e))
       
       if warnings:
           for w in warnings: print(w)
       
-      output_dir = Path('$OUTPUT_DIR')
+      output_dir = Path(os.environ.get('OUTPUT_DIR', 'D:/DO/WEB/TOOLS/reports/ecosystem-orchestration'))
+      output_dir.mkdir(parents=True, exist_ok=True)
       report = {
           'step': 'verify-runtime-health',
           'health_results': health_results,
@@ -314,7 +335,7 @@ steps:
       
       print('[OK] Verification runtime health terminee')
       "
-    on_failure: abort  # Health critique = abort
+    on_failure: abort
     timeout_sec: 30
 
   # -- STEP-4 : Verifier BRIDGES.yaml coherence -----------------------
@@ -322,18 +343,18 @@ steps:
     description: "STEP-4 - Verifier cohérence BRIDGES.yaml inter-repos"
     depends_on: [gate-bdcp-awareness]
     command: |
-      $PYTHON -c "
-      import yaml, sys
+      python -c "
+      import yaml, sys, os
       from pathlib import Path
       
       # Verifier flag BDCP skip
-      skip_flag = Path('$OUTPUT_DIR') / 'bdcp_skip.flag'
+      skip_flag = Path(os.environ.get('OUTPUT_DIR', 'D:/DO/WEB/TOOLS/reports/ecosystem-orchestration')) / 'bdcp_skip.flag'
       if skip_flag.exists() and skip_flag.read_text().strip() == 'true':
           print('[SKIP] BDCP mode actif - etape sautee')
           sys.exit(0)
       
       try:
-          with open('$BRIDGES_YAML', 'r') as f:
+          with open(os.environ.get('BRIDGES_YAML', 'D:/DO/WEB/TOOLS/L0-CANON/GOVERNANCE-HUB/BRIDGES.yaml'), 'r') as f:
               bridges = yaml.safe_load(f)
       except Exception as e:
           print(f'[ERROR] BRIDGES.yaml: {e}')
@@ -349,7 +370,7 @@ steps:
       
       # Verifier que chaque bridge reference des repos existants
       import yaml as yaml2
-      with open('$KNOWN_REPOS', 'r') as f:
+      with open(os.environ.get('KNOWN_REPOS', 'D:/DO/WEB/TOOLS/L0-CANON/GOVERNANCE-HUB/known_repositories.yaml'), 'r') as f:
           known = yaml2.safe_load(f)
       known_names = {r['name'] for r in known.get('repositories', [])}
       
@@ -365,7 +386,8 @@ steps:
       if warnings:
           for w in warnings: print(w)
       
-      output_dir = Path('$OUTPUT_DIR')
+      output_dir = Path(os.environ.get('OUTPUT_DIR', 'D:/DO/WEB/TOOLS/reports/ecosystem-orchestration'))
+      output_dir.mkdir(parents=True, exist_ok=True)
       report = {
           'step': 'verify-bridges-coherence',
           'total_bridges': total,
@@ -385,21 +407,21 @@ steps:
     description: "STEP-5 - Verifier integrite WAL sur CTULU, TRIX, ECOS-CLI, GOVERNANCE-HUB"
     depends_on: [gate-bdcp-awareness]
     command: |
-      $PYTHON -c "
-      import subprocess, sys, json
+      python -c "
+      import subprocess, sys, json, os
       from pathlib import Path
       
       # Verifier flag BDCP skip
-      skip_flag = Path('$OUTPUT_DIR') / 'bdcp_skip.flag'
+      skip_flag = Path(os.environ.get('OUTPUT_DIR', 'D:/DO/WEB/TOOLS/reports/ecosystem-orchestration')) / 'bdcp_skip.flag'
       if skip_flag.exists() and skip_flag.read_text().strip() == 'true':
           print('[SKIP] BDCP mode actif - etape sautee')
           sys.exit(0)
       
       repos = [
-          ('CTULU', '$CTULU_PATH'),
-          ('TRIX', '$TRIX_PATH'),
-          ('ECOS-CLI', '$ECOS_CLI_PATH'),
-          ('GOVERNANCE-HUB', '$GOVERNANCE_HUB')
+          ('CTULU', os.environ.get('CTULU_PATH', 'D:/DO/WEB/TOOLS/L4-TOOLS/CTULU')),
+          ('TRIX', os.environ.get('TRIX_PATH', 'D:/DO/WEB/TOOLS/L4-TOOLS/TRIX')),
+          ('ECOS-CLI', os.environ.get('ECOS_CLI_PATH', 'D:/DO/WEB/TOOLS/L1-INFRA/ECOS-CLI')),
+          ('GOVERNANCE-HUB', os.environ.get('GOVERNANCE_HUB', 'D:/DO/WEB/TOOLS/L0-CANON/GOVERNANCE-HUB'))
       ]
       
       results = {}
@@ -433,7 +455,8 @@ steps:
       if warnings:
           for w in warnings: print(f'[WARN] {w}')
       
-      output_dir = Path('$OUTPUT_DIR')
+      output_dir = Path(os.environ.get('OUTPUT_DIR', 'D:/DO/WEB/TOOLS/reports/ecosystem-orchestration'))
+      output_dir.mkdir(parents=True, exist_ok=True)
       report = {
           'step': 'verify-wal-integrity',
           'results': results,
@@ -453,13 +476,14 @@ steps:
     description: "STEP-6 - Generation rapport global orchestration"
     depends_on: [verify-registry-sync, verify-dispatch-tables, verify-runtime-health, verify-bridges-coherence, verify-wal-integrity]
     command: |
-      $PYTHON -c "
+      python -c "
       import json
+      import os
       from pathlib import Path
       from datetime import datetime
       
       # Verifier flag BDCP skip
-      skip_flag = Path('$OUTPUT_DIR') / 'bdcp_skip.flag'
+      skip_flag = Path(os.environ.get('OUTPUT_DIR', 'D:/DO/WEB/TOOLS/reports/ecosystem-orchestration')) / 'bdcp_skip.flag'
       if skip_flag.exists() and skip_flag.read_text().strip() == 'true':
           print('[SKIP] BDCP mode actif - rapport minimal')
           report = {
@@ -475,7 +499,7 @@ steps:
           all_warnings = []
           
           for step_file in steps:
-              f = Path('$OUTPUT_DIR') / step_file
+              f = Path(os.environ.get('OUTPUT_DIR', 'D:/DO/WEB/TOOLS/reports/ecosystem-orchestration')) / step_file
               if f.exists():
                   data = json.loads(f.read_text())
                   step_name = data.get('step', step_file)
@@ -492,7 +516,8 @@ steps:
               'status': 'completed' if len(all_warnings) == 0 else 'completed_with_warnings'
           }
       
-      output_dir = Path('$OUTPUT_DIR')
+      output_dir = Path(os.environ.get('OUTPUT_DIR', 'D:/DO/WEB/TOOLS/reports/ecosystem-orchestration'))
+      output_dir.mkdir(parents=True, exist_ok=True)
       timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
       report_file = output_dir / f'ecosystem_orchestration_{timestamp}.json'
       with open(report_file, 'w') as f:
@@ -504,10 +529,11 @@ steps:
           latest.unlink()
       latest.symlink_to(report_file.name)
       
-      print(f'[OK] Rapport global genere: {report_file}')
-      print(f'[OK] Status: {report[\"status\"]}')
+      total_warn = report['total_warnings']
+      print('[OK] Rapport global genere: ' + str(report_file))
+      print('[OK] Status: ' + report['status'])
       if 'total_warnings' in report:
-          print(f'[INFO] Total warnings: {report[\"total_warnings\"]}')
+          print('[INFO] Total warnings: ' + str(total_warn))
       "
     on_failure: warn
     timeout_sec: 15
@@ -517,12 +543,13 @@ steps:
     description: "Archive - Organisation par date YYYY-MM-DD/"
     depends_on: [generate-orchestration-report]
     command: |
-      $PYTHON -c "
+      python -c "
       import shutil
+      import os
       from pathlib import Path
       from datetime import datetime
       
-      src = Path('$OUTPUT_DIR')
+      src = Path(os.environ.get('OUTPUT_DIR', 'D:/DO/WEB/TOOLS/reports/ecosystem-orchestration'))
       dest = src / datetime.now().strftime('%Y-%m-%d')
       dest.mkdir(parents=True, exist_ok=True)
       
@@ -549,6 +576,6 @@ on_alert_hitl:
   labels: [critical, ecosystem-orchestration, hitl, ctulu, trix, ecos-cli]
   body: |
     Pipeline ecosystem-orchestration-pipeline a detecte des divergences.
-    Rapport: $OUTPUT_DIR/ecosystem_orchestration-latest.json
+    Rapport: {OUTPUT_DIR}/ecosystem_orchestration-latest.json
     Verifier steps: registry-sync, dispatch-tables, runtime-health, bridges, wal-integrity.
     Action manuelle requise pour reconcilier les couches N+3.

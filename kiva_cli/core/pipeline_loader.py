@@ -68,6 +68,9 @@ def load_pipeline(path: str | Path) -> Pipeline:
             f"Pipeline '{raw.get('name', path.stem)}': on_failure must be 'abort', 'warn', 'continue' or 'notify'; got '{pf}'."
         )
 
+    # Parse pipeline-level env (inherited by all steps)
+    pipeline_env = dict(raw.get("env") or {})
+
     return Pipeline(
         name=raw.get("name", path.stem),
         steps=ordered,
@@ -77,6 +80,7 @@ def load_pipeline(path: str | Path) -> Pipeline:
         parallel_groups=raw.get("parallel_groups") or [],
         max_workers=int(raw.get("max_workers", 4)),
         on_failure=pf,
+        env=pipeline_env,
         raw=raw,
     )
 

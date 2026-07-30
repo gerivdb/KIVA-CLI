@@ -24,7 +24,7 @@ steps:
   - name: gate-bdcp-check
     description: "GATE-0 - Verifier mode BDCP (refus si clapet != FREE)"
     command: |
-      $PYTHON -c "
+      python -c "
       import urllib.request, json, sys
       try:
           url = f'http://{GATEWAY_HOST}:{GATEWAY_PORT}/clapet/status'
@@ -48,7 +48,7 @@ steps:
     description: "GATE-1 - Confirmation HITL explicite requise"
     depends_on: [gate-bdcp-check]
     command: |
-      $PYTHON -c "
+      python -c "
       import os, sys
       # Verifier variable d'environnement pour confirmation HITL
       hitl_confirm = os.environ.get('KIVA_HITL_CONFIRM', '').lower()
@@ -67,7 +67,7 @@ steps:
     description: "STEP-1 - Parser les parametres (mode, target, sha)"
     depends_on: [gate-hitl-confirm]
     command: |
-      $PYTHON -c "
+      python -c "
       import os, json, sys
       from pathlib import Path
       
@@ -115,7 +115,7 @@ steps:
     description: "STEP-2 - Creer checkpoint WAL avant rollback"
     depends_on: [parse-rollback-params]
     command: |
-      $PYTHON -c "
+      python -c "
       import subprocess, json, sys
       from pathlib import Path
       
@@ -170,7 +170,7 @@ steps:
     description: "STEP-3 - Executer le rollback selon le mode"
     depends_on: [create-wal-checkpoint]
     command: |
-      $PYTHON -c "
+      python -c "
       import subprocess, json, sys, os
       from pathlib import Path
       
@@ -262,7 +262,7 @@ steps:
     description: "STEP-4 - Verifier l'integrite apres rollback"
     depends_on: [execute-rollback]
     command: |
-      $PYTHON -c "
+      python -c "
       import subprocess, json, sys
       from pathlib import Path
       
@@ -324,7 +324,7 @@ steps:
     description: "STEP-5 - Generer rapport d'incident rollback"
     depends_on: [verify-post-rollback]
     command: |
-      $PYTHON -c "
+      python -c "
       import json
       from pathlib import Path
       from datetime import datetime
@@ -368,7 +368,7 @@ steps:
     description: "Archive - Organisation par date YYYY-MM-DD/"
     depends_on: [generate-incident-report]
     command: |
-      $PYTHON -c "
+      python -c "
       import shutil
       from pathlib import Path
       from datetime import datetime

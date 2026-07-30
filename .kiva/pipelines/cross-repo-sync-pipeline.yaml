@@ -1,0 +1,239 @@
+name: cross-repo-sync-pipeline
+version: "1.0.0"
+intent_hash: 0xKIVA_CROSS_REPO_SYNC_PIPELINE_20260728
+description: |
+  CI local ENV2 - Pipeline de synchronisation cross-repo des citoyens KIVA-CLI.
+  Synchronise les entites (citoyens) entre les depots de l'ecosysteme gerivdb
+  selon le registre TOPOS/known_repositories.yaml. Detecte les divergences,
+  signale les conflits, et propose la reconciliation via SPIDX WAL.
+  PAS de GitHub Actions - KIVA-CLI daily cron.
+
+  Refs: INTENT-082, INTENT-094, INTENT-093, SPIDX_PROTOCOL
+  Concepts: cross-repo-sync, citizen-sync
+
+schedule: "0 1 * * *"   # Quotidien a 01:00 UTC
+on_merge:
+  - repo: gerivdb/GOVERNANCE-HUB
+    branch: main
+  - repo: gerivdb/ECOYSTEM
+    branch: main
+  - repo: gerivdb/BRAIN
+    branch: main
+
+env:
+  ECOS_ROOT: "D:/DO/WEB/TOOLS/ECOS_ROOT.json"
+  KNOWN_REPOS: "D:/DO/WEB/TOOLS/L0-CANON/GOVERNANCE-HUB/known_repositories.yaml"
+  TOPOS_REGISTRY: "D:/DO/WEB/TOOLS/L1-INFRA/TOPOS/registry/repos.json"
+  KIVA_CLI_PATH: "D:/DO/WEB/TOOLS/L1-INFRA/KIVA-CLI"
+  OUTPUT_DIR: "D:/DO/WEB/TOOLS/reports/cross-repo-sync"
+  PYTHON: "python"
+
+# -- etapes --------------------------------------------------------
+
+steps:
+
+# -- GATE-0 : Pre-flight ---------------------------------------
+  - name: gate-prereqs
+    description: "GATE-0 - Pre-flight (acces aux registres)"
+    command: |
+      $PYTHON -c "
+      from pathlib import Path
+      import sys
+      
+      paths = {
+          'ECOS-ROOT': Path('$ECOS_ROOT'),
+          'KNOWN-REPOS': Path('$KNOWN_REPOS'),
+          'TOPOS': Path('$TOPOS_REGISTRY'),
+          'KIVA-CLI': Path('$KIVA_CLI_PATH'),
+      }
+      
+      errors = []
+      for name, path in paths.items():
+          if not path.exists():
+              errors.append(f'{name} absent: {path}')
+              
+      if errors:
+          for e in errors: print(f'[ERROR] {e}')
+          sys.exit(1)
+      print('[OK] Pre-flight valide - tous registres accessibles')
+      "
+    on_failure: abort
+    timeout_sec: 10
+
+# -- STEP-1 : Decouverte des citoyens locaux --------------------
+  - name: discover-local-citizens
+    description: "STEP-1 - Decouverte des citoyens locaux (kiva citizen list)"
+    depends_on: [gate-prereqs]
+    command: |
+      $PYTHON -c "
+      import json, subprocess
+      from pathlib import Path
+      
+      output_dir = Path('$OUTPUT_DIR')
+      output_dir.mkdir(parents=True, exist_ok=True)
+      
+      # Executer kiva citizen list --format json pour obtenir le registre
+      try:
+          result = subprocess.run([
+              'python', '-m', 'kiva_cli.kiva', 'citizen', 'list', '--format', 'json'
+          ], capture_output=True, text=True, cwd='$KIVA_CLI_PATH', timeout=60)
+          
+          if result.returncode == 0:
+              citizens = json.loads(result.stdout)
+              print(f'[OK] {len(citizens)} citoyens decouverts localement')
+              
+              # Sauvegarder pour les etapes suivantes
+              import datetime
+              timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
+              report_file = output_dir / f'citizens_local_{timestamp}.json'
+              with open(report_file, 'w') as f:
+                  json.dump(citizens, f, indent=2)
+          else:
+              print(f'[WARN] kiva citizen list returned: {result.stderr}')
+              # Creer un fichier vide pour ne pas bloquer
+              (output_dir / 'citizens_local_empty.json').write_text('[]')
+      except Exception as e:
+          print(f'[WARN] Erreur execution kiva: {e}')
+          (output_dir / 'citizens_local_error.json').write_text(f'{{\"error\": \"{e}\"}}')
+      "
+    on_failure: warn
+    timeout_sec: 90
+
+# -- STEP-2 : Verifier la conformite avec known_repositories.yaml --
+  - name: check-known-repos
+    description: "STEP-2 - Verifier conformite avec known_repositories.yaml"
+    depends_on: [discover-local-citizens]
+    command: |
+      $PYTHON -c "
+      import json, subprocess
+      from pathlib import Path
+      
+      # Charger known_repositories.yaml
+      try:
+          import yaml
+          with open('$KNOWN_REPOS', 'r') as f:
+              known = yaml.safe_load(f)
+          known_repo_names = {r['name'] for r in known.get('repositories', [])}
+          print(f'[OK] {len(known_repo_names)} repos connus dans known_repositories.yaml')
+      except Exception as e:
+          print(f'[WARN] Impossible de charger known_repos: {e}')
+          known_repo_names = set()
+      
+      # Verifier que chaque citoyen reference correspond a un repo connu
+      output_dir = Path('$OUTPUT_DIR')
+      citizen_files = list(output_dir.glob('citizens_local_*.json'))
+      if citizen_files:
+          latest = max(citizen_files)
+          citizens = json.loads(latest.read_text())
+          
+          unknown_repos = []
+          for c in citizens:
+              repo = c.get('repo', '')
+              if repo and repo not in known_repo_names:
+                  unknown_repos.append(repo)
+          
+          if unknown_repos:
+              print(f'[ALERT] {len(unknown_repos)} citoyens dans repos inconnus: {unknown_repos[:5]}')
+          else:
+              print('[OK] Tous les citoyens referencent des repos connus')
+      else:
+          print('[INFO] Pas de fichier citoyens a verifier')
+      "
+    on_failure: warn
+    timeout_sec: 30
+
+# -- STEP-3 : Synchronisation via SPIDX WAL ----------------------
+  - name: spidx-sync
+    description: "STEP-3 - Synchronisation WAL via SPIDX"
+    depends_on: [check-known-repos]
+    command: |
+      $PYTHON -c "
+      import subprocess, json
+      from pathlib import Path
+      
+      # Appeler la commande de sync WAL si elle existe
+      try:
+          result = subprocess.run([
+              'python', '-m', 'kiva_cli.kiva', 'wal', 'sync'
+          ], capture_output=True, text=True, cwd='$KIVA_CLI_PATH', timeout=120)
+          
+          if result.returncode == 0:
+              print('[OK] SPIDX WAL sync terminee')
+          else:
+              print(f'[WARN] SPIDX WAL sync: {result.stderr}')
+      except Exception as e:
+          print(f'[WARN] Erreur SPIDX sync: {e}')
+      "
+    on_failure: warn
+    timeout_sec: 180
+
+# -- STEP-4 : Generer le rapport de synchronisation --------------
+  - name: generate-sync-report
+    description: "STEP-4 - Generation du rapport de synchronisation"
+    depends_on: [spidx-sync]
+    command: |
+      $PYTHON -c "
+      import json
+      from pathlib import Path
+      from datetime import datetime
+      
+      output_dir = Path('$OUTPUT_DIR')
+      timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+      report = {
+          'pipeline': 'cross-repo-sync-pipeline',
+          'timestamp': datetime.now().isoformat(),
+          'checks_performed': [
+              'discover-local-citizens',
+              'check-known-repos',
+              'spidx-sync'
+          ],
+          'status': 'completed'
+      }
+      report_file = output_dir / f'cross_repo_sync_{timestamp}.json'
+      with open(report_file, 'w') as f:
+          json.dump(report, f, indent=2)
+      
+      latest = output_dir / 'cross_repo_sync-latest.json'
+      if latest.exists() or latest.is_symlink():
+          latest.unlink()
+      latest.symlink_to(report_file.name)
+      
+      print(f'[OK] Rapport sync genere: {report_file}')
+      "
+    on_failure: warn
+    timeout_sec: 15
+
+# -- ARCHIVE : Organisation par date ----------------------------
+  - name: archive-reports
+    description: "Archive - Organisation par date YYYY-MM-DD/"
+    depends_on: [generate-sync-report]
+    command: |
+      $PYTHON -c "
+      import shutil
+      from pathlib import Path
+      from datetime import datetime
+      
+      src = Path('$OUTPUT_DIR')
+      dest = src / datetime.now().strftime('%Y-%m-%d')
+      dest.mkdir(parents=True, exist_ok=True)
+      
+      moved = 0
+      for f in src.glob('*.json'):
+          if not f.name.endswith('-latest.json'):
+              shutil.move(str(f), dest / f.name)
+              moved += 1
+      
+      print(f'[OK] {moved} fichier(s) archive(s) -> {dest}')
+      "
+    on_failure: warn
+    timeout_sec: 10
+
+on_alert_hitl:
+  action: create_issue
+  repo: gerivdb/ARGUS
+  title: "[CROSS-REPO-SYNC] Probleme de synchronisation detecte - HITL requis"
+  labels: [critical, cross-repo-sync, hitl, spidx]
+  body: |
+    Le pipeline cross-repo-sync-pipeline a detecte des problemes.
+    Rapport: $OUTPUT_DIR/cross_repo_sync-latest.json
+    Action manuelle requise pour reconcilier les citoyens.

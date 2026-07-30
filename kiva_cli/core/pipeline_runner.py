@@ -77,7 +77,7 @@ def _build_when_context(step: Step, result: PipelineResult, dry_run: bool) -> di
 
 
 def _run_step_with_when_check(
-    step: Step, dry_run: bool, verbose: bool, result: PipelineResult
+    step: Step, pipeline_env: dict | None = None, dry_run: bool = False, verbose: bool = False, result: PipelineResult | None = None
 ) -> StepResult:
     """Run the step only if its `when:` condition passes (KIVA-011).
 
@@ -92,14 +92,16 @@ def _run_step_with_when_check(
                 skip_reason=f"condition not met: {step.when}",
             )
 
-    return _run_step_with_retry(step, dry_run=dry_run, verbose=verbose)
+    return _run_step_with_retry(step, pipeline_env=pipeline_env, dry_run=dry_run, verbose=verbose)
 
 
 # ---------------------------------------------------------------------------
 # Step executor
 # ---------------------------------------------------------------------------
 
-def _run_step(step: Step, dry_run: bool = False, verbose: bool = False) -> StepResult:
+def _run_step(
+    step: Step, pipeline_env: dict | None = None, dry_run: bool = False, verbose: bool = False
+) -> StepResult:
     """Execute a single step and return its StepResult."""
     t0 = time.monotonic()
 
@@ -121,47 +123,132 @@ def _run_step(step: Step, dry_run: bool = False, verbose: bool = False) -> StepR
             duration_s=0.0,
         )
 
-    # Merge step env on top of current env
-    env = {**os.environ, **step.env}
+    # Merge: os.environ -> pipeline_env -> step.env (step env has highest priority)
+    env = {**os.environ, **(pipeline_env or {}), **step.env}
 
-    try:
-        proc = subprocess.run(
-            step.command,
-            shell=True,
-            capture_output=True,
-            text=True,
-            env=env,
-            timeout=step.timeout,
-        )
-        duration = time.monotonic() - t0
-        status: str = "SUCCESS" if proc.returncode == 0 else "FAILED"
-        return StepResult(
-            step_name=step.name,
-            status=status,
-            returncode=proc.returncode,
-            stdout=proc.stdout,
-            stderr=proc.stderr,
-            duration_s=duration,
-            error_message=proc.stderr[:200] if status == "FAILED" else "",
-        )
-    except subprocess.TimeoutExpired:
-        duration = time.monotonic() - t0
-        return StepResult(
-            step_name=step.name,
-            status="FAILED",
-            returncode=-1,
-            error_message=f"Step '{step.name}' timed out after {step.timeout}s",
-            duration_s=duration,
-        )
-    except Exception as exc:
-        duration = time.monotonic() - t0
-        return StepResult(
-            step_name=step.name,
-            status="FAILED",
-            returncode=-1,
-            error_message=str(exc),
-            duration_s=duration,
-        )
+    # On Windows, write multi-line commands to a temp file to preserve exit codes
+    is_windows = os.name == "nt"
+    command = step.command.strip()
+    is_multiline = "\n" in command
+
+    if is_windows and is_multiline:
+        # Write command to a temporary .bat file
+        import tempfile
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".bat", delete=False, encoding="utf-8") as f:
+            # Write the command as a batch script
+            # For Python commands, write as a .py file instead
+            if command.lstrip().startswith("python -c"):
+                # Extract the Python code and write as .py file
+                py_code = command[len("python -c"):].strip()
+                # Remove outer quotes if present
+                if (py_code.startswith('"') and py_code.endswith('"')) or \
+                   (py_code.startswith("'") and py_code.endswith("'")):
+                    py_code = py_code[1:-1]
+                py_file = f.name.replace(".bat", ".py")
+                with open(py_file, "w", encoding="utf-8") as pf:
+                    pf.write(py_code)
+                # Execute the .py file
+                cmd = ["python", py_file]
+                use_shell = False
+            else:
+                # Write as .bat file
+                f.write("@echo off\n")
+                f.write(command)
+                f.write("\n")
+                bat_file = f.name
+                cmd = [bat_file]
+                use_shell = False
+        try:
+            proc = subprocess.run(
+                cmd,
+                shell=use_shell,
+                capture_output=True,
+                text=True,
+                env=env,
+                timeout=step.timeout,
+            )
+            duration = time.monotonic() - t0
+            status: str = "SUCCESS" if proc.returncode == 0 else "FAILED"
+            return StepResult(
+                step_name=step.name,
+                status=status,
+                returncode=proc.returncode,
+                stdout=proc.stdout,
+                stderr=proc.stderr,
+                duration_s=duration,
+                error_message=proc.stderr[:200] if status == "FAILED" else "",
+            )
+        except subprocess.TimeoutExpired:
+            duration = time.monotonic() - t0
+            return StepResult(
+                step_name=step.name,
+                status="FAILED",
+                returncode=-1,
+                error_message=f"Step '{step.name}' timed out after {step.timeout}s",
+                duration_s=duration,
+            )
+        except Exception as exc:
+            duration = time.monotonic() - t0
+            return StepResult(
+                step_name=step.name,
+                status="FAILED",
+                returncode=-1,
+                error_message=str(exc),
+                duration_s=duration,
+            )
+        finally:
+            # Cleanup temp files
+            try:
+                if is_windows and is_multiline:
+                    if command.lstrip().startswith("python -c"):
+                        py_file = f.name.replace(".bat", ".py")
+                        if os.path.exists(py_file):
+                            os.unlink(py_file)
+                    else:
+                        if os.path.exists(bat_file):
+                            os.unlink(bat_file)
+            except Exception:
+                pass
+    else:
+        # Unix or single-line Windows command - use shell=True
+        try:
+            proc = subprocess.run(
+                step.command,
+                shell=True,
+                capture_output=True,
+                text=True,
+                env=env,
+                timeout=step.timeout,
+            )
+            duration = time.monotonic() - t0
+            status: str = "SUCCESS" if proc.returncode == 0 else "FAILED"
+            return StepResult(
+                step_name=step.name,
+                status=status,
+                returncode=proc.returncode,
+                stdout=proc.stdout,
+                stderr=proc.stderr,
+                duration_s=duration,
+                error_message=proc.stderr[:200] if status == "FAILED" else "",
+            )
+        except subprocess.TimeoutExpired:
+            duration = time.monotonic() - t0
+            return StepResult(
+                step_name=step.name,
+                status="FAILED",
+                returncode=-1,
+                error_message=f"Step '{step.name}' timed out after {step.timeout}s",
+                duration_s=duration,
+            )
+        except Exception as exc:
+            duration = time.monotonic() - t0
+            return StepResult(
+                step_name=step.name,
+                status="FAILED",
+                returncode=-1,
+                error_message=str(exc),
+                duration_s=duration,
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -169,7 +256,7 @@ def _run_step(step: Step, dry_run: bool = False, verbose: bool = False) -> StepR
 # ---------------------------------------------------------------------------
 
 def _run_step_with_retry(
-    step: Step, dry_run: bool = False, verbose: bool = False
+    step: Step, pipeline_env: dict | None = None, dry_run: bool = False, verbose: bool = False
 ) -> StepResult:
     """Execute a step with automatic retries.
 
@@ -181,7 +268,7 @@ def _run_step_with_retry(
     last_result: StepResult | None = None
 
     for attempt in range(1, max_attempts + 1):
-        result = _run_step(step, dry_run=dry_run, verbose=verbose)
+        result = _run_step(step, pipeline_env=pipeline_env, dry_run=dry_run, verbose=verbose)
         result.attempts = attempt
         last_result = result
 
@@ -341,7 +428,7 @@ def run_pipeline(
             group_steps = [s for s in steps if s.name in set(group_names)]
 
             def _run_one(s: Step) -> StepResult:
-                return _run_step_with_when_check(s, dry_run=dry_run, verbose=verbose, result=result)
+                return _run_step_with_when_check(s, pipeline_env=pipeline.env, dry_run=dry_run, verbose=verbose, result=result)
 
             group_res = parallel_executor.run_group(gidx, group_steps, _run_one)
 
@@ -372,7 +459,7 @@ def run_pipeline(
         # --- Normal sequential step (or already-processed group member) ---
         click.echo(f"  >> {step.name} ...", nl=False)
 
-        sr = _run_step_with_when_check(step, dry_run=dry_run, verbose=verbose, result=result)
+        sr = _run_step_with_when_check(step, pipeline_env=pipeline.env, dry_run=dry_run, verbose=verbose, result=result)
         result.steps.append(sr)
         result.total_retries_used += max(0, sr.attempts - 1)
         _phi_delta_record(step.name, sr.duration_s, sr.status)
