@@ -15,6 +15,54 @@ REPO_NAME="$(basename "$REPO_ROOT")"
 # ÉTAPE 1 : BYPASSES
 ###############################################################################
 
+# Induration: Detect bypass attempts (--no-verify, core.hooksPath override)
+# Logs to WAL for ARGUS scanning
+WAL_DIR="$REPO_ROOT/.wal"
+WAL_FILE="$WAL_DIR/induration.jsonl"
+mkdir -p "$WAL_DIR"
+
+log_induration_bypass() {
+    local gate_id="$1"
+    local repo_name="$2"
+    local branch_name="$3"
+    local method="$4"
+    local reason="${5:-bypass detected}"
+    local cost_obedience="${6:-900}"
+    local bypass_cost="${7:-2}"
+    
+    local i_score=$(awk -v b=1 -v t=1 -v c="$cost_obedience" 'BEGIN { if (t==0) print 0; else print (b/t) * log(c) }')
+    
+    local entry=$(cat <<EOF
+{
+  "ts": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+  "gate_id": "$gate_id",
+  "repo": "$repo_name",
+  "branch": "$branch_name",
+  "actor": "$(git config user.email 2>/dev/null || echo unknown)",
+  "method": "$method",
+  "reason": "$reason",
+  "cost_obedience_sec": $cost_obedience,
+  "bypass_cost_sec": $bypass_cost,
+  "i_score_before": $i_score,
+  "i_score_after": $i_score
+}
+EOF
+)
+    echo "$entry" >> "$WAL_FILE"
+    echo "[KIVA INDURATION] Bypass logged to WAL: $gate_id (I-score: $i_score)"
+}
+
+# Check for explicit --no-verify bypass
+if [[ "${GIT_PUSH_OPTIONS:-}" == *"no-verify"* ]] || [[ "$*" == *"--no-verify"* ]]; then
+    log_induration_bypass "KIVA_PRE_PUSH" "$REPO_NAME" "$BRANCH" "--no-verify" "explicit bypass" 900 2
+fi
+
+# Check for core.hooksPath override
+hooks_path=$(git config core.hooksPath 2>/dev/null || echo "")
+if [[ -n "$hooks_path" && "$hooks_path" != ".githooks" ]]; then
+    log_induration_bypass "KIVA_PRE_PUSH" "$REPO_NAME" "$BRANCH" "core.hooksPath override" "hooks redirected" 900 2
+fi
+
 # PROTECTION main/master (client-side, pas de GitHub Pro requis)
 # Remplace l'ancien bypass — le push direct sur main est BLOQUÉ
 # Contournement intentionnel uniquement : git push --no-verify
