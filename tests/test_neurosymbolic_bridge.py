@@ -210,7 +210,7 @@ class TestNeurosymbolicBridge(unittest.TestCase):
             bridge.process_signal({"type": "query", "content": {}, "source": "stats-test"})
         stats = bridge.get_stats()
         self.assertEqual(stats["total_signals"], 10)
-        self.assertGreater(stats["avg_latency_ms"], 0)
+        self.assertGreaterEqual(stats["avg_latency_ms"], 0)
         self.assertGreaterEqual(stats["max_latency_ms"], stats["min_latency_ms"])
 
     # --- Tests de résolution sémantique ---

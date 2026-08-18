@@ -54,7 +54,7 @@ class TestRegisterPipeline:
         manager = PipelineManager(db_path=str(tmp_path / "test.db"))
         pipeline_id = manager.register_pipeline("test", PipelineType.SEQUENTIAL)
         pipelines = manager.list_pipelines()
-        assert pipelines[0]['validation_state'] == ValidationState.UNKNOWN.value
+        assert pipelines[0]['validation_state'] == str(ValidationState.UNKNOWN.value)
 
 
 class TestAddStep:
