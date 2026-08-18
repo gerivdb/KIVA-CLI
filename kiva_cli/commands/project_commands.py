@@ -55,7 +55,10 @@ def project_cli():
 @click.argument('name')
 @click.option(
     '--framework', '--fw',
-    type=click.Choice([f.value for f in FrameworkType], case_sensitive=False),
+    type=click.Choice(
+        [f.value for f in FrameworkType] + [f.name.lower() for f in FrameworkType],
+        case_sensitive=False
+    ),
     required=True,
     help='Project framework template'
 )
@@ -89,7 +92,7 @@ def scaffold_project(name: str, framework: str, deps: tuple, workspace: Optional
     workspace_path = Path(workspace) if workspace else None
     pm = ProjectManager(workspace_root=workspace_path)
     
-    framework_enum = FrameworkType(framework)
+    framework_enum = FrameworkType.from_str(framework)
     
     click.echo(f"\n🏗️  Scaffolding project '{name}' [framework={framework}]")
     click.echo(_SEP * 60)
