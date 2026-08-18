@@ -13,6 +13,12 @@ import requests
 from pathlib import Path
 from datetime import datetime
 
+REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in os.sys.path:
+    os.sys.path.insert(0, str(REPO_ROOT))
+
+from kiva_cli.core.github_token import get_github_token
+
 # Valid strata directories
 VALID_STRATES = [
     "D:\\DO\\WEB\\TOOLS\\L0-CANON",
@@ -34,33 +40,12 @@ ARGUS_ROOT = "D:\\DO\\WEB\\TOOLS\\L3-CITIZENS\\ARGUS"
 INDURATION_SCANNER = os.path.join(ARGUS_ROOT, "scanners", "induration_scanner.py")
 INDURATION_REPORT = "D:\\DO\\WEB\\TOOLS\\L0-CANON\\GOVERNANCE-HUB\\docs\\induration-index.md"
 
-def _github_token():
-    token = os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")
-    if not token:
-        token = _token_from_gh_keyring()
-    if not token:
-        raise RuntimeError("GITHUB_TOKEN/gh keyring requis pour créer/merger des PRs en BDCP")
-    return token
-
 def _github_headers():
     return {
-        "Authorization": f"Bearer {_github_token()}",
+        "Authorization": f"Bearer {get_github_token()}",
         "Accept": "application/vnd.github+json",
     }
 
-def _token_from_gh_keyring():
-    gh_path = None
-    for candidate in ["gh", "C:\\gh\\bin\\gh.exe", os.path.expandvars("%LOCALAPPDATA%\\Programs\\gh\\bin\\gh.exe")]:
-        if os.path.exists(candidate):
-            gh_path = candidate
-            break
-    if not gh_path:
-        return None
-    token_out = subprocess.run(f"{gh_path} auth token", shell=True, capture_output=True, text=True)
-    if token_out.returncode != 0:
-        return None
-    token = token_out.stdout.strip()
-    return token if token else None
 
 def run_cmd(cmd, cwd=None):
     """Run shell command and return output"""

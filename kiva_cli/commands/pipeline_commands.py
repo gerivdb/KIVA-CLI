@@ -140,21 +140,21 @@ def pipeline_list():
 # validate
 # ---------------------------------------------------------------------------
 
-    @pipeline_cli.command("validate")
-    @click.argument("name")
-    def pipeline_validate(name: str):
-        """Validate a named declarative pipeline (KIVA-008)."""
-        result = _manager.validate(name)
-        if not result.valid:
-            click.echo(f"[FAIL] Pipeline '{name}' is invalid:", err=True)
-            for e in result.errors:
-                click.echo(f"  - {e}", err=True)
-            raise SystemExit(1)
+@pipeline_cli.command("validate")
+@click.argument("name")
+def pipeline_validate(name: str):
+    """Validate a named declarative pipeline (KIVA-008)."""
+    result = _manager.validate(name)
+    if not result.valid:
+        click.echo(f"[FAIL] Pipeline '{name}' is invalid:", err=True)
+        for e in result.errors:
+            click.echo(f"  - {e}", err=True)
+        raise SystemExit(1)
 
-        click.echo(f"[OK] Pipeline '{name}' is valid.")
-        if result.warnings:
-            for w in result.warnings:
-                click.echo(f"  [WARN] {w}")
+    click.echo(f"[OK] Pipeline '{name}' is valid.")
+    if result.warnings:
+        for w in result.warnings:
+            click.echo(f"  [WARN] {w}")
 
 
 # ---------------------------------------------------------------------------

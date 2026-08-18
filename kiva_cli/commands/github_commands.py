@@ -20,6 +20,8 @@ from typing import Optional
 
 import httpx
 
+from kiva_cli.core.github_token import get_github_token as _get_github_token
+
 LOG = logging.getLogger("kiva_cli.github_commands")
 GITHUB_API = "https://api.github.com"
 
@@ -47,29 +49,6 @@ def _gh_executable() -> str | None:
         elif os.path.exists(candidate):
             return candidate
     return None
-
-
-def _get_github_token() -> str:
-    """Read GITHUB_TOKEN with fallback to gh keyring."""
-    token = os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")
-    if token:
-        return token
-    gh_exec = _gh_executable()
-    if gh_exec:
-        try:
-            out = subprocess.run(
-                f"{gh_exec} auth token",
-                shell=True,
-                capture_output=True,
-                text=True,
-            )
-            if out.returncode == 0:
-                token = out.stdout.strip()
-                if token:
-                    return token
-        except Exception:
-            pass
-    raise RuntimeError("GITHUB_TOKEN/gh keyring requis pour les commandes GitHub en BDCP")
 
 
 @dataclass

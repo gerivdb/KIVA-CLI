@@ -21,6 +21,12 @@ import requests
 from pathlib import Path
 from datetime import datetime
 
+REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in os.sys.path:
+    os.sys.path.insert(0, str(REPO_ROOT))
+
+from kiva_cli.core.github_token import get_github_token
+
 def run_cmd(cmd, cwd=None):
     """Run shell command and return output"""
     result = subprocess.run(cmd, shell=True, cwd=cwd, capture_output=True, text=True)
@@ -63,19 +69,12 @@ def has_unmerged_commits(branch, repo_path):
     lines = [l for l in stdout.split('\n') if l.strip()]
     return len(lines) > 0, lines
 
-def _github_token():
-    token = os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")
-    if not token:
-        token = _token_from_gh_keyring()
-    if not token:
-        raise RuntimeError("GITHUB_TOKEN/gh keyring requis pour créer/merger des PRs en BDCP")
-    return token
-
 def _github_headers():
     return {
-        "Authorization": f"Bearer {_github_token()}",
+        "Authorization": f"Bearer {get_github_token()}",
         "Accept": "application/vnd.github+json",
     }
+
 
 def _command_exists(cmd):
     """Check if a command exists"""
@@ -88,32 +87,6 @@ def _command_exists(cmd):
                 return True
     return False
 
-def _gh_executable():
-    """Return the full path to gh.exe, or 'gh' if in PATH."""
-    candidates = [
-        "gh",
-        os.path.expandvars(r"%LOCALAPPDATA%\Programs\gh\bin\gh.exe"),
-        r"C:\gh\bin\gh.exe",
-    ]
-    for candidate in candidates:
-        if candidate == "gh":
-            stdout, code = run_cmd("command -v gh")
-            if code == 0 and stdout.strip():
-                return stdout.strip()
-        elif os.path.exists(candidate):
-            return candidate
-    return None
-
-def _token_from_gh_keyring():
-    """Fallback: read token from gh keyring when GITHUB_TOKEN/ GH_TOKEN are not set"""
-    gh_exec = _gh_executable()
-    if not gh_exec:
-        return None
-    stdout, code = run_cmd(f"{gh_exec} auth token")
-    if code != 0:
-        return None
-    token = stdout.strip()
-    return token if token else None
 
 def get_pr_number(branch_name, repo):
     """Get PR number if exists via GitHub API"""
