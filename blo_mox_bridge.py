@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-BLO-MOX Bridge — Synchronise les PRDs validés BLO vers MOX.
+BLO-MOX Bridge -- Synchronise les PRDs valides BLO vers MOX.
 Usage: python blo_mox_bridge.py [--dry-run]
 """
 
@@ -13,7 +13,7 @@ BLO_PRD_DIR = Path(r"D:\DO\WEB\TOOLS\L0-CANON\BLO\PRD")
 MOX_TEMPLATE = Path(r"D:\DO\WEB\TOOLS\L2-PLATFORM\MOX\templates\PRD-MOC.template.md")
 PRD_OUTPUT_DIR = Path(r"D:\DO\WEB\TOOLS\L2-PLATFORM\PLIX\PRD")
 
-# Statuts éligibles pour la synchronisation
+# Statuts eligibles pour la synchronisation
 ELIGIBLE_STATUSES = {"active", "proposed", "draft", "approved", "implemented"}
 
 
@@ -82,7 +82,7 @@ def sync_blo_to_mox(dry_run: bool = False) -> list[str]:
             synced += 1
     
     if not dry_run:
-        results.append(f"[SYNC] Total: {synced} PRD(s) synchronisés")
+        results.append(f"[SYNC] Total: {synced} PRD(s) synchronises")
     
     return results
 

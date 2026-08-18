@@ -46,16 +46,6 @@ from .types import (
     DeploymentResult as _CanonicalDeploymentResult,
 )
 
-# Temporary backward-compat aliases (will emit DeprecationWarning in future)
-# All new code MUST import directly from kiva_cli.core.types
-warnings.warn(
-    "project_manager.py still defines local ValidationState/LifecycleState/FrameworkType. "
-    "Migrate to `from kiva_cli.core.types import ...` (PRD-KIVA-004).",
-    DeprecationWarning,
-    stacklevel=2
-)
-
-
 # ========================================
 # DATA STRUCTURES
 # ========================================

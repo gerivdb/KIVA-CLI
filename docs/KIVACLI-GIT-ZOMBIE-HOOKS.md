@@ -1,43 +1,43 @@
-# KIVA-CLI — Git Zombie Hooks
+# KIVA-CLI -- Git Zombie Hooks
 
 **IntentHash** : `0xPRD_MOC_PROCESS_ZOMBIE_HYGIENE_DEVTOOLS_20260809`
-**Dépôt** : gerivdb/KIVA-CLI
-**CI** : KIVA-CLI locale souveraine (interdiction GitHub Actions — ADR-024)
+**Depot** : gerivdb/KIVA-CLI
+**CI** : KIVA-CLI locale souveraine (interdiction GitHub Actions -- ADR-024)
 
 ---
 
 ## 1. Contexte
 
-KIVA-CLI est la CI locale souveraine de l'écosystème gerivdb. Les sessions KiloCode, les worktrees temporaires et les isolations TRIX laissent des processus zombies qui peuvent perturber les exécutions CI suivantes.
+KIVA-CLI est la CI locale souveraine de l'ecosysteme gerivdb. Les sessions KiloCode, les worktrees temporaires et les isolations TRIX laissent des processus zombies qui peuvent perturber les executions CI suivantes.
 
-Ce document décrit les hooks **pre-CI** et **post-CI** pour garantir un environnement propre avant/après chaque exécution KIVA-CLI.
+Ce document decrit les hooks **pre-CI** et **post-CI** pour garantir un environnement propre avant/apres chaque execution KIVA-CLI.
 
 ---
 
-## 2. Hook pre-CI — `pre-ci`
+## 2. Hook pre-CI -- `pre-ci`
 
-### Déclenchement
+### Declenchement
 
-Avant toute exécution de CI locale KIVA-CLI.
+Avant toute execution de CI locale KIVA-CLI.
 
 ### Actions
 
-1. **Vérifier l'absence de processus zombies**
+1. **Verifier l'absence de processus zombies**
    ```powershell
    powershell -File "D:\DO\WEB\TOOLS\L2-PLATFORM\GeriCode\scripts\verify-agent-manager-env.ps1"
    ```
 
-2. **Purge automatique des zombies légers**
-   - Types ciblés : `git.exe`, `node.exe`, `python.exe`, `zig.exe`, `cargo.exe`, `bun.exe`, `pwsh.exe`
-   - Exclusion : `trixd.exe`, `kix.exe` (vérification manuelle requise)
+2. **Purge automatique des zombies legers**
+   - Types cibles : `git.exe`, `node.exe`, `python.exe`, `zig.exe`, `cargo.exe`, `bun.exe`, `pwsh.exe`
+   - Exclusion : `trixd.exe`, `kix.exe` (verification manuelle requise)
 
-3. **Vérifier les worktrees orphelins**
+3. **Verifier les worktrees orphelins**
    ```powershell
    git worktree list
    # Signaler tout worktree dont la branche n'existe plus
    ```
 
-4. **Vérifier les stashes temporaires**
+4. **Verifier les stashes temporaires**
    ```powershell
    git stash list
    # Signaler tout stash "temp" / "WIP" / "before switch"
@@ -55,28 +55,28 @@ recommendation: "proceed" | "purge_and_proceed" | "abort"
 
 ---
 
-## 3. Hook post-CI — `post-ci`
+## 3. Hook post-CI -- `post-ci`
 
-### Déclenchement
+### Declenchement
 
-Après toute exécution de CI locale KIVA-CLI (succès ou échec).
+Apres toute execution de CI locale KIVA-CLI (succes ou echec).
 
 ### Actions
 
 1. **Audit post-CI**
-   - Comparer l'état des worktrees avant/après CI
-   - Détecter les nouveaux processus zombies créés pendant la CI
+   - Comparer l'etat des worktrees avant/apres CI
+   - Detecter les nouveaux processus zombies crees pendant la CI
 
 2. **Purge des worktrees temporaires CI**
    ```powershell
-   # Supprimer les worktrees temporaires créés par la CI
+   # Supprimer les worktrees temporaires crees par la CI
    git worktree remove <worktree-path>
    git worktree prune
    ```
 
 3. **Purge des stashes temporaires CI**
    ```powershell
-   # Supprimer les stashes créés pendant la CI
+   # Supprimer les stashes crees pendant la CI
    git stash drop stash@{n}
    ```
 
@@ -99,9 +99,9 @@ Après toute exécution de CI locale KIVA-CLI (succès ou échec).
 
 ---
 
-## 4. Intégration avec KIX
+## 4. Integration avec KIX
 
-KIVA-CLI peut interroger KIX pour obtenir l'état des zombies :
+KIVA-CLI peut interroger KIX pour obtenir l'etat des zombies :
 
 ```bash
 # Inventaire
@@ -120,21 +120,21 @@ curl -X POST http://localhost:8800/health/zombies/purge \
 
 ---
 
-## 5. Intégration avec TRIX
+## 5. Integration avec TRIX
 
-Avant toute isolation TRIX, exécuter le preflight étendu :
+Avant toute isolation TRIX, executer le preflight etendu :
 
 ```powershell
 .\trix.exe preflight
 ```
 
-Le check `child_zombies` avertit si des processus enfants zombies de `trixd.exe` sont détectés.
+Le check `child_zombies` avertit si des processus enfants zombies de `trixd.exe` sont detectes.
 
 ---
 
-## 6. Intégration avec GeriCode
+## 6. Integration avec GeriCode
 
-Le script `scripts/verify-agent-manager-env.ps1` inclut désormais le CHECK-8 `process_zombies`.
+Le script `scripts/verify-agent-manager-env.ps1` inclut desormais le CHECK-8 `process_zombies`.
 
 ```powershell
 powershell -File "D:\DO\WEB\TOOLS\L2-PLATFORM\GeriCode\scripts\verify-agent-manager-env.ps1"
@@ -142,18 +142,18 @@ powershell -File "D:\DO\WEB\TOOLS\L2-PLATFORM\GeriCode\scripts\verify-agent-mana
 
 ---
 
-## 7. Règles
+## 7. Regles
 
-1. **pre-CI est obligatoire** avant toute exécution KIVA-CLI
-2. **post-CI est obligatoire** après toute exécution KIVA-CLI
-3. **Ne JAMAIS** purger `trixd.exe` ou `kix.exe` sans vérification manuelle
-4. **Ne JAMAIS** supprimer un worktree sans vérifier que la branche existe
-5. **Logger chaque purge** dans NEXUS/WAL pour traçabilité
-6. **ADR-024** : GitHub Actions est interdit — KIVA-CLI est la CI souveraine exclusive
+1. **pre-CI est obligatoire** avant toute execution KIVA-CLI
+2. **post-CI est obligatoire** apres toute execution KIVA-CLI
+3. **Ne JAMAIS** purger `trixd.exe` ou `kix.exe` sans verification manuelle
+4. **Ne JAMAIS** supprimer un worktree sans verifier que la branche existe
+5. **Logger chaque purge** dans NEXUS/WAL pour tracabilite
+6. **ADR-024** : GitHub Actions est interdit -- KIVA-CLI est la CI souveraine exclusive
 
 ---
 
-## 8. Référence
+## 8. Reference
 
 - **PRD MOC** : `act-protocol/PRD/PRD-MOC-ACTPROTOCOL/fractal/architecture/PRD-MOC-PROCESS-ZOMBIE-HYGIENE-DEVTOOLS-2026-08-09.md`
 - **Skill** : `.kilo/skills/process-hygiene/SKILL.md` (GeriCode)

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-POST-IMPLEMENT CHECK v1.0 — HOTL (Human-Out-The-Loop)
+POST-IMPLEMENT CHECK v1.0 -- HOTL (Human-Out-The-Loop)
 IntentHash: 0xPOST_IMPL_CHECK_20260615
 """
 
@@ -30,9 +30,9 @@ MOX_PATH = Path(r"D:\DO\WEB\TOOLS\L2-PLATFORM\MOX\mox.py")
 VALIDATOR_PATH = Path(r"D:\DO\WEB\TOOLS\L2-PLATFORM\MOX\validator.py")
 
 
-# ─────────────────────────────────────────────────────────────
+# -------------------------------------------------------------
 # Friction checks (same as friction_detector.py, inlined for autonomy)
-# ─────────────────────────────────────────────────────────────
+# -------------------------------------------------------------
 
 def check_f3_precommit_shebang(repo_path: Path) -> List[str]:
     hook = repo_path / ".githooks" / "pre-commit"
@@ -190,9 +190,9 @@ def check_mox_valid(repo_path: Path) -> List[str]:
     return issues
 
 
-# ─────────────────────────────────────────────────────────────
+# -------------------------------------------------------------
 # Registry
-# ─────────────────────────────────────────────────────────────
+# -------------------------------------------------------------
 
 CHECKS = [
     ("F3", "pre-commit shebang", "critical", check_f3_precommit_shebang, fix_f3),
@@ -241,7 +241,7 @@ def main():
     print(f"[POST-IMPL] Run tests: {'ON' if args.test else 'OFF'}")
     print("=" * 60)
 
-    # ── Phase 1: Friction scan ──
+    # -- Phase 1: Friction scan --
     print("\n[Phase 1] Friction scan...")
     total_issues = 0
     auto_fixed = 0
@@ -268,7 +268,7 @@ def main():
         else:
             print(f"  {OK} [{fid}] {name}: OK")
 
-    # ── Phase 2: Unit tests ──
+    # -- Phase 2: Unit tests --
     test_passed = None
     test_output = ""
     if args.test:
@@ -282,7 +282,7 @@ def main():
                 for line in test_output.split("\n")[-20:]:
                     print(f"       {line}")
 
-    # ── Phase 3: Summary ──
+    # -- Phase 3: Summary --
     print(f"\n{'='*60}")
     print(f"[SUMMARY]")
     print(f"  Frictions found: {total_issues}")

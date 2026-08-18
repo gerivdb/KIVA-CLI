@@ -13,7 +13,7 @@ from typing import List, Dict, Tuple
 
 @click.group(name='doctor')
 def doctor_cli():
-    """KIVA-CLI doctor — hygiene and diagnostics."""
+    """KIVA-CLI doctor -- hygiene and diagnostics."""
     pass
 
 
@@ -83,7 +83,7 @@ def check_paths(auto: bool, registry: str, scan: str):
                 content = new_content
 
     # Report
-    click.echo(click.style(f"\nDoctor Path Report — {scan}", fg='cyan'))
+    click.echo(click.style(f"\nDoctor Path Report -- {scan}", fg='cyan'))
     click.echo(click.style('=' * 50, fg='cyan'))
     click.echo(f"Registry : {registry_path or 'NOT FOUND'}")
     click.echo(f"Violations: {len(violations)}")
@@ -91,7 +91,7 @@ def check_paths(auto: bool, registry: str, scan: str):
     if violations:
         click.echo(click.style("\nViolations:", fg='yellow'))
         for f, p, a in violations[:20]:
-            alias_info = f" → @{a}" if a else " (no alias)"
+            alias_info = f" -> @{a}" if a else " (no alias)"
             click.echo(f"  {f}: {p}{alias_info}")
 
     if fixed:
