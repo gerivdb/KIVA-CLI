@@ -3,6 +3,11 @@ type: ADR
 status: proposed
 date: "2026-07-18"
 intent_hash: 0xADR_DAG3_INTEGRATION_20260718
+author: gerivdb
+created: "2026-07-18"
+id: ADR-001
+repo: gerivdb/KIVA-CLI
+title: DAG-3 Integration for Merge Validation
 ---
 
 # ADR-2026-07-18-001: DAG-3 Integration for Merge Validation

@@ -3,7 +3,7 @@ type: INTENT
 id: INTENT-016
 title: "INVERSE-IR -- Reconstruction d'un repo scaffold phi-conforme depuis un IRNode-seed"
 repo: gerivdb/KIVA-CLI
-status: proposed
+status: draft
 created: 2026-06-20
 author: gerivdb
 phi_cps_target: 6.2
