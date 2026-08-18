@@ -17,6 +17,7 @@ import subprocess
 import sys
 import json
 import os
+import requests
 from pathlib import Path
 from datetime import datetime
 
@@ -62,68 +63,142 @@ def has_unmerged_commits(branch, repo_path):
     lines = [l for l in stdout.split('\n') if l.strip()]
     return len(lines) > 0, lines
 
+def _github_token():
+    token = os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")
+    if not token:
+        token = _token_from_gh_keyring()
+    if not token:
+        raise RuntimeError("GITHUB_TOKEN/gh keyring requis pour créer/merger des PRs en BDCP")
+    return token
+
+def _github_headers():
+    return {
+        "Authorization": f"Bearer {_github_token()}",
+        "Accept": "application/vnd.github+json",
+    }
+
+def _command_exists(cmd):
+    """Check if a command exists"""
+    stdout, code = run_cmd(f"command -v {cmd}")
+    if code == 0:
+        return True
+    if cmd == "gh":
+        for candidate in ["gh", "C:\\gh\\bin\\gh.exe", os.path.expandvars("%LOCALAPPDATA%\\Programs\\gh\\bin\\gh.exe")]:
+            if os.path.exists(candidate):
+                return True
+    return False
+
+def _gh_executable():
+    """Return the full path to gh.exe, or 'gh' if in PATH."""
+    candidates = [
+        "gh",
+        os.path.expandvars(r"%LOCALAPPDATA%\Programs\gh\bin\gh.exe"),
+        r"C:\gh\bin\gh.exe",
+    ]
+    for candidate in candidates:
+        if candidate == "gh":
+            stdout, code = run_cmd("command -v gh")
+            if code == 0 and stdout.strip():
+                return stdout.strip()
+        elif os.path.exists(candidate):
+            return candidate
+    return None
+
+def _token_from_gh_keyring():
+    """Fallback: read token from gh keyring when GITHUB_TOKEN/ GH_TOKEN are not set"""
+    gh_exec = _gh_executable()
+    if not gh_exec:
+        return None
+    stdout, code = run_cmd(f"{gh_exec} auth token")
+    if code != 0:
+        return None
+    token = stdout.strip()
+    return token if token else None
+
 def get_pr_number(branch_name, repo):
-    """Get PR number if exists"""
-    stdout, code = run_cmd(f'gh pr list --head {branch_name} --state open --json number --repo {repo}')
+    """Get PR number if exists via GitHub API"""
+    url = f"https://api.github.com/repos/{repo}/pulls"
+    params = {"head": f"{repo.split('/')[0]}:{branch_name}", "state": "open"}
     try:
-        data = json.loads(stdout)
-        return data[0]['number'] if data else None
-    except:
+        resp = requests.get(url, headers=_github_headers(), params=params, timeout=30)
+        resp.raise_for_status()
+        data = resp.json()
+        return data[0]["number"] if data else None
+    except Exception as e:
+        print(f"[WARN] get_pr_number failed: {e}")
         return None
 
 def get_pr_status(pr_number, repo):
-    """Get PR mergeability status"""
-    stdout, code = run_cmd(f'gh pr view {pr_number} --json mergeable,mergeStateStatus,state --repo {repo}')
+    """Get PR mergeability status via GitHub API"""
+    url = f"https://api.github.com/repos/{repo}/pulls/{pr_number}"
     try:
-        data = json.loads(stdout)
+        resp = requests.get(url, headers=_github_headers(), timeout=30)
+        resp.raise_for_status()
+        data = resp.json()
         return {
-            'mergeable': data.get('mergeable', False),
-            'mergeStateStatus': data.get('mergeStateStatus', 'UNKNOWN'),
-            'state': data.get('state', 'UNKNOWN')
+            "mergeable": data.get("mergeable", False),
+            "mergeStateStatus": data.get("mergeable_state", "UNKNOWN"),
+            "state": data.get("state", "UNKNOWN"),
         }
-    except:
-        return {'mergeable': False, 'mergeStateStatus': 'UNKNOWN', 'state': 'UNKNOWN'}
+    except Exception as e:
+        print(f"[WARN] get_pr_status failed: {e}")
+        return {"mergeable": False, "mergeStateStatus": "UNKNOWN", "state": "UNKNOWN"}
 
 def create_pr(branch, repo, title=None, body=None):
-    """Create PR for branch - v2.0 with better defaults"""
-    branch_name = branch.replace('origin/', '')
-    
-    # Generate title from branch name if not provided
+    """Create PR for branch via GitHub API - BDCP safe"""
+    branch_name = branch.replace("origin/", "")
+
     if not title:
-        slug = branch_name.replace('feat/', '').replace('fix/', '').replace('docs/', '')
-        slug = slug.replace('-', ' ').title()
-        branch_type = branch_name.split('/')[0] if '/' in branch_name else 'feat'
+        slug = branch_name.replace("feat/", "").replace("fix/", "").replace("docs/", "")
+        slug = slug.replace("-", " ").title()
+        branch_type = branch_name.split("/")[0] if "/" in branch_name else "feat"
         title = f"{branch_type}: {slug}"
-    
-    # Generate body from commits if not provided
+
     if not body:
-        body = f"Auto-generated PR from branch `{branch_name}`\n\n"
-        body += "## Commits\n\n"
+        body = f"Auto-generated PR from branch `{branch_name}`\n\n## Commits\n\n"
         stdout, _ = run_cmd(f"git log --oneline origin/main..{branch_name}", ".")
-        for line in stdout.split('\n')[:10]:
+        for line in stdout.split("\n")[:10]:
             if line.strip():
                 body += f"- {line.strip()}\n"
         body += "\n## IntentHash\n\n`0xAUTO_GENERATED`\n"
-    
-    # Create PR
-    cmd = f'gh pr create --title "{title}" --body "{body}" --head {branch_name} --repo {repo}'
-    result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
-    
-    # Check if PR was created
-    output = result.stdout + result.stderr
-    if 'pull/' in output or 'github.com' in output:
+
+    url = f"https://api.github.com/repos/{repo}/pulls"
+    payload = {"title": title, "body": body, "head": branch_name, "base": "main"}
+
+    try:
+        resp = requests.post(url, headers=_github_headers(), json=payload, timeout=30)
+        resp.raise_for_status()
+        data = resp.json()
         print(f"[PR-AUTO-MERGE] PR created successfully")
-        # Extract PR number from URL
-        import re
-        match = re.search(r'pull/(\d+)', output)
-        if match:
-            return int(match.group(1))
-    
-    # Also check if PR exists now
-    pr_num = get_pr_number(branch_name, repo)
-    if pr_num:
-        print(f"[PR-AUTO-MERGE] PR #{pr_num} already exists")
-    return pr_num
+        return data.get("number")
+    except Exception as e:
+        print(f"[ERROR] Failed to create PR: {e}")
+        return get_pr_number(branch_name, repo)
+
+def merge_pr(pr_number, repo, repo_path=None, delete_branch=True, method="squash"):
+    """Merge PR via GitHub API - BDCP safe"""
+    print(f"[PR-AUTO-MERGE] Merging PR #{pr_number} via GitHub API")
+
+    status = get_pr_status(pr_number, repo)
+    if status.get("mergeable") is not True or status.get("mergeStateStatus") != "CLEAN":
+        print(f"[ERROR] PR #{pr_number} is not mergeable!")
+        print(f"  mergeable: {status.get('mergeable')}")
+        print(f"  mergeStateStatus: {status.get('mergeStateStatus')}")
+        return False
+
+    merge_url = f"https://api.github.com/repos/{repo}/pulls/{pr_number}/merge"
+    payload = {"merge_method": method}
+    if not delete_branch:
+        payload["delete_branch"] = False
+
+    try:
+        resp = requests.put(merge_url, headers=_github_headers(), json=payload, timeout=30)
+        resp.raise_for_status()
+        print(f"[PR-AUTO-MERGE] PR #{pr_number} merged successfully")
+        return True
+    except Exception as e:
+        print(f"[ERROR] Failed to merge PR #{pr_number}: {e}")
+        return False
 
 def checkout_branch(branch_name, repo_path):
     """Checkout branch locally, creating it from remote if needed"""
@@ -235,46 +310,29 @@ def force_push_branch(branch_name, repo_path):
     return True
 
 def merge_pr(pr_number, repo, repo_path=None, delete_branch=True, method='squash'):
-    """Merge PR using KIVA-CLI (local CI + gh merge + WAL) - v2.0"""
-    print(f"[PR-AUTO-MERGE] Merging PR #{pr_number} via KIVA-CLI")
-    
-    # Verify mergeability one more time
+    """Merge PR via GitHub API - BDCP safe"""
+    print(f"[PR-AUTO-MERGE] Merging PR #{pr_number} via GitHub API")
+
     status = get_pr_status(pr_number, repo)
-    if status['mergeable'] != 'MERGEABLE' or status['mergeStateStatus'] != 'CLEAN':
+    if status.get("mergeable") is not True or status.get("mergeStateStatus") != "CLEAN":
         print(f"[ERROR] PR #{pr_number} is not mergeable!")
-        print(f"  mergeable: {status['mergeable']}")
-        print(f"  mergeStateStatus: {status['mergeStateStatus']}")
+        print(f"  mergeable: {status.get('mergeable')}")
+        print(f"  mergeStateStatus: {status.get('mergeStateStatus')}")
         return False
-    
-    # Use KIVA-CLI for sovereign merge (CI local + gh merge + WAL)
-    if repo_path and _command_exists('kiva'):
-        print(f"[PR-AUTO-MERGE] Using KIVA-CLI for sovereign merge")
-        kiva_cmd = f"kiva merge pr {repo} {pr_number} --method {method}"
-        if not delete_branch:
-            kiva_cmd += ' --no-delete-branch'
-        stdout, code = run_cmd(kiva_cmd, cwd=repo_path)
-        if code == 0:
-            print(f"[PR-AUTO-MERGE] KIVA-CLI merge successful")
-            return True
-        else:
-            print(f"[WARN] KIVA-CLI merge failed, falling back to gh")
-            print(f"  stdout: {stdout}")
-    
-    # Fallback to gh if KIVA-CLI not available or failed
-    print(f"[PR-AUTO-MERGE] Falling back to gh pr merge")
-    args = f'gh pr merge {pr_number} --repo {repo} --merge'
-    if delete_branch:
-        args += ' --delete-branch'
-    
-    stdout, code = run_cmd(args)
-    
-    if code != 0:
-        print(f"[ERROR] Failed to merge PR #{pr_number}")
-        print(f"  stdout: {stdout}")
+
+    merge_url = f"https://api.github.com/repos/{repo}/pulls/{pr_number}/merge"
+    payload = {"merge_method": method}
+    if not delete_branch:
+        payload["delete_branch"] = False
+
+    try:
+        resp = requests.put(merge_url, headers=_github_headers(), json=payload, timeout=30)
+        resp.raise_for_status()
+        print(f"[PR-AUTO-MERGE] PR #{pr_number} merged successfully")
+        return True
+    except Exception as e:
+        print(f"[ERROR] Failed to merge PR #{pr_number}: {e}")
         return False
-    
-    print(f"[PR-AUTO-MERGE] PR #{pr_number} merged successfully (gh fallback)")
-    return True
 
 def _command_exists(cmd):
     """Check if a command exists"""
@@ -284,16 +342,16 @@ def _command_exists(cmd):
 def sync_main(repo_path):
     """Sync main branch with remote - v2.0"""
     print(f"[PR-AUTO-MERGE] Syncing main with remote...")
-    
+
     run_cmd("git fetch origin", repo_path)
-    
+
     # Check if main is behind
     stdout, code = run_cmd("git rev-parse main", repo_path)
     local_main = stdout.strip()
-    
+
     stdout, code = run_cmd("git rev-parse origin/main", repo_path)
     remote_main = stdout.strip()
-    
+
     if local_main != remote_main:
         print(f"[PR-AUTO-MERGE] main is behind - syncing")
         run_cmd("git checkout main", repo_path)
@@ -301,7 +359,7 @@ def sync_main(repo_path):
         print(f"[PR-AUTO-MERGE] main synced")
     else:
         print(f"[PR-AUTO-MERGE] main is up-to-date")
-    
+
     return True
 
 def process_branch(branch, repo, repo_path, auto_merge=False):

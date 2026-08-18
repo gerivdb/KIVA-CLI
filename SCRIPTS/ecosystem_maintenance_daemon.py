@@ -2,12 +2,14 @@
 """
 Ecosystem Maintenance Daemon
 Automated maintenance for multi-repo ecosystem with TRASH management
+Includes ARGUS Induration Scan (weekly, Monday)
 """
 
 import subprocess
 import os
 import json
 import shutil
+import requests
 from pathlib import Path
 from datetime import datetime
 
@@ -27,7 +29,75 @@ VALID_STRATES = [
 # TRASH directory
 TRASH_DIR = "D:\\DO\\WEB\\TOOLS\\.TRASH"
 
+# ARGUS Induration Scan
+ARGUS_ROOT = "D:\\DO\\WEB\\TOOLS\\L3-CITIZENS\\ARGUS"
+INDURATION_SCANNER = os.path.join(ARGUS_ROOT, "scanners", "induration_scanner.py")
+INDURATION_REPORT = "D:\\DO\\WEB\\TOOLS\\L0-CANON\\GOVERNANCE-HUB\\docs\\induration-index.md"
+
+def _github_token():
+    token = os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")
+    if not token:
+        token = _token_from_gh_keyring()
+    if not token:
+        raise RuntimeError("GITHUB_TOKEN/gh keyring requis pour créer/merger des PRs en BDCP")
+    return token
+
+def _github_headers():
+    return {
+        "Authorization": f"Bearer {_github_token()}",
+        "Accept": "application/vnd.github+json",
+    }
+
+def _token_from_gh_keyring():
+    gh_path = None
+    for candidate in ["gh", "C:\\gh\\bin\\gh.exe", os.path.expandvars("%LOCALAPPDATA%\\Programs\\gh\\bin\\gh.exe")]:
+        if os.path.exists(candidate):
+            gh_path = candidate
+            break
+    if not gh_path:
+        return None
+    token_out = subprocess.run(f"{gh_path} auth token", shell=True, capture_output=True, text=True)
+    if token_out.returncode != 0:
+        return None
+    token = token_out.stdout.strip()
+    return token if token else None
+
 def run_cmd(cmd, cwd=None):
+    """Run shell command and return output"""
+    result = subprocess.run(cmd, shell=True, cwd=cwd, capture_output=True, text=True)
+    return result.stdout.strip(), result.returncode
+
+def run_induration_scan():
+    """Run ARGUS induration scan (weekly, Monday)"""
+    print("[MAINTENANCE] Running ARGUS induration scan...")
+    if os.path.exists(INDURATION_SCANNER):
+        try:
+            result = subprocess.run(
+                ["python", INDURATION_SCANNER],
+                capture_output=True, text=True, timeout=120
+            )
+            print(f"[MAINTENANCE] Induration scan completed (exit: {result.returncode})")
+            if result.returncode != 0:
+                print(f"[MAINTENANCE] Induration scan stderr: {result.stderr[:500]}")
+            return {
+                "success": result.returncode == 0,
+                "report_path": INDURATION_REPORT,
+                "exit_code": result.returncode,
+                "stdout": result.stdout[:1000],
+                "stderr": result.stderr[:500]
+            }
+        except subprocess.TimeoutExpired:
+            return {"success": False, "error": "timeout"}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+    else:
+        print(f"[MAINTENANCE] Induration scanner not found at {INDURATION_SCANNER}")
+        return {"success": False, "error": "scanner_not_found"}
+
+
+def is_monday():
+    """Check if today is Monday (weekly induration scan day)"""
+    return datetime.now().weekday() == 0
     """Run shell command and return output"""
     result = subprocess.run(cmd, shell=True, cwd=cwd, capture_output=True, text=True)
     return result.stdout.strip(), result.returncode
@@ -91,8 +161,16 @@ def find_orphan_branches(repo_path):
             continue
         if line and not line.startswith('origin/'):
             branch_name = line.strip()
-            stdout2, _ = run_cmd(f"gh pr list --head {branch_name} --state open --json number --repo gerivdb/REPO-STANDARDS", repo_path)
-            if '[]' in stdout2:
+            remote_url, _ = run_cmd("git remote get-url origin", repo_path)
+            repo = remote_url.strip().replace("https://github.com/", "").replace(".git", "")
+            url = f"https://api.github.com/repos/{repo}/pulls"
+            params = {"head": f"{repo.split('/')[0]}:{branch_name}", "state": "open"}
+            try:
+                resp = requests.get(url, headers=_github_headers(), params=params, timeout=30)
+                resp.raise_for_status()
+                if not resp.json():
+                    branches.append(branch_name)
+            except Exception:
                 branches.append(branch_name)
     return branches
 
@@ -184,6 +262,15 @@ def run_maintenance():
     if orphans:
         report["orphan_branches"]["REPO-STANDARDS"] = orphans
         print(f"[MAINTENANCE] Found {len(orphans)} orphan branches")
+    
+    # Weekly ARGUS Induration Scan (Monday)
+    if is_monday():
+        print("[MAINTENANCE] Weekly ARGUS Induration Scan (Monday)...")
+        induration_result = run_induration_scan()
+        report["induration_scan"] = induration_result
+        report["actions_taken"].append("induration_scan")
+    else:
+        print("[MAINTENANCE] Skipping induration scan (not Monday)")
     
     print("[MAINTENANCE] Checking for untracked files...")
     untracked = find_untracked_files("D:\\DO\\WEB\\TOOLS\\L4-TOOLS\\REPO-STANDARDS")

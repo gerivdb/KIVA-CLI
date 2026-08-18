@@ -1,10 +1,10 @@
 #!/bin/bash
-# wip-detector-cluster.sh — Détection branches WIP cross-repos + validation ADR-011
+# wip-detector-cluster.sh -- Detection branches WIP cross-repos + validation ADR-011
 # SOT: gerivdb/REPO-STANDARDS/scripts/wip-detector-cluster.sh
 # Ref: ADR-011 (branch naming convention), PRD-MAGISTRAL-004 (enforcement)
 # Usage: bash scripts/wip-detector-cluster.sh [--orphans-only] [--ghosts-only] [--json] [--cleanup] [--audit-only]
-# Version: 2.0.0 — 2026-06-30
-# Exit code: 1 si ORPHAN ou GHOST détectés
+# Version: 2.0.0 -- 2026-06-30
+# Exit code: 1 si ORPHAN ou GHOST detectes
 
 set -euo pipefail
 
@@ -40,26 +40,26 @@ done
 
 # Regex du pattern ADR-011
 ADR_PATTERN='^(feature|fix|refactor|adr|chore)/epic[0-9]{3}-[a-z0-9]{1,20}(-[a-z0-9]{1,30})?$'
-# Regex des exceptions autorisées
+# Regex des exceptions autorisees
 ADR_EXCEPTIONS='^(main|master|develop|release/v[0-9]+\.[0-9]+\.[0-9]+|hotfix/[0-9]{4}-[0-9]{2}-[0-9]{2}-[a-z0-9-]+|dependabot/.*)$'
 
 validate_branch_naming() {
   local branch="$1"
   local repo="$2"
 
-  # Vérifier les exceptions d'abord
+  # Verifier les exceptions d'abord
   if [[ "$branch" =~ $ADR_EXCEPTIONS ]]; then
     echo "COMPLIANT"
     return 0
   fi
 
-  # Vérifier le pattern ADR-011
+  # Verifier le pattern ADR-011
   if [[ "$branch" =~ $ADR_PATTERN ]]; then
     echo "COMPLIANT"
     return 0
   fi
 
-  # Tenter de suggérer un pattern
+  # Tenter de suggerer un pattern
   local suggested=""
   if [[ "$branch" =~ ^(feature|fix|refactor|chore)/(.+)$ ]]; then
     suggested="${BASH_REMATCH[1]}/epic000-$(echo "${BASH_REMATCH[2]}" | tr '_' '-' | tr '[:upper:]' '[:lower:]' | cut -c1-20)"
@@ -128,7 +128,7 @@ emit_branch_detected() {
 
 # Fallback mono-repo
 if [ ! -f "$REPOS_FILE" ]; then
-  echo "⚠️  $REPOS_FILE introuvable — audit repo courant uniquement"
+  echo "⚠️  $REPOS_FILE introuvable -- audit repo courant uniquement"
   REPOS_FILE=$(mktemp)
   echo "$(pwd)" > "$REPOS_FILE"
 fi
@@ -145,11 +145,21 @@ classify_branch() {
     echo "GHOST"; return
   fi
 
-  # Open PR check (nécessite gh CLI)
+  # Open PR check via GitHub API
   local has_pr=0
-  if command -v gh &>/dev/null; then
-    has_pr=$(gh pr list --repo "$(git -C "$repo_path" remote get-url origin 2>/dev/null | sed 's/.*github.com[:/]//' | sed 's/\.git$//')" \
-      --head "$branch" --state open --json number --jq 'length' 2>/dev/null || echo 0)
+  local gh_token="${GITHUB_TOKEN:-${GH_TOKEN:-}}"
+  if [ -z "$gh_token" ] && command -v gh &>/dev/null; then
+    gh_token=$(gh auth token 2>/dev/null || true)
+  fi
+  if [ -n "$gh_token" ]; then
+    repo_url=$(git -C "$repo_path" remote get-url origin 2>/dev/null | sed 's/.*github.com[:/]//' | sed 's/\.git$//')
+    if [ -n "$repo_url" ]; then
+      owner=$(echo "$repo_url" | cut -d'/' -f1)
+      has_pr=$(curl -s -H "Authorization: Bearer $gh_token" \
+        -H "Accept: application/vnd.github+json" \
+        "https://api.github.com/repos/$repo_url/pulls?head=$owner:$branch&state=open" \
+        | grep -c '"number"' 2>/dev/null || echo 0)
+    fi
   fi
 
   # Classification
@@ -161,7 +171,7 @@ classify_branch() {
   fi
 }
 
-$JSON_OUTPUT || echo "=== WIP BRANCH DETECTOR — $REPORT_DATE ==="
+$JSON_OUTPUT || echo "=== WIP BRANCH DETECTOR -- $REPORT_DATE ==="
 $AUDIT_ONLY && ! $JSON_OUTPUT && echo "=== MODE AUDIT-ONLY (ADR-011) ==="
 $JSON_OUTPUT && echo '{'
 $JSON_OUTPUT && echo '  "date": "'"$REPORT_DATE"'",'
@@ -220,7 +230,7 @@ while IFS= read -r repo_path; do
        continue
      fi
 
-    # Branches mergées
+    # Branches mergees
     IS_MERGED=$(git -C "$repo_path" branch --merged main 2>/dev/null | grep -c "^[[:space:]]*$branch$" || true)
     [ "$IS_MERGED" -gt 0 ] && CLASS="MERGED" && MERGED=$((MERGED+1))
 
@@ -237,10 +247,10 @@ while IFS= read -r repo_path; do
     esac
     TOTAL=$((TOTAL+1))
 
-    # Cleanup mergées
+    # Cleanup mergees
     if $CLEANUP_MERGED && [ "$CLASS" = "MERGED" ]; then
       git -C "$repo_path" branch -d "$branch" 2>/dev/null && \
-        echo "  🗑️  Supprimé (mergée): $REPO_NAME/$branch" || true
+        echo "  🗑️  Supprime (mergee): $REPO_NAME/$branch" || true
       continue
     fi
 
@@ -291,22 +301,22 @@ else
   echo ""
   echo "───────────────────────────────────────"
   if $AUDIT_ONLY; then
-    echo "ADR-011 AUDIT — $REPORT_DATE"
+    echo "ADR-011 AUDIT -- $REPORT_DATE"
     echo "✅ COMPLIANT: $COMPLIANT  ⚠️ VIOLATIONS: $VIOLATIONS  📊 TAUX: ${ADR_RATE}%"
-    [ $VIOLATIONS -gt 0 ] && echo "⚠️  $VIOLATIONS branche(s) hors-convention ADR-011 — events émis dans ~/.ecos/events/"
+    [ $VIOLATIONS -gt 0 ] && echo "⚠️  $VIOLATIONS branche(s) hors-convention ADR-011 -- events emis dans ~/.ecos/events/"
   else
     echo "TOTAL: $TOTAL  🟢 ACTIVE: $ACTIVE  🟡 STALE: $STALE  🔴 ORPHAN: $ORPHAN  👻 GHOST: $GHOST  ✅ MERGED_NON_NETTOYÉ: $MERGED"
-    [ $ORPHAN -gt 0 ] && echo "🚨 $ORPHAN ORPHAN(s): décision HITL requise — merger, archiver ou dropper"
-    [ $GHOST  -gt 0 ] && echo "👻 $GHOST GHOST(s): branches locales non pushées > 24h — push ou drop"
-    [ $MERGED -gt 0 ] && echo "⚠️  $MERGED branch(es) mergée(s) non nettoyée(s) — lancer avec --cleanup"
+    [ $ORPHAN -gt 0 ] && echo "🚨 $ORPHAN ORPHAN(s): decision HITL requise -- merger, archiver ou dropper"
+    [ $GHOST  -gt 0 ] && echo "👻 $GHOST GHOST(s): branches locales non pushees > 24h -- push ou drop"
+    [ $MERGED -gt 0 ] && echo "⚠️  $MERGED branch(es) mergee(s) non nettoyee(s) -- lancer avec --cleanup"
     echo ""
     echo "ADR-011 COMPLIANCE: $COMPLIANT ✅ | $VIOLATIONS ⚠️ | ${ADR_RATE}%"
-    [ $VIOLATIONS -gt 0 ] && echo "⚠️  Events branch.naming.violation émis dans ~/.ecos/events/branch_violations.jsonl"
+    [ $VIOLATIONS -gt 0 ] && echo "⚠️  Events branch.naming.violation emis dans ~/.ecos/events/branch_violations.jsonl"
     echo ""
     echo "Meta-tool complet: ecos run wip-branch-detector"
   fi
 fi
 
-# Exit non-zéro si problèmes détectés
+# Exit non-zero si problemes detectes
 [ $((ORPHAN + GHOST)) -gt 0 ] && exit 1
 exit 0
