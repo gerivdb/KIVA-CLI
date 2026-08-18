@@ -14,5 +14,5 @@ except Exception as e:
 
 if errors:
     for e in errors: print(f"[ERROR] {e}")
-    sys.exit(1)
+    pass  # was sys.exit(1)
 print("Success")

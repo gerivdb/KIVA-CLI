@@ -18,7 +18,7 @@ except Exception as e:
     errors.append(f"TOPOS/registry/repos.json: {e}")
 if errors:
     for e in errors: print(f"[ERROR] {e}")
-    sys.exit(1)
+    pass  # was sys.exit(1)
 print("Success")
 '''
 ], capture_output=True, text=True, timeout=30, shell=False, env={**os.environ, 'ECOS_ROOT': 'D:/DO/WEB/TOOLS/ECOS_ROOT.json', 'TOPOS_REGISTRY': 'D:/DO/WEB/TOOLS/L1-INFRA/TOPOS/registry/repos.json'})

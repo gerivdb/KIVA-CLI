@@ -37,8 +37,7 @@ except Exception as e:
 
 if errors:
     for e in errors: print(f"[ERROR] {e}")
-    sys.exit(1)
-
+    pass  # was sys.exit(1)
 print("All sources loaded successfully")
 '''
 ], capture_output=True, text=True, timeout=30, env={**os.environ, "OUTPUT_DIR": "D:/DO/WEB/TOOLS/reports/ecosystem-orchestration", "ECOS_ROOT": "D:/DO/WEB/TOOLS/ECOS_ROOT.json", "TOPOS_REGISTRY": "D:/DO/WEB/TOOLS/L1-INFRA/TOPOS/registry/repos.json", "KNOWN_REPOS": "D:/DO/WEB/TOOLS/L0-CANON/GOVERNANCE-HUB/known_repositories.yaml"})

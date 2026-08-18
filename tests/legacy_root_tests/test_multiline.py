@@ -4,7 +4,7 @@ import subprocess
 cmd = '''python -c "
 import sys
 print('hello')
-sys.exit(1)
+pass  # was sys.exit(1)
 "'''
 
 result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=10)

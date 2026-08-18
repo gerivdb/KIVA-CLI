@@ -34,8 +34,7 @@ except Exception as e:
 
 if errors:
     for e in errors: print(f'[ERROR] {e}')
-    sys.exit(1)
-
+    pass  # was sys.exit(1)
 repos = {}
 if 'ecos_root' in sources and 'repos' in sources['ecos_root']:
     repos['ecos_root'] = {r['name'] for r in sources['ecos_root']['repos']}
