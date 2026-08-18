@@ -1,11 +1,16 @@
 ---
 id: PRD-009
-title: "PRD-XECO-001 — NEXUS Sync Agent v2 (référence locale)"
+title: PRD-XECO-001 — NEXUS Sync Agent v2 (référence locale)
 repo: unknown
 status: draft
-created: "2026-06-11"
+created: '2026-06-11'
 author: gerivdb
+type: '"PRD"'
+version: '"1.0"'
+date: '2026-06-11'
+intent_hash: 0xPRD_PRD_009_XECO_001_NEXUS_SYNC_AG_20260611
 ---
+
 # PRD-XECO-001 — NEXUS Sync Agent v2 (référence locale)
 
 > **Note** : Ce fichier est une **référence locale** dans `KIVA-CLI`.
