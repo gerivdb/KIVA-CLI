@@ -42,8 +42,9 @@ def _mock_response(status_code=200, json_data=None, text=""):
     return resp
 
 
+@patch("kiva_cli.commands.github_commands._get_github_token", return_value="test_token")
 @patch("kiva_cli.commands.github_commands.httpx.Client")
-def test_get_pr(mock_client_cls):
+def test_get_pr(mock_client_cls, mock_get_token):
     mock_client = MagicMock()
     mock_client.request.return_value = _mock_response(json_data={"number": PR, "head": {"sha": "abc123"}})
     mock_client_cls.return_value.__enter__.return_value = mock_client
@@ -53,8 +54,9 @@ def test_get_pr(mock_client_cls):
     assert result["head"]["sha"] == "abc123"
 
 
+@patch("kiva_cli.commands.github_commands._get_github_token", return_value="test_token")
 @patch("kiva_cli.commands.github_commands.httpx.Client")
-def test_get_pr_diff(mock_client_cls):
+def test_get_pr_diff(mock_client_cls, mock_get_token):
     mock_client = MagicMock()
     mock_client.request.return_value = _mock_response(text="diff --git a/x b/y\n")
     mock_client_cls.return_value.__enter__.return_value = mock_client
@@ -63,29 +65,34 @@ def test_get_pr_diff(mock_client_cls):
     assert "diff --git" in result
 
 
+@patch("kiva_cli.commands.github_commands._get_github_token", return_value="test_token")
 @patch("kiva_cli.commands.github_commands.httpx.Client")
-def test_post_review_comment_inline(mock_client_cls):
+def test_post_review_comment_inline(mock_client_cls, mock_get_token):
     mock_client = MagicMock()
     mock_client.request.return_value = _mock_response(json_data={"id": 999})
     mock_client_cls.return_value.__enter__.return_value = mock_client
 
-    result = post_review_comment(REPO, PR, body="LGTM", path="README.md", line=10)
+    with patch("kiva_cli.commands.github_commands.get_pr", return_value={"head": {"sha": "abc123"}}):
+        result = post_review_comment(REPO, PR, body="LGTM", path="README.md", line=10)
     assert result["id"] == 999
 
 
+@patch("kiva_cli.commands.github_commands._get_github_token", return_value="test_token")
 @patch("kiva_cli.commands.github_commands.httpx.Client")
-def test_list_check_runs(mock_client_cls):
+def test_list_check_runs(mock_client_cls, mock_get_token):
     mock_client = MagicMock()
     mock_client.request.return_value = _mock_response(json_data={"check_runs": [{"name": "CI", "status": "completed"}]})
     mock_client_cls.return_value.__enter__.return_value = mock_client
 
-    result = list_check_runs(REPO, PR)
+    with patch("kiva_cli.commands.github_commands.get_pr", return_value={"head": {"sha": "abc123"}}):
+        result = list_check_runs(REPO, PR)
     assert len(result) == 1
     assert result[0]["name"] == "CI"
 
 
+@patch("kiva_cli.commands.github_commands._get_github_token", return_value="test_token")
 @patch("kiva_cli.commands.github_commands.httpx.Client")
-def test_get_pr_files(mock_client_cls):
+def test_get_pr_files(mock_client_cls, mock_get_token):
     mock_client = MagicMock()
     mock_client.request.return_value = _mock_response(json_data=[{"filename": "x.py"}])
     mock_client_cls.return_value.__enter__.return_value = mock_client
