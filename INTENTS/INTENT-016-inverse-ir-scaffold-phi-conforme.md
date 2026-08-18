@@ -6,6 +6,7 @@ repo: gerivdb/KIVA-CLI
 status: draft
 created: 2026-06-20
 author: gerivdb
+priority: P2
 phi_cps_target: 6.2
 intent_hash: 0xINTENT016_INVERSE_IR_SCAFFOLD_PHI_20260620
 ---

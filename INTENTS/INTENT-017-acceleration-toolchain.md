@@ -6,6 +6,7 @@ repo: gerivdb/KIVA-CLI
 status: proposed
 created: 2026-08-18
 author: gerivdb
+priority: P1
 phi_cps_target: 5.0
 intent_hash: 0xINTENT017_ACCELERATION_TOOLCHAIN_20260818
 ---
