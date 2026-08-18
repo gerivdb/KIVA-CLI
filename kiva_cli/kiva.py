@@ -78,6 +78,7 @@ from kiva_cli.commands.audit_commands import audit
 from kiva_cli.commands.mc_rnn_ci import mc_rnn_ci
 from kiva_cli.commands.merge_commands import merge_cli
 from kiva_cli.commands.ci_commands import ci_cli
+from kiva_cli.commands.doctor_commands import doctor_cli
 
 
 @click.group()
@@ -157,6 +158,7 @@ cli.add_command(audit, name='audit')
 cli.add_command(mc_rnn_ci, name='mc-rnn-ci')
 cli.add_command(merge_cli, name='merge')
 cli.add_command(ci_cli, name='ci')
+cli.add_command(doctor_cli, name='doctor')
 
 
 def main():
@@ -166,3 +168,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+

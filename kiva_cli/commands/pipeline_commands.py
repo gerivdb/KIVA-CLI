@@ -133,29 +133,28 @@ def pipeline_list():
         except Exception as e:
             click.echo(f"  {name:<24} [ERROR] {e}")
         except Exception as exc:
-            click.echo(f"  {y.stem:<24} [PARSE ERROR] {exc}")
+            click.echo(f"  {name:<24} [PARSE ERROR] {exc}")
 
 
 # ---------------------------------------------------------------------------
 # validate
 # ---------------------------------------------------------------------------
 
-@pipeline_cli.command("validate")
-@click.argument("name")
-def pipeline_validate(name: str):
-    """Validate a named declarative pipeline (KIVA-008)."""
-    result = _manager.validate(name)
-    if not result.valid:
-        click.echo(f"[FAIL] Pipeline '{name}' is invalid:", err=True)
-        for e in result.errors:
-            click.echo(f"  - {e}", err=True)
-        raise SystemExit(1)
+    @pipeline_cli.command("validate")
+    @click.argument("name")
+    def pipeline_validate(name: str):
+        """Validate a named declarative pipeline (KIVA-008)."""
+        result = _manager.validate(name)
+        if not result.valid:
+            click.echo(f"[FAIL] Pipeline '{name}' is invalid:", err=True)
+            for e in result.errors:
+                click.echo(f"  - {e}", err=True)
+            raise SystemExit(1)
 
-    click.echo(f"[OK] Pipeline '{name}' is valid.")
-    if result.warnings:
-        for w in result.warnings:
-            click.echo(f"  [WARN] {w}")
-        click.echo(f"  {s.name:<24} on_failure={s.on_failure:<8}{deps}{when_hint}")
+        click.echo(f"[OK] Pipeline '{name}' is valid.")
+        if result.warnings:
+            for w in result.warnings:
+                click.echo(f"  [WARN] {w}")
 
 
 # ---------------------------------------------------------------------------
