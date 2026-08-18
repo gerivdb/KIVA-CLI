@@ -1,11 +1,16 @@
 ---
 id: PRD-003
-title: "PRD-KIVA-003 — Windows Compatibility Auditor"
+title: PRD-KIVA-003 — Windows Compatibility Auditor
 repo: unknown
 status: draft
-created: "2026-06-11"
+created: '2026-06-11'
 author: gerivdb
+type: '"PRD"'
+version: '"1.0"'
+date: '2026-06-11'
+intent_hash: 0xPRD_PRD_003_KIVA_003_WINDOWS_AUDIT_20260611
 ---
+
 # PRD-KIVA-003 — Windows Compatibility Auditor
 
 ## Métadonnées

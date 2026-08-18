@@ -1,11 +1,16 @@
 ---
 id: PRD-004
-title: "PRD-KIVA-004 — Shared Types Registry"
+title: PRD-KIVA-004 — Shared Types Registry
 repo: unknown
 status: draft
-created: "2026-06-11"
+created: '2026-06-11'
 author: gerivdb
+type: '"PRD"'
+version: '"1.0"'
+date: '2026-06-11'
+intent_hash: 0xPRD_PRD_004_KIVA_004_SHARED_TYPES__20260611
 ---
+
 # PRD-KIVA-004 — Shared Types Registry
 
 <!-- Copier ce template, remplir tous les champs, supprimer les commentaires -->

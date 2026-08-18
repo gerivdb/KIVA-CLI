@@ -1,11 +1,16 @@
 ---
 id: PRD-002
-title: "PRD-KIVA-002 — Stub Generator from Tests"
+title: PRD-KIVA-002 — Stub Generator from Tests
 repo: unknown
 status: draft
-created: "2026-06-11"
+created: '2026-06-11'
 author: gerivdb
+type: '"PRD"'
+version: '"1.0"'
+date: '2026-06-11'
+intent_hash: 0xPRD_PRD_002_KIVA_002_STUB_GENERATO_20260611
 ---
+
 # PRD-KIVA-002 — Stub Generator from Tests
 
 ## Métadonnées
