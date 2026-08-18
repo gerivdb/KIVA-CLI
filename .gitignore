@@ -55,6 +55,12 @@ coverage.xml
 deployments/
 *.kiva.json.bak
 
+# Generated artifacts
+.githooks/brgs-manifest.yaml
+.githooks/manifest.yaml
+.wal/
+eco_dry_run_result.txt
+
 # Logs
 logs/
 *.log
