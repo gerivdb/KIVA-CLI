@@ -81,3 +81,19 @@ if [ -f "${POST_IMPL}" ]; then
         echo "  Or commit with --no-verify if intentional."
     fi
 fi
+
+# --- Check 6: Frontmatter validation for governance docs ---
+FRONTMATTER_CHECK="${REPO_ROOT}/.githooks/validate_frontmatter.py"
+if [ -f "${FRONTMATTER_CHECK}" ]; then
+    echo "[PRE-COMMIT] Running frontmatter validation..."
+    python "${FRONTMATTER_CHECK}" "${REPO_ROOT}" 2>/dev/null
+    FM_STATUS=$?
+    if [ ${FM_STATUS} -ne 0 ]; then
+        echo ""
+        echo "[PRE-COMMIT BLOCK] Frontmatter validation failed."
+        echo "  Fix required fields and status values in affected docs."
+        exit 1
+    fi
+fi
+
+echo "[PRE-COMMIT] All checks passed."
