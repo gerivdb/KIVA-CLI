@@ -94,7 +94,7 @@ steps:
   - id: summary
     name: "Resume CI PLIX-Eco"
     agent: Alfred
-    depends_on: [run-plix-cast, run-plix-cut, run-plix-watch, run-plix-relay, run-plix-reg]
+    depends_on: ["CI plix-cast (convertisseur)", "CI plix-cut (editeur calibration)", "CI plix-watch (inspecteur)", "CI plix-relay (proxy distribution)", "CI plix-reg (registre modeles)"]
     run: |
       $PYTHON -c "
       from datetime import datetime
@@ -111,7 +111,7 @@ steps:
   - id: archive-report
     name: "Archive - Copie rapports dans reports/plix-eco/YYYY-MM-DD/"
     agent: Alfred
-    depends_on: [summary]
+    depends_on: ["Resume CI PLIX-Eco"]
     run: |
       $PYTHON -c "
       import shutil, sys
