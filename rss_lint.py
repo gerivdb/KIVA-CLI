@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """
-rss_lint.py — Gate de conformité RSS-v2 pour les repos gerivdb.
+rss_lint.py -- Gate de conformite RSS-v2 pour les repos gerivdb.
 
 Usage:
     python rss_lint.py --repo <path> [--fix] [--strict] [--depth 2|4]
 
-Vérifie qu'un repo respecte le Repo Structure Standard v2.
-Gère deux profondeurs : 2 niveaux (repos simples) ou 4 niveaux (repos complexes).
+Verifie qu'un repo respecte le Repo Structure Standard v2.
+Gere deux profondeurs : 2 niveaux (repos simples) ou 4 niveaux (repos complexes).
 """
 
 import argparse
@@ -18,9 +18,9 @@ import subprocess
 import sys
 from pathlib import Path
 
-# ── Règles RSS-v2 ──
+# -- Regles RSS-v2 --
 
-# Fichiers autorisés à la racine (communs aux deux profondeurs)
+# Fichiers autorises a la racine (communs aux deux profondeurs)
 ROOT_ALLOWED = {
     "README.md", "CHANGELOG.md", ".gitignore", "pyproject.toml",
     "package.json", "package-lock.json", "Makefile", "LICENSE",
@@ -30,13 +30,13 @@ ROOT_ALLOWED = {
     "requirements.txt", "requirements-test.txt",
 }
 
-# Fichiers autorisés à la racine UNIQUEMENT pour repos simples (depth=2)
+# Fichiers autorises a la racine UNIQUEMENT pour repos simples (depth=2)
 ROOT_ALLOWED_SIMPLE_ONLY = {
     "requirements_lxc_env2.txt", "requirements_matrix_recoupement.txt",
     "requirements_nexus_ontology_api.txt",
 }
 
-# Patterns de fichiers interdits à la racine → destination
+# Patterns de fichiers interdits a la racine -> destination
 ROOT_FORBIDDEN_PATTERNS = [
     (r"^EPIC-.*\.md$", "EPICS/"),
     (r"^\.github_EPICS_EPIC-.*\.md$", "EPICS/"),
@@ -55,19 +55,19 @@ ROOT_FORBIDDEN_PATTERNS = [
     (r".*__pycache__.*", ".gitignore"),
 ]
 
-# Dossiers obligatoires — repos simples (depth=2)
+# Dossiers obligatoires -- repos simples (depth=2)
 REQUIRED_DIRS_SIMPLE = ["docs/", "tests/"]
 
-# Dossiers obligatoires — repos complexes (depth=4)
+# Dossiers obligatoires -- repos complexes (depth=4)
 REQUIRED_DIRS_COMPLEX = ["docs/", "tests/", "config/"]
 
-# Sous-dossiers config/ recommandés pour repos complexes
+# Sous-dossiers config/ recommandes pour repos complexes
 CONFIG_SUBDIRS = [
     "archives/", "databases/", "epics/", "ontology/",
     "phase-logs/", "registries/", "reports/",
 ]
 
-# Patterns pour détecter les artefacts de run
+# Patterns pour detecter les artefacts de run
 ARTEFACT_PATTERNS = [
     r"^\.coverage$",
     r"^batch_report\.",
@@ -91,7 +91,7 @@ def load_rssignore(repo_path: Path) -> list:
 
 
 def _is_ignored(path_parts: tuple, patterns: list) -> bool:
-    """Vérifie si un chemin match un pattern .rssignore."""
+    """Verifie si un chemin match un pattern .rssignore."""
     import fnmatch
     path_str = "/".join(path_parts)
     for pat in patterns:
@@ -105,7 +105,7 @@ def _is_ignored(path_parts: tuple, patterns: list) -> bool:
 
 
 def get_depth(repo_path: Path, rssignore_patterns: list = None) -> int:
-    """Détermine la profondeur du repo en scannant la structure existante."""
+    """Determine la profondeur du repo en scannant la structure existante."""
     import os
     max_depth = 0
     # Dossiers d'artefacts connus
@@ -115,7 +115,7 @@ def get_depth(repo_path: Path, rssignore_patterns: list = None) -> int:
         rel_root = Path(root).relative_to(repo_path)
         parts = rel_root.parts if str(rel_root) != "." else ()
         
-        # Pruner les dossiers ignorés
+        # Pruner les dossiers ignores
         if rssignore_patterns:
             dirs[:] = [d for d in dirs if not _is_ignored(parts + (d,), rssignore_patterns)]
         
@@ -130,7 +130,7 @@ def get_depth(repo_path: Path, rssignore_patterns: list = None) -> int:
             depth = len(parts)
             if depth > max_depth:
                 max_depth = depth
-        # Si on est à la racine, scanner les sous-dossiers d'artefacts
+        # Si on est a la racine, scanner les sous-dossiers d'artefacts
         elif not parts:
             # Ne scanner que les dossiers d'artefacts et config
             dirs[:] = [d for d in dirs if d in artifact_dirs or d in ("config", ".github")]
@@ -148,7 +148,7 @@ def scan_repo(repo_path: str, depth: int = None, skip_depth: bool = False) -> di
     # Charger les exclusions .rssignore
     rssignore_patterns = load_rssignore(repo)
 
-    # Auto-détecter la profondeur si non spécifiée
+    # Auto-detecter la profondeur si non specifiee
     if depth is None:
         depth = get_depth(repo, rssignore_patterns)
 
@@ -165,13 +165,13 @@ def scan_repo(repo_path: str, depth: int = None, skip_depth: bool = False) -> di
         if item.is_file():
             name = item.name
 
-            # Vérifier si le fichier est autorisé à la racine
+            # Verifier si le fichier est autorise a la racine
             if name in ROOT_ALLOWED:
                 continue
             if depth == 2 and name in ROOT_ALLOWED_SIMPLE_ONLY:
                 continue
 
-            # Vérifier les patterns interdits
+            # Verifier les patterns interdits
             matched = False
             for pattern, destination in ROOT_FORBIDDEN_PATTERNS:
                 if re.match(pattern, name, re.IGNORECASE):
@@ -182,7 +182,7 @@ def scan_repo(repo_path: str, depth: int = None, skip_depth: bool = False) -> di
                     matched = True
                     break
 
-            # Détecter les artefacts de run
+            # Detecter les artefacts de run
             for pattern in ARTEFACT_PATTERNS:
                 if re.match(pattern, name, re.IGNORECASE):
                     violations["artefacts"].append(name)
@@ -190,24 +190,24 @@ def scan_repo(repo_path: str, depth: int = None, skip_depth: bool = False) -> di
 
         elif item.is_dir() and item.name == "__pycache__":
             violations["artefacts"].append("__pycache__/")
-        # Ignorer .git, .kilo, .kilocode, node_modules à la racine
+        # Ignorer .git, .kilo, .kilocode, node_modules a la racine
         elif item.is_dir() and (item.name.startswith(".git") or item.name.startswith(".kilo") or
                                   item.name in ("node_modules", ".venv")):
             continue
 
-    # Vérifier les dossiers obligatoires
+    # Verifier les dossiers obligatoires
     required = REQUIRED_DIRS_COMPLEX if depth == 4 else REQUIRED_DIRS_SIMPLE
     for required_dir in required:
         if not (repo / required_dir).exists():
             violations["missing_dirs"].append(required_dir)
 
-    # Vérifier la profondeur des sous-dossiers (avec pruning .rssignore via os.walk)
+    # Verifier la profondeur des sous-dossiers (avec pruning .rssignore via os.walk)
     if not skip_depth:
         import os
         for root, dirs, files in os.walk(repo_path, topdown=True):
             rel_root = Path(root).relative_to(repo)
             parts = rel_root.parts if str(rel_root) != "." else ()
-            # Pruner les dossiers ignorés et internes
+            # Pruner les dossiers ignores et internes
             if rssignore_patterns:
                 dirs[:] = [d for d in dirs if not _is_ignored(parts + (d,), rssignore_patterns)]
             if parts and (parts[0].startswith(".git") or parts[0].startswith(".kilo") or
@@ -222,7 +222,7 @@ def scan_repo(repo_path: str, depth: int = None, skip_depth: bool = False) -> di
                     "max": depth,
                 })
 
-    # Pour les repos complexes : vérifier que les fichiers de config/ ne sont pas à la racine
+    # Pour les repos complexes : verifier que les fichiers de config/ ne sont pas a la racine
     if depth == 4:
         config_patterns = [
             (r".*_report\.json$", "config/reports/"),
@@ -261,10 +261,10 @@ def scan_repo(repo_path: str, depth: int = None, skip_depth: bool = False) -> di
 
 
 def check_git_noise(repo_path: str, repo_type: str = "default") -> dict:
-    """Vérifie le bruit git (fichiers untracked après .gitignore).
+    """Verifie le bruit git (fichiers untracked apres .gitignore).
 
     Retourne un dict avec le compte et le seuil applicable.
-    Les seuils sont alignés sur BRANCH-CHECK.yaml variables.git_noise.
+    Les seuils sont alignes sur BRANCH-CHECK.yaml variables.git_noise.
     """
     thresholds = {
         "core": 50, "cli": 50, "mcp": 50, "tool": 200,
@@ -293,7 +293,7 @@ def check_git_noise(repo_path: str, repo_type: str = "default") -> dict:
         "count": count,
         "warn_threshold": warn_threshold,
         "fail_threshold": fail_threshold,
-        "files": files[:20],  # Échantillon pour le rapport
+        "files": files[:20],  # Echantillon pour le rapport
         "severity": (
             "FAIL" if count > fail_threshold else
             "WARN" if count > warn_threshold else
@@ -303,9 +303,9 @@ def check_git_noise(repo_path: str, repo_type: str = "default") -> dict:
 
 
 def check_gitignore_coverage(repo_path: str, repo_type: str = "default") -> dict:
-    """Vérifie que le .gitignore contient les patterns requis.
+    """Verifie que le .gitignore contient les patterns requis.
 
-    Les patterns requis sont alignés sur BRANCH-CHECK.yaml global.branch_content.gitignore_coverage.
+    Les patterns requis sont alignes sur BRANCH-CHECK.yaml global.branch_content.gitignore_coverage.
     """
     gitignore_path = Path(repo_path) / ".gitignore"
     if not gitignore_path.exists():
@@ -326,7 +326,7 @@ def check_gitignore_coverage(repo_path: str, repo_type: str = "default") -> dict
 
     missing = []
     for pattern in required:
-        # Vérifier si le pattern ou une variante est présent
+        # Verifier si le pattern ou une variante est present
         pattern_base = pattern.rstrip("/").lstrip("*")
         if pattern_base and pattern_base not in content:
             missing.append(pattern)
@@ -343,16 +343,16 @@ def check_gitignore_coverage(repo_path: str, repo_type: str = "default") -> dict
 
 
 def check_filesystem_integrity(repo_path: str, rssignore_patterns: list = None) -> dict:
-    """Vérifie l'intégrité du filesystem (junctions NTFS, dossiers vides, fichiers orphelins).
+    """Verifie l'integrite du filesystem (junctions NTFS, dossiers vides, fichiers orphelins).
 
-    Aligné sur BRANCH-CHECK.yaml global.branch_content.filesystem.
+    Aligne sur BRANCH-CHECK.yaml global.branch_content.filesystem.
     """
     repo = Path(repo_path)
     junctions = []
     empty_dirs = []
     orphan_files = []
 
-    # Détecter les junctions NTFS (Windows)
+    # Detecter les junctions NTFS (Windows)
     try:
         result = subprocess.run(
             ["cmd", "/c", "dir", "/a:l", "/s", "/b"],
@@ -362,12 +362,12 @@ def check_filesystem_integrity(repo_path: str, rssignore_patterns: list = None) 
     except (subprocess.SubprocessError, FileNotFoundError):
         pass
 
-    # Détecter les dossiers vides non-trackés (avec pruning .rssignore)
+    # Detecter les dossiers vides non-trackes (avec pruning .rssignore)
     import os
     for root, dirs, files in os.walk(repo_path, topdown=True):
         rel_root = Path(root).relative_to(repo)
         parts = rel_root.parts if str(rel_root) != "." else ()
-        # Pruner les dossiers ignorés
+        # Pruner les dossiers ignores
         if rssignore_patterns:
             dirs[:] = [d for d in dirs if not _is_ignored(parts + (d,), rssignore_patterns)]
         # Ignorer .git et dossiers internes
@@ -375,11 +375,11 @@ def check_filesystem_integrity(repo_path: str, rssignore_patterns: list = None) 
                       parts[0] in ("node_modules", ".venv", "__pycache__")):
             dirs.clear()
             continue
-        # Vérifier si vide
+        # Verifier si vide
         if not dirs and not files:
             empty_dirs.append(str(rel_root))
 
-    # Détecter les fichiers orphelins (trackés par git mais absents du disque)
+    # Detecter les fichiers orphelins (trackes par git mais absents du disque)
     try:
         result = subprocess.run(
             ["git", "ls-files", "--deleted"],
@@ -392,7 +392,7 @@ def check_filesystem_integrity(repo_path: str, rssignore_patterns: list = None) 
     return {
         "junctions": junctions,
         "junction_count": len(junctions),
-        "empty_dirs": empty_dirs[:20],  # Échantillon
+        "empty_dirs": empty_dirs[:20],  # Echantillon
         "empty_dir_count": len(empty_dirs),
         "orphan_files": orphan_files,
         "orphan_count": len(orphan_files),
@@ -409,32 +409,32 @@ def fix_violations(repo_path: str, violations: dict, depth: int) -> int:
     repo = Path(repo_path)
     fixed = 0
 
-    # Créer les dossiers manquants
+    # Creer les dossiers manquants
     for missing_dir in violations["missing_dirs"]:
         (repo / missing_dir).mkdir(parents=True, exist_ok=True)
-        print(f"  [FIX] Créé: {missing_dir}")
+        print(f"  [FIX] Cree: {missing_dir}")
         fixed += 1
 
-    # Déplacer les fichiers interdits à la racine
+    # Deplacer les fichiers interdits a la racine
     for violation in violations["forbidden_root"]:
         src = repo / violation["file"]
         dest_dir = repo / violation["destination"]
 
         if src.exists():
             if violation["destination"] == ".gitignore":
-                continue  # Traité par la section artefacts
+                continue  # Traite par la section artefacts
 
             dest_dir.mkdir(parents=True, exist_ok=True)
             dest = dest_dir / violation["file"]
 
             if dest.exists():
-                print(f"  [SKIP] Destination existe déjà: {dest}")
+                print(f"  [SKIP] Destination existe deja: {dest}")
             else:
                 shutil.move(str(src), str(dest))
-                print(f"  [FIX] Déplacé: {violation['file']} -> {violation['destination']}")
+                print(f"  [FIX] Deplace: {violation['file']} -> {violation['destination']}")
                 fixed += 1
 
-    # Déplacer les fichiers de config/ mal placés (repos complexes)
+    # Deplacer les fichiers de config/ mal places (repos complexes)
     for violation in violations["config_misplaced"]:
         src = repo / violation["file"]
         dest_dir = repo / violation["destination"]
@@ -444,10 +444,10 @@ def fix_violations(repo_path: str, violations: dict, depth: int) -> int:
             dest = dest_dir / violation["file"]
 
             if dest.exists():
-                print(f"  [SKIP] Destination existe déjà: {dest}")
+                print(f"  [SKIP] Destination existe deja: {dest}")
             else:
                 shutil.move(str(src), str(dest))
-                print(f"  [FIX] Déplacé: {violation['file']} -> {violation['destination']}")
+                print(f"  [FIX] Deplace: {violation['file']} -> {violation['destination']}")
                 fixed += 1
 
     # Ajouter les artefacts au .gitignore
@@ -466,17 +466,17 @@ def fix_violations(repo_path: str, violations: dict, depth: int) -> int:
             with open(gitignore, "a", encoding="utf-8") as f:
                 if existing and not existing.endswith("\n"):
                     f.write("\n")
-                f.write("\n# RSS-v2 — Artefacts de run (auto-ajouté)\n")
+                f.write("\n# RSS-v2 -- Artefacts de run (auto-ajoute)\n")
                 for a in additions:
                     f.write(f"{a}\n")
-            print(f"  [FIX] Ajouté au .gitignore: {', '.join(additions)}")
+            print(f"  [FIX] Ajoute au .gitignore: {', '.join(additions)}")
             fixed += len(additions)
 
     return fixed
 
 
 def main():
-    parser = argparse.ArgumentParser(description="RSS-v2 — Gate de conformite")
+    parser = argparse.ArgumentParser(description="RSS-v2 -- Gate de conformite")
     parser.add_argument("--repo", required=True, help="Chemin du repo a verifier")
     parser.add_argument("--fix", action="store_true", help="Corriger automatiquement")
     parser.add_argument("--strict", action="store_true", help="Mode strict (WARN = FAIL)")
@@ -500,7 +500,7 @@ def main():
     parser.add_argument("--artifact-dir", type=str, default=None,
                         help="Dossier d'artefact cible pour --index (PRD, ADR, EPICS, SPEC). Tous si omis.")
     parser.add_argument("--scope", type=str, default=None,
-                        help="Limiter le scan aux dossiers spécifiés (ex: ADR,PRD,EPICS,INTENTS). Tous si omis.")
+                        help="Limiter le scan aux dossiers specifies (ex: ADR,PRD,EPICS,INTENTS). Tous si omis.")
 
     args = parser.parse_args()
 
@@ -518,25 +518,25 @@ def main():
     depth = args.depth or get_depth(Path(args.repo), rssignore_patterns)
 
     print(f"\n{'='*60}")
-    print(f"RSS-v2 — Gate de conformite")
+    print(f"RSS-v2 -- Gate de conformite")
     print(f"Repo: {args.repo}")
     print(f"Profondeur: {depth} niveaux")
     if args.repo_type != "default":
         print(f"Type: {args.repo_type}")
     print(f"{'='*60}\n")
 
-    # Si .rssignore contient skip-filesystem, désactiver le check filesystem
+    # Si .rssignore contient skip-filesystem, desactiver le check filesystem
     skip_filesystem = any(p.strip() == "skip-filesystem" for p in rssignore_patterns)
     skip_depth = any(p.strip() == "skip-depth-check" for p in rssignore_patterns)
     if skip_filesystem:
         args.check_filesystem = False
-        print("[INFO] .rssignore: skip-filesystem activé")
+        print("[INFO] .rssignore: skip-filesystem active")
     if skip_depth:
         args.check_filesystem = False
-        depth = 4  # Forcer profondeur max pour éviter le check
-        print("[INFO] .rssignore: skip-depth-check activé")
+        depth = 4  # Forcer profondeur max pour eviter le check
+        print("[INFO] .rssignore: skip-depth-check active")
 
-    # ── Index rebuild ──
+    # -- Index rebuild --
     if args.index == "rebuild":
         dirs_to_rebuild = [args.artifact_dir] if args.artifact_dir else list(ARTIFACT_DIRS)
         for d in dirs_to_rebuild:
@@ -556,7 +556,7 @@ def main():
         len(violations["config_misplaced"])
     )
 
-    # ── Git Noise Check ──
+    # -- Git Noise Check --
     git_noise_result = None
     if args.check_git_noise:
         git_noise_result = check_git_noise(args.repo, args.repo_type)
@@ -578,7 +578,7 @@ def main():
             if count > 5:
                 print(f"   ... et {count - 5} autres")
 
-    # ── Gitignore Coverage Check ──
+    # -- Gitignore Coverage Check --
     gitignore_result = None
     if args.check_gitignore:
         gitignore_result = check_gitignore_coverage(args.repo, args.repo_type)
@@ -590,12 +590,12 @@ def main():
         elif severity == "WARN":
             print(f"[WARN] .gitignore coverage: {len(missing)} patterns manquants")
         else:
-            print(f"[PASS] .gitignore coverage: tous les patterns requis sont présents")
+            print(f"[PASS] .gitignore coverage: tous les patterns requis sont presents")
 
         for m in missing:
             print(f"   manquant: {m}")
 
-    # ── Filesystem Integrity Check ──
+    # -- Filesystem Integrity Check --
     fs_result = None
     if args.check_filesystem:
         fs_result = check_filesystem_integrity(args.repo, rssignore_patterns)
@@ -606,7 +606,7 @@ def main():
         elif severity == "WARN":
             print(f"[WARN] Filesystem: {fs_result['junction_count']} junctions, {fs_result['empty_dir_count']} dossiers vides")
         else:
-            print(f"[PASS] Filesystem: intégrité OK ({fs_result['junction_count']} junctions, {fs_result['orphan_count']} orphelins)")
+            print(f"[PASS] Filesystem: integrite OK ({fs_result['junction_count']} junctions, {fs_result['orphan_count']} orphelins)")
 
         if fs_result.get("junctions"):
             for j in fs_result["junctions"][:5]:
@@ -615,7 +615,7 @@ def main():
             for o in fs_result["orphan_files"][:5]:
                 print(f"   orphelin: {o}")
 
-    # ── Artifact Policy Check (PRD-001) ──
+    # -- Artifact Policy Check (PRD-001) --
     artifact_violations = None
     if args.check_artifacts:
         artifact_violations = check_artifacts(args.repo)
@@ -654,7 +654,7 @@ def main():
             if artifact_violations["status"]:
                 print(f"[FAIL] Statuts invalides ({len(artifact_violations['status'])}):")
                 for v in artifact_violations["status"]:
-                    print(f"   {v['file']}: '{v['status']}' → attendu: {v['valid']}")
+                    print(f"   {v['file']}: '{v['status']}' -> attendu: {v['valid']}")
 
         # Fix artefacts simples
         if args.fix and artifact_total > 0:
@@ -662,7 +662,7 @@ def main():
             fixed = fix_artifacts(args.repo, artifact_violations)
             print(f"{fixed} correction(s) appliquee(s)")
 
-    # ── Standard RSS-v2 violations ──
+    # -- Standard RSS-v2 violations --
     if total_violations == 0 and not any([
         git_noise_result and git_noise_result.get("severity") == "FAIL",
         gitignore_result and gitignore_result.get("severity") == "FAIL",
@@ -691,9 +691,9 @@ def main():
 
     # Afficher les violations RSS-v2 standard
     if violations["forbidden_root"]:
-        print(f"[FAIL] Fichiers interdits à la racine ({len(violations['forbidden_root'])}):")
+        print(f"[FAIL] Fichiers interdits a la racine ({len(violations['forbidden_root'])}):")
         for v in violations["forbidden_root"]:
-            print(f"   {v['file']} → devrait être dans {v['destination']}")
+            print(f"   {v['file']} -> devrait etre dans {v['destination']}")
 
     if violations["missing_dirs"]:
         print(f"[FAIL] Dossiers obligatoires manquants ({len(violations['missing_dirs'])}):")
@@ -706,22 +706,22 @@ def main():
             print(f"   {a}")
 
     if violations["depth_exceeded"]:
-        print(f"[FAIL] Profondeur dépassée ({len(violations['depth_exceeded'])}):")
+        print(f"[FAIL] Profondeur depassee ({len(violations['depth_exceeded'])}):")
         for v in violations["depth_exceeded"]:
             print(f"   {v['path']} (profondeur {v['depth']} > max {v['max']})")
 
     if violations["config_misplaced"]:
-        print(f"[WARN] Fichiers de config à la racine ({len(violations['config_misplaced'])}):")
+        print(f"[WARN] Fichiers de config a la racine ({len(violations['config_misplaced'])}):")
         for v in violations["config_misplaced"]:
             print(f"   {v['file']} -> suggere: {v['destination']}")
 
-    # Corriger si demandé
+    # Corriger si demande
     if args.fix:
         print(f"\nCorrection automatique...")
         fixed = fix_violations(args.repo, violations, depth)
-        print(f"\n{fixed} correction(s) appliquée(s)")
+        print(f"\n{fixed} correction(s) appliquee(s)")
     elif total_violations > 0:
-        print(f"\n{total_violations} violation(s) détectée(s)")
+        print(f"\n{total_violations} violation(s) detectee(s)")
         print(f"   Utilisez --fix pour corriger automatiquement")
 
     # Determiner le statut final
@@ -758,14 +758,14 @@ def main():
         print(f"\n[FAIL] Repo non conforme RSS-v2")
         sys.exit(1)
     elif has_warns:
-        print(f"\n[WARN] Violations mineures — repo fonctionnel mais non standardise")
+        print(f"\n[WARN] Violations mineures -- repo fonctionnel mais non standardise")
         sys.exit(0)
     else:
         print(f"\n[PASS] Repo conforme RSS-v2")
         sys.exit(0)
 
 
-# ── RSS-v2 Artifact Policy (PRD-001) ──
+# -- RSS-v2 Artifact Policy (PRD-001) --
 
 import yaml as _yaml
 
@@ -945,7 +945,7 @@ def fix_artifacts(repo_path: str, violations: dict) -> int:
         if not index_path.exists():
             # Generer un index minimal
             lines = [
-                f"# {v['expected']} — Index des {v['dir']} de ce repo",
+                f"# {v['expected']} -- Index des {v['dir']} de ce repo",
                 "",
                 "> Index genere automatiquement. Ne pas editer a la main.",
                 f"> Pour regenerer : `python rss_lint.py --repo . --index rebuild`",
@@ -995,9 +995,9 @@ def rebuild_index(repo_path: str, artifact_dir_name: str) -> bool:
             continue
 
         fid = fm.get("id", item.stem)
-        title = fm.get("title", "—")
-        status = fm.get("status", "—")
-        created = fm.get("created", "—")
+        title = fm.get("title", "--")
+        status = fm.get("status", "--")
+        created = fm.get("created", "--")
         row = f"| {fid} | {item.name} | {title} | {status} | {created} |"
 
         if status in ("superseded", "deprecated", "done"):
@@ -1006,7 +1006,7 @@ def rebuild_index(repo_path: str, artifact_dir_name: str) -> bool:
             active_rows.append(row)
 
     lines = [
-        f"# {index_file} — Index des {artifact_dir_name} de ce repo",
+        f"# {index_file} -- Index des {artifact_dir_name} de ce repo",
         "",
         "> Index genere automatiquement. Ne pas editer a la main.",
         f"> Pour regenerer : `python rss_lint.py --repo . --index rebuild`",
@@ -1019,7 +1019,7 @@ def rebuild_index(repo_path: str, artifact_dir_name: str) -> bool:
     if active_rows:
         lines.extend(active_rows)
     else:
-        lines.append("| — | — | — | — | — |")
+        lines.append("| -- | -- | -- | -- | -- |")
 
     lines.extend([
         "",
@@ -1031,7 +1031,7 @@ def rebuild_index(repo_path: str, artifact_dir_name: str) -> bool:
     if archive_rows:
         lines.extend(archive_rows)
     else:
-        lines.append("| — | — | — | — | — |")
+        lines.append("| -- | -- | -- | -- | -- |")
 
     lines.extend([
         "",

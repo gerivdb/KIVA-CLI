@@ -54,6 +54,7 @@ coverage.xml
 .kiva/
 deployments/
 *.kiva.json.bak
+pipelines.db
 
 # Generated artifacts
 .githooks/brgs-manifest.yaml
@@ -64,6 +65,9 @@ eco_dry_run_result.txt
 # Logs
 logs/
 *.log
+
+# Windows
+Thumbs.db
 
 # Temporary files
 *.tmp
