@@ -67,3 +67,17 @@ ENCODING_HOOK="${REPO_ROOT}/.githooks/pre-commit-encoding-check"
 if [ -f "${ENCODING_HOOK}" ]; then
     python "${ENCODING_HOOK}" 2>/dev/null || exit $?
 fi
+
+# --- Check 5: Post-implement friction check ---
+POST_IMPL="${REPO_ROOT}/post_implement_check.py"
+if [ -f "${POST_IMPL}" ]; then
+    echo "[PRE-COMMIT] Running post-implement friction check..."
+    python "${POST_IMPL}" --repo "${REPO_ROOT}" --fix 2>/dev/null
+    POST_IMPL_STATUS=$?
+    if [ ${POST_IMPL_STATUS} -ne 0 ]; then
+        echo ""
+        echo "[PRE-COMMIT WARN] Post-implement check found frictions."
+        echo "  Re-run with --fix on post_implement_check.py to auto-correct."
+        echo "  Or commit with --no-verify if intentional."
+    fi
+fi

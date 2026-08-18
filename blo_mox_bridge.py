@@ -5,13 +5,15 @@ Usage: python blo_mox_bridge.py [--dry-run]
 """
 
 import sys
+import os
 import re
 import yaml
 from pathlib import Path
 
-BLO_PRD_DIR = Path(r"D:\DO\WEB\TOOLS\L0-CANON\BLO\PRD")
-MOX_TEMPLATE = Path(r"D:\DO\WEB\TOOLS\L2-PLATFORM\MOX\templates\PRD-MOC.template.md")
-PRD_OUTPUT_DIR = Path(r"D:\DO\WEB\TOOLS\L2-PLATFORM\PLIX\PRD")
+# Configurable paths (env overrides + defaults)
+BLO_PRD_DIR = Path(os.environ.get("BLO_PRD_DIR", r"D:\DO\WEB\TOOLS\L0-CANON\BLO\PRD"))
+MOX_TEMPLATE = Path(os.environ.get("MOX_TEMPLATE", r"D:\DO\WEB\TOOLS\L2-PLATFORM\MOX\templates\PRD-MOC.template.md"))
+PRD_OUTPUT_DIR = Path(os.environ.get("PRD_OUTPUT_DIR", r"D:\DO\WEB\TOOLS\L2-PLATFORM\PLIX\PRD"))
 
 # Statuts eligibles pour la synchronisation
 ELIGIBLE_STATUSES = {"active", "proposed", "draft", "approved", "implemented"}
