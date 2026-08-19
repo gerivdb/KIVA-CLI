@@ -24,7 +24,7 @@ Usage:
 import logging
 import re
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
@@ -133,7 +133,7 @@ class IntentAuditorCitizen:
             chain_continuous=True,  # Format check only
             anomalies=[f"Invalid format: {h}" for h in invalid],
             confidence=confidence,
-            timestamp=datetime.utcnow().isoformat(),
+            timestamp=datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z'),
             lifecycle=self.lifecycle,
         )
     
@@ -180,7 +180,7 @@ class IntentAuditorCitizen:
             chain_continuous=chain_continuous,
             anomalies=anomalies,
             confidence=confidence,
-            timestamp=datetime.utcnow().isoformat(),
+            timestamp=datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z'),
             lifecycle=self.lifecycle,
         )
     
@@ -214,7 +214,7 @@ class IntentAuditorCitizen:
             chain_continuous=len(intent_hashes) == len(valid),
             anomalies=anomalies,
             confidence=confidence,
-            timestamp=datetime.utcnow().isoformat(),
+            timestamp=datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z'),
             lifecycle=self.lifecycle,
         )
     
@@ -228,7 +228,7 @@ class IntentAuditorCitizen:
             chain_continuous=False,
             anomalies=[error],
             confidence=0.0,
-            timestamp=datetime.utcnow().isoformat(),
+            timestamp=datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z'),
             lifecycle=self.lifecycle,
         )
     

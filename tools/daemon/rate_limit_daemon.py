@@ -23,7 +23,7 @@ import asyncio
 import logging
 import signal
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Dict, Optional
 
@@ -114,7 +114,7 @@ class RateLimitDaemon:
         # Mock data
         limit = 5000
         remaining = 1200  # 24% remaining
-        reset_timestamp = int(datetime.utcnow().timestamp()) + 3600
+        reset_timestamp = int(datetime.now(timezone.utc).timestamp()) + 3600
         
         usage_percent = 1.0 - (remaining / limit)
         alert = usage_percent >= self.alert_threshold
@@ -132,7 +132,7 @@ class RateLimitDaemon:
             reset_timestamp=reset_timestamp,
             usage_percent=usage_percent,
             alert_triggered=alert,
-            timestamp=datetime.utcnow().isoformat(),
+            timestamp=datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z'),
             state=ValidationState.SUCCESS if not alert else ValidationState.FAILED,
         )
     
@@ -145,8 +145,8 @@ class RateLimitDaemon:
         self.logger.warning(f"Rate limit alert triggered: {status.usage_percent*100:.1f}% used")
         
         # Calculate reset time
-        reset_time = datetime.fromtimestamp(status.reset_timestamp)
-        time_until_reset = (reset_time - datetime.utcnow()).total_seconds()
+        reset_time = datetime.fromtimestamp(status.reset_timestamp, tz=timezone.utc)
+        time_until_reset = (reset_time - datetime.now(timezone.utc)).total_seconds()
         
         self.logger.info(f"Rate limit resets in {time_until_reset/60:.1f} minutes")
         
