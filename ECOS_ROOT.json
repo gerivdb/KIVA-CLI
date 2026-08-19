@@ -24,6 +24,11 @@
     "lastHarmonized": "2026-05-26T16:50:33Z",
     "harmonizeIntentHash": "0xECOSROOT_HARMONIZE_20260526"
   },
+  "phi_cps_genesis": 4.092,
+  "phi_cps_current": 4.239,
+  "phi_cps_frozen": true,
+  "phi_cps_threshold": 0.05,
+  "repositories": [],
   "itad": {
     "env_id": "ENV2",
     "wazaa_registered": true,
