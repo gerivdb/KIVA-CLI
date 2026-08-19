@@ -9,6 +9,20 @@ import json
 from typing import Optional
 from datetime import datetime
 
+# Legacy compatibility functions
+from .legacy_compat import ping_service, detailed_health_check, _get_nested
+
+
+def check_health(project: str, environment: str = "production") -> dict:
+    """Perform a health check on a project."""
+    healthy = ping_service()
+    return {
+        "status": "SUCCESS" if healthy else "FAILED",
+        "healthy": healthy,
+        "project": project,
+        "environment": environment,
+    }
+
 
 @click.group()
 def health():
