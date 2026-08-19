@@ -282,8 +282,8 @@ def audit_repo(
         # Check 4: Stale
         if last_date:
             try:
-                commit_date = datetime.fromisoformat(last_date.replace(" ", "T"))
-                age_days = (datetime.now() - commit_date).days
+                commit_date = datetime.strptime(last_date, "%Y-%m-%d %H:%M:%S %z")
+                age_days = (datetime.now(commit_date.tzinfo) - commit_date).days
                 if age_days > stale_days:
                     orphans.append(OrphanBranch(
                         repo_name=repo_name,

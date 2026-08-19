@@ -338,8 +338,28 @@ class TestAuditRepo:
     @patch('kiva_cli.commands.audit_commands.run_git')
     @patch('kiva_cli.commands.audit_commands.Path.exists')
     def test_audit_stale_branch(self, mock_exists, mock_run_git):
-        """Test detecting stale branches - skipped due to date parsing complexity."""
-        pytest.skip("Date parsing in audit_repo requires specific ISO format handling")
+        """Test detecting stale branches with ISO-like git date format."""
+        mock_exists.return_value = True
+        
+        # Date ancienne : 2024-01-01 10:00:00 +0200 (> 90 jours)
+        mock_run_git.side_effect = [
+            (0, "", ""),  # fetch
+            (0, "  origin/feature/old\n", ""),  # get_remote_branches
+            (0, "some/file.py\n", ""),  # get_branch_files
+            (0, "2024-01-01 10:00:00 +0200|Author", ""),  # get_branch_last_commit
+            (0, "", ""),  # is_branch_merged
+        ]
+        
+        repo_config = {
+            "forbidden_paths": [],
+            "allowed_branch_prefixes": ["feature/"],
+            "redirect_map": {}
+        }
+        
+        orphans = audit_repo("test-repo", "/tmp/test-repo", repo_config, stale_days=90, check_merged=False)
+        assert len(orphans) == 1
+        assert orphans[0].reason == OrphanReason.STALE
+        assert "days old" in orphans[0].details
 
 
 class TestGenerateReport:
