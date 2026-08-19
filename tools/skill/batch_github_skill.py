@@ -26,7 +26,7 @@ Usage:
 import asyncio
 import logging
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
@@ -157,7 +157,7 @@ class BatchGitHubSkill:
             failed=failed,
             total=len(issues),
             confidence=confidence,
-            timestamp=datetime.utcnow().isoformat(),
+            timestamp=datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z'),
             lifecycle=self.lifecycle,
         )
     
@@ -194,7 +194,7 @@ class BatchGitHubSkill:
             failed=failed,
             total=len(updates),
             confidence=confidence,
-            timestamp=datetime.utcnow().isoformat(),
+            timestamp=datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z'),
             lifecycle=self.lifecycle,
         )
     
@@ -231,7 +231,7 @@ class BatchGitHubSkill:
             failed=failed,
             total=len(issue_numbers),
             confidence=confidence,
-            timestamp=datetime.utcnow().isoformat(),
+            timestamp=datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z'),
             lifecycle=self.lifecycle,
         )
     
@@ -268,7 +268,7 @@ class BatchGitHubSkill:
             failed=failed,
             total=len(pr_numbers),
             confidence=confidence,
-            timestamp=datetime.utcnow().isoformat(),
+            timestamp=datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z'),
             lifecycle=self.lifecycle,
         )
     
@@ -305,7 +305,7 @@ class BatchGitHubSkill:
             failed=failed,
             total=len(items),
             confidence=confidence,
-            timestamp=datetime.utcnow().isoformat(),
+            timestamp=datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z'),
             lifecycle=self.lifecycle,
         )
     
@@ -317,7 +317,7 @@ class BatchGitHubSkill:
             failed=[{'error': error}],
             total=0,
             confidence=0.0,
-            timestamp=datetime.utcnow().isoformat(),
+            timestamp=datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z'),
             lifecycle=self.lifecycle,
         )
     

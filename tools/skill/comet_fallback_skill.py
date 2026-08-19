@@ -26,7 +26,7 @@ import asyncio
 import json
 import logging
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
@@ -153,7 +153,7 @@ class CometFallbackSkill:
             data=issues_data,
             error=None,
             confidence=0.95,
-            timestamp=datetime.utcnow().isoformat(),
+            timestamp=datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z'),
             lifecycle=self.lifecycle,
             retry_count=0,
         )
@@ -183,7 +183,7 @@ class CometFallbackSkill:
             data=pr_data,
             error=None,
             confidence=0.90,
-            timestamp=datetime.utcnow().isoformat(),
+            timestamp=datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z'),
             lifecycle=self.lifecycle,
             retry_count=0,
         )
@@ -213,7 +213,7 @@ class CometFallbackSkill:
             data=commits_data,
             error=None,
             confidence=0.92,
-            timestamp=datetime.utcnow().isoformat(),
+            timestamp=datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z'),
             lifecycle=self.lifecycle,
             retry_count=0,
         )
@@ -244,7 +244,7 @@ class CometFallbackSkill:
             data=file_data,
             error=None,
             confidence=0.88,
-            timestamp=datetime.utcnow().isoformat(),
+            timestamp=datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z'),
             lifecycle=self.lifecycle,
             retry_count=0,
         )
@@ -257,7 +257,7 @@ class CometFallbackSkill:
             data=None,
             error=error,
             confidence=0.0,
-            timestamp=datetime.utcnow().isoformat(),
+            timestamp=datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z'),
             lifecycle=self.lifecycle,
             retry_count=retry_count,
         )
