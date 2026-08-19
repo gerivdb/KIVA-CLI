@@ -112,14 +112,14 @@ class PipelineManager:
                 step_type TEXT NOT NULL,
                 config TEXT,
                 order_index INTEGER DEFAULT 0,
-                status TEXT DEFAULT 'PENDING',
+                status INTEGER DEFAULT 0,
                 FOREIGN KEY (pipeline_id) REFERENCES pipelines(pipeline_id)
             );
 
             CREATE TABLE IF NOT EXISTS pipeline_executions (
                 execution_id TEXT PRIMARY KEY,
                 pipeline_id TEXT NOT NULL,
-                execution_state TEXT DEFAULT 'PENDING',
+                execution_state INTEGER DEFAULT 0,
                 started_at TEXT,
                 completed_at TEXT,
                 FOREIGN KEY (pipeline_id) REFERENCES pipelines(pipeline_id)
@@ -129,7 +129,7 @@ class PipelineManager:
                 step_execution_id TEXT PRIMARY KEY,
                 execution_id TEXT NOT NULL,
                 step_id TEXT NOT NULL,
-                status TEXT DEFAULT 'PENDING',
+                status INTEGER DEFAULT 0,
                 result TEXT,
                 started_at TEXT,
                 completed_at TEXT,

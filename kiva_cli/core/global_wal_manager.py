@@ -33,15 +33,7 @@ class Severity(Enum):
     CRITICAL = "CRITICAL"
 
 
-class ValidationState(Enum):
-    """Ternary validation states"""
-
-    UNKNOWN = "UNKNOWN"
-    VALID = "VALID"
-    INVALID = "INVALID"
-    PENDING = "PENDING"
-    SUCCESS = "SUCCESS"
-    FAILED = "FAILED"
+from .types import ValidationState  # Base-3 ternary validation states (replaces local Enum)
 
 
 class EventStatus(Enum):
@@ -106,7 +98,7 @@ class GlobalWALManager:
                 phi_cps_delta REAL NOT NULL,
                 phi_cps_threshold REAL NOT NULL,
                 phi_cps_alert INTEGER NOT NULL,
-                validation_state TEXT NOT NULL,
+                validation_state INTEGER NOT NULL,
                 auto_approved INTEGER NOT NULL,
                 rollback_performed INTEGER DEFAULT 0,
                 description TEXT,
