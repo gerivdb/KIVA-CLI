@@ -6,7 +6,7 @@ GlobalWALManager: Cross-repository Write-Ahead Log for event tracking,
 import sqlite3
 import json
 import hashlib
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Dict, List, Optional, Any, Tuple
 from enum import Enum
@@ -201,7 +201,7 @@ class GlobalWALManager:
                 repositories = []
 
             event_id = self._generate_id(
-                f"event_{ecosystem_id}_{datetime.utcnow().isoformat()}"
+                f"event_{ecosystem_id}_{datetime.now(timezone.utc).isoformat()}"
             )
             intent_hash = self._generate_intent_hash(
                 event_id, event_type.value, repositories, parent_intent_hash
@@ -233,7 +233,7 @@ class GlobalWALManager:
             """,
                 (
                     event_id,
-                    datetime.utcnow().isoformat(),
+                    datetime.now(timezone.utc).isoformat(),
                     event_type.value,
                     severity.value,
                     ecosystem_id,
@@ -249,7 +249,7 @@ class GlobalWALManager:
                     int(auto_approved),
                     description,
                     json.dumps(metadata or {}),
-                    datetime.utcnow().isoformat(),
+                    datetime.now(timezone.utc).isoformat(),
                 ),
             )
 
@@ -272,7 +272,7 @@ class GlobalWALManager:
         """Add an operation to an event"""
         with self._lock:
             operation_id = self._generate_id(
-                f"op_{event_id}_{repository}_{datetime.utcnow().isoformat()}"
+                f"op_{event_id}_{repository}_{datetime.now(timezone.utc).isoformat()}"
             )
 
             conn = sqlite3.connect(self.db_path)
@@ -314,7 +314,7 @@ class GlobalWALManager:
         """Add a cross-repo dependency"""
         with self._lock:
             dependency_id = self._generate_id(
-                f"dep_{from_repo}_{to_repo}_{datetime.utcnow().isoformat()}"
+                f"dep_{from_repo}_{to_repo}_{datetime.now(timezone.utc).isoformat()}"
             )
 
             conn = sqlite3.connect(self.db_path)
@@ -347,7 +347,7 @@ class GlobalWALManager:
         """Record a rollback operation"""
         with self._lock:
             rollback_id = self._generate_id(
-                f"rollback_{event_id}_{datetime.utcnow().isoformat()}"
+                f"rollback_{event_id}_{datetime.now(timezone.utc).isoformat()}"
             )
 
             conn = sqlite3.connect(self.db_path)
@@ -363,7 +363,7 @@ class GlobalWALManager:
                 (
                     rollback_id,
                     event_id,
-                    datetime.utcnow().isoformat(),
+                    datetime.now(timezone.utc).isoformat(),
                     reason,
                     json.dumps(commits_reverted),
                     phi_cps_before,
@@ -871,7 +871,7 @@ class GlobalWALManager:
         data = f"{event_id}:{event_type}:{','.join(sorted(repositories))}"
         if parent_hash:
             data += f":{parent_hash}"
-        data += f":{datetime.utcnow().isoformat()}"
+        data += f":{datetime.now(timezone.utc).isoformat()}"
 
         hash_bytes = hashlib.sha256(data.encode()).digest()
         return "0x" + hash_bytes[:8].hex().upper()
