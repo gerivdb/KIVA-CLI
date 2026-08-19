@@ -2,6 +2,18 @@
 import click
 from ..core.project_manager import ProjectManager
 
+# Legacy compatibility functions
+from .legacy_compat import init_project, get_projects, update_project, validate_template
+
+
+def list_projects(path: str = ".") -> dict:
+    """List available projects (legacy dict-returning wrapper)."""
+    projects = get_projects(path)
+    return {
+        "status": "SUCCESS",
+        "projects": projects,
+    }
+
 @click.group()
 def project():
     '''Project lifecycle management commands.'''
@@ -65,7 +77,7 @@ def scaffold(element_type: str, name: str, typescript: bool, path: str):
 
 @project.command('list')
 @click.option('--path', default='.', help='Directory to scan')
-def list_projects(path: str):
+def list_projects_cmd(path: str):
     '''List projects in directory.
     
     Example:

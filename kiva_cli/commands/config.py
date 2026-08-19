@@ -2,6 +2,9 @@
 import click
 from ..core.config_manager import ConfigManager
 
+# Legacy compatibility functions
+from .legacy_compat import get_config, set_config, validate_config, load_config
+
 @click.group()
 def config():
     '''Configuration management commands.'''

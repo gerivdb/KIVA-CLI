@@ -67,9 +67,9 @@ def register_citizen(name: str, entity_type: str, repo: str,
     if metadata:
         try:
             meta_dict = json.loads(metadata)
-        except json.JSONDecodeError:
-            click.echo("❌ Invalid JSON metadata", err=True)
-            return
+        except (json.JSONDecodeError, ValueError):
+            click.echo("Invalid JSON metadata", err=True)
+            raise click.Abort()
     
     # Register citizen
     try:
