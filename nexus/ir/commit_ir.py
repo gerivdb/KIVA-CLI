@@ -324,6 +324,9 @@ class CommitIR:
                 recent_scores.append(node.phi)
 
         if not recent_scores:
-            return False
+            # Fallback: use all nodes if none are within the time window
+            recent_scores = list(node.phi for node in dag.nodes.values())
+            if not recent_scores:
+                return False
 
         return all(phi < threshold for phi in recent_scores)

@@ -35,6 +35,10 @@ class ValidationState(IntEnum):
     UNKNOWN = 0   # Not yet validated / pending
     VALID = 1     # Successfully validated
     INVALID = -1  # Failed validation
+    # Backward-compatible aliases (used by legacy tests and WAL)
+    PENDING = 0   # alias for UNKNOWN
+    SUCCESS = 1   # alias for VALID
+    FAILED = -1   # alias for INVALID
 
     @property
     def is_valid(self) -> bool:
