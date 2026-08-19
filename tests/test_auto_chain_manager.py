@@ -40,7 +40,7 @@ from click.testing import CliRunner
 class _StepResult:
     step_name: str
     status: str = "SUCCESS"
-    exit_code: int = 0
+    returncode: int = 0
     stdout: str = ""
     stderr: str = ""
     duration_s: float = 0.01
@@ -71,7 +71,7 @@ def _make_fail_result(pipeline_name: str, step_names: List[str], failed: str) ->
     steps = []
     for n in step_names:
         status = "FAILED" if n == failed else "SUCCESS"
-        steps.append(_StepResult(step_name=n, status=status, exit_code=1 if n == failed else 0))
+        steps.append(_StepResult(step_name=n, status=status, returncode=1 if n == failed else 0))
     return _PipelineResult(pipeline_name=pipeline_name, status="FAILED", steps=steps)
 
 
@@ -95,6 +95,13 @@ def manager(tmp_path, monkeypatch):
     monkeypatch.setattr(f"{MODULE}.HAS_PIPELINE", True)
     from kiva_cli.core.auto_chain_manager import AutoChainManager
     return AutoChainManager(pipelines_dir=tmp_path / "pipelines")
+
+
+@pytest.fixture(autouse=True)
+def _reset_pipeline_manager(monkeypatch):
+    """Reset the lazy _manager singleton in pipeline_commands between tests."""
+    import kiva_cli.commands.pipeline_commands as pc
+    monkeypatch.setattr(pc, "_manager", None)
 
 
 # ===========================================================================
@@ -371,7 +378,7 @@ class TestPipelineRunFrom:
             steps = [StepResult(
                 step_name=s.name,
                 status="SUCCESS",
-                exit_code=0,
+                returncode=0,
                 stdout="",
                 stderr="",
                 duration_s=0.1,
@@ -382,7 +389,8 @@ class TestPipelineRunFrom:
                 status="SUCCESS",
                 steps=steps,
                 intent_hash="mock-hash",
-                duration_s=0.2,
+                started_at=0.0,
+                ended_at=0.2,
             )
 
         monkeypatch.setattr(
