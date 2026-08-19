@@ -86,7 +86,7 @@ class TestOnFailureAbortInGroup:
             "seq-after": _success("seq-after"),
         }
 
-        def _mock_run_step(step, dry_run=False, verbose=False):
+        def _mock_run_step(step, dry_run=False, verbose=False, **kwargs):
             return side_effects[step.name]
 
         with patch("kiva_cli.core.pipeline_runner._run_step", side_effect=_mock_run_step):
@@ -137,7 +137,7 @@ class TestOnFailureWarnInGroup:
             "seq-after": _success("seq-after"),
         }
 
-        def _mock_run_step(step, dry_run=False, verbose=False):
+        def _mock_run_step(step, dry_run=False, verbose=False, **kwargs):
             return side_effects[step.name]
 
         with patch("kiva_cli.core.pipeline_runner._run_step", side_effect=_mock_run_step):
@@ -181,7 +181,7 @@ class TestOnFailureContinueInGroup:
             "seq": _success("seq"),
         }
 
-        def _mock_run_step(step, dry_run=False, verbose=False):
+        def _mock_run_step(step, dry_run=False, verbose=False, **kwargs):
             return side_effects[step.name]
 
         with patch("kiva_cli.core.pipeline_runner._run_step", side_effect=_mock_run_step):
