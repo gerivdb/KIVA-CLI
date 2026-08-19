@@ -98,7 +98,7 @@ class TestOperations:
             event = manager.get_event(event_id)
             assert len(event['operations']) == 1
             assert event['operations'][0]['operation_type'] == "CREATE_FILE"
-            assert event['operations'][0]['status'] == ValidationState.SUCCESS.value
+            assert event['operations'][0]['status'] == str(ValidationState.SUCCESS.value)
 
 class TestQuery:
     def test_query_by_ecosystem(self):

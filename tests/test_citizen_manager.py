@@ -245,7 +245,7 @@ class TestValidateEntity(unittest.TestCase):
             
             # Verify update
             updated = self.manager.get_citizen(self.citizen.citizen_id)
-            self.assertEqual(updated.validation_state, state.value)
+            self.assertEqual(updated.validation_state, str(state.value))
 
 
 @unittest.skipIf(CitizenManager is None, "CitizenManager not available")
