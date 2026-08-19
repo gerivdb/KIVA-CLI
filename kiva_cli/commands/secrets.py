@@ -1,14 +1,20 @@
 #!/usr/bin/env python3
-"""Secrets management commands for KIVA CLI.
-
-Handles secrets rotation, vault integration, and security auditing.
-"""
-
+# Secrets management commands for KIVA CLI.
+#
+#
+# Handles secrets rotation, vault integration, and security auditing.
+#
 import click
 import subprocess
 import json
 from pathlib import Path
 from typing import Optional
+
+# Legacy compatibility functions
+from .legacy_compat import (
+    set_secret, get_secret, rotate_secret, delete_secret,
+    store_secret, retrieve_secret
+)
 
 
 @click.group()

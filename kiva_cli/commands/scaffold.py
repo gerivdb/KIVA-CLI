@@ -13,6 +13,9 @@ from pathlib import Path
 from typing import List
 from kiva_cli.managers.framework_manager import FrameworkManager, TemplateConfig
 
+# Legacy compatibility functions
+from .legacy_compat import scaffold_service, list_templates as list_templates_compat
+
 
 @click.group(name="scaffold")
 def scaffold_group():
@@ -138,9 +141,9 @@ def scaffold_go_service(name: str, description: str, output: str, features: str)
 
 
 @scaffold_group.command(name="list")
-def list_templates():
+def list_templates_cmd():
     """List available project templates"""
-    click.echo("📋 Available templates:\n")
+    click.echo("Available templates:\n")
     
     templates = [
         ("fastapi", "FastAPI + PostgreSQL + Alembic", "Python 3.11+"),
@@ -149,9 +152,12 @@ def list_templates():
     ]
     
     for name, desc, req in templates:
-        click.echo(f"  • {name:15s} - {desc}")
-        click.echo(f"    {' '*17}Requirements: {req}")
+        click.echo("  * {} - {}".format(name, desc))
+        click.echo("    Requirements: {}".format(req))
         click.echo()
+
+# list_templates (dict-returning wrapper for legacy tests)
+list_templates = list_templates_compat
 
 
 if __name__ == "__main__":
