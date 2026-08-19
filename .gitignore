@@ -79,3 +79,8 @@ temp/
 check_jobs.py
 scripts/check_single_repo.py
 scripts/filter_active_repos.py
+
+# Coverage artifacts
+cov*.json
+cov*.txt
+cov_tmp.json

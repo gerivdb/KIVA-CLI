@@ -1,9 +1,9 @@
 ---
 type: "PRD_MOC"
-version: "1.1"
-date: "2026-08-18"
+version: "1.2"
+date: "2026-08-19"
 status: "ACTIF"
-intent_hash: "0xPRD_MOC_KIVA_CLI_20260818_V1.1"
+intent_hash: "0xPRD_MOC_KIVA_CLI_20260819_V1.2"
 inherits: ["moc-governance"]
 ---
 
@@ -17,6 +17,7 @@ Le **PRD MOC KIVA-CLI** est la boussole produit du CLI souverain de l'ecosysteme
 - Gouvernance consolidee : regle BDCP GitHub API fallback, skill repo creator
 - Pipeline PLIX-Eco, doctor CLI, GitHub keyring fallback
 - RSS-v2 conforme, stashs nettoyes
+- **Couverture tests globale : 43.84% (manque ~36% pour atteindre 80%)**
 - **Tests legacy legacy refactores : 54/62 corriges (87%)** -- 8 restants
 - **Tests integration : 12/12 passes** (WAL, phi-CPS, cross-repo, ternary logic)
 - **Tests pipeline/parallel : 20/20 passes** (retry, on_failure, parallel groups)
@@ -25,7 +26,7 @@ Le **PRD MOC KIVA-CLI** est la boussole produit du CLI souverain de l'ecosysteme
 
 **Portee :** KIVA-CLI L1, scripts associes, hooks git, pipelines `.kiva/pipelines/`.
 
-**Etat :** consolidation governance terminee, legacy tests 87% corriges, foundation CI/runtime stable.
+**Etat :** Consolidation governance terminee, legacy tests 87% corriges, foundation CI/runtime stable. **Blocant majeur : couverture tests 43.84% < 80% requis.**
 
 ---
 
@@ -76,41 +77,36 @@ Le **PRD MOC KIVA-CLI** est la boussole produit du CLI souverain de l'ecosysteme
 | S1 | Noyau CLI | 100% | Resolu | Tests cibles 48/48 verts, legacy compat restored (34/34) |
 | S2 | Gouvernance & CI | 100% | Resolu | RSS-v2 conforme, BDCP fallback skill, post-implement check, frontmatter validation en pre-commit |
 | S3 | Structure & Tests | 87% | 8 tests restants | Legacy tests 54/62 corriges, pipeline/parallel 20/20, integration 12/12 |
-| S4 | Orchestration avancee | 15% | Depend S3 complet | Parallel groups, retry pipeline -- architecture prete, tests a finaliser |
+| S4 | Orchestration avancee | 15% | S3 complet | Parallel groups, retry pipeline -- architecture prete, tests a finaliser |
+
+**Couverture tests globale : 43.84% (seuil requis : 80%)**
 
 ---
 
 ## 6. ACTIONS PRIORITAIRES (P0-P2)
 
-### P0 -- Bloquant
+### P0 -- Bloquant (doit etre fait avant tout)
 
 | # | Action | Cible | Source | Statut |
 |---|--------|-------|--------|--------|
-| 1 | Maintenir RSS-v2 conforme sur la branche consolidee | KIVA-CLI | rss_lint.py | OK Termine |
-| 2 | Centraliser fallback token GitHub dans `kiva_cli.core.github_token` | KIVA-CLI | github_commands.py | OK Termine |
-| 3 | Supprimer les stashs orphelins et nettoyer working tree | KIVA-CLI | git status | OK Termine |
-| 4 | Corriger les 62 tests legacy refactores | KIVA-CLI | test_*.py | **OK 54/62 (87%)** |
+| 1 | Atteindre 80% couverture de tests globale | KIVA-CLI | pytest | **BLOQUANT -- 43.84% (manque ~36%)** |
+| 2 | Finaliser S4 orchestration parallele (tests) | KIVA-CLI | PRD-KIVA-010 | Architecture prete, tests a finaliser |
 
 ### P1 -- Court terme
 
 | # | Action | Cible | Source | Statut |
 |---|--------|-------|--------|--------|
-| 5 | Corriger les 8 tests legacy restants | KIVA-CLI | test_citizen_commands, test_commit_ir, test_registry* | En cours |
-| 6 | Corriger 4 tests auto_chain_manager (CLI exit codes) | KIVA-CLI | test_auto_chain_manager.py | A faire |
-| 7 | Corriger test_citizen_manager (validation states) | KIVA-CLI | test_citizen_manager.py | A faire |
-| 8 | Corriger test_ecos_kiva_integration (error handling) | KIVA-CLI | test_ecos_kiva_integration.py | A faire |
-| 9 | Corriger test_global_wal_manager (operations) | KIVA-CLI | test_global_wal_manager.py | A faire |
-| 10 | Corriger test_pipeline_manager (initial state) | KIVA-CLI | test_pipeline_manager.py | A faire |
-| 11 | Atteindre 80% couverture de tests globale | KIVA-CLI | pytest | PARTIEL (69% line coverage) |
+| 3 | Implementer PRD-016 INVERSE-IR scaffold phi-conforme | KIVA-CLI | PRD-016 | A faire |
+| 4 | Migrer `project_manager.py` vers types canoniques uniquement | KIVA-CLI | PRD-KIVA-004 | A faire |
+| 5 | Documenter workflows BDCP fallback et skills associes | KIVA-CLI | bdcp-github-api-fallback.md | A faire |
 
 ### P2 -- Moyen terme
 
 | # | Action | Cible | Source | Statut |
 |---|--------|-------|--------|--------|
-| 12 | Implementer PRD-016 INVERSE-IR scaffold phi-conforme | KIVA-CLI | PRD-016 | A faire |
-| 13 | Finaliser S4 orchestration parallele (retry, on_failure) | KIVA-CLI | PRD-KIVA-010 | Architecture prete |
-| 14 | Migrer project_manager.py vers types canoniques uniquement | KIVA-CLI | PRD-KIVA-004 | A faire |
-| 15 | Documenter workflows BDCP fallback et skills associes | KIVA-CLI | bdcp-github-api-fallback.md | A faire |
+| 6 | Ajouter tests pour modules 0% : nexus_commands.py (695l), epic_commands.py (427l), wal_commands.py (393l), pipeline_commands.py (273l), tql.py, project_commands.py, topos_commands.py, repo_commands.py, monitoring.py | KIVA-CLI | tests/ | A faire |
+| 7 | Corriger test_audit_stale_branch (probleme parsing date ISO) | KIVA-CLI | test_*.py | A faire |
+| 8 | Nettoyer warnings datetime.utcnow() deprecie dans tout le codebase | KIVA-CLI | *.py | A faire |
 
 ---
 
@@ -142,8 +138,14 @@ Le **PRD MOC KIVA-CLI** est la boussole produit du CLI souverain de l'ecosysteme
 
 | # | Anomalie | Localisation | Priorite |
 |---|----------|--------------|----------|
-| 1 | Couverture de tests < 80% (seuil global) | pytest | P1 |
-| 2 | 62 tests legacy refactores non mis a jour | tests/test_kiva_cli.py, test_pipeline_retry.py, test_parallel_on_failure.py | P2 |
+| 1 | Couverture de tests < 80% (43.84% vs 80% requis) | pytest | **P0 -- Bloquant** |
+| 2 | S4 orchestration parallele non finalisee (15%) | parallel_executor.py, pipeline_retry.py, parallel_on_failure.py | P0 |
+| 3 | Modules sans tests (0% couverture) : nexus_commands.py, epic_commands.py, wal_commands.py, pipeline_commands.py, tql.py, project_commands.py, topos_commands.py, repo_commands.py, monitoring.py + ~40 autres | kiva_cli/ | P1 |
+| 4 | PRD-016 INVERSE-IR scaffold phi-conforme non implemente | PRD-016 | P1 |
+| 5 | project_manager.py non migre vers types canoniques | kiva_cli/core/ | P1 |
+| 6 | Documentation workflows BDCP fallback incomplete | bdcp-github-api-fallback.md | P1 |
+| 7 | Test test_audit_stale_branch : probleme parsing date ISO | tests/ | P2 |
+| 8 | Warnings datetime.utcnow() deprecié dans tout le codebase | *.py | P2 |
 
 ---
 
@@ -151,8 +153,14 @@ Le **PRD MOC KIVA-CLI** est la boussole produit du CLI souverain de l'ecosysteme
 
 | # | Action | Priorite | Statut |
 |---|--------|----------|--------|
-| 1 | Ajouter tests manquants pour atteindre 80% couverture | P1 | PARTIEL (69% line coverage, 13 nouveaux tests) |
-| 2 | Mettre a jour les tests legacy refactores (scaffold, pipeline retry, parallel on_failure) | P2 | A faire |
+| 1 | Ajouter tests manquants pour atteindre 80% couverture | **P0** | BLOQUANT -- 43.84% actuel |
+| 2 | Finaliser S4 orchestration parallele (tests finalisation) | **P0** | Architecture prete, tests a finaliser |
+| 3 | Implementer PRD-016 INVERSE-IR scaffold phi-conforme | P1 | A faire |
+| 4 | Migrer project_manager.py vers types canoniques uniquement | P1 | A faire |
+| 5 | Documenter workflows BDCP fallback et skills associes | P1 | A faire |
+| 6 | Ajouter tests pour modules 0% (nexus, epic, wal, pipeline, tql, etc.) | P1 | A faire |
+| 7 | Corriger test_audit_stale_branch (probleme parsing date ISO) | P2 | A faire |
+| 8 | Nettoyer warnings datetime.utcnow() deprecié | P2 | A faire |
 
 ---
 
@@ -171,10 +179,20 @@ Le **PRD MOC KIVA-CLI** est la boussole produit du CLI souverain de l'ecosysteme
 
 | Date | Commit | Description |
 |------|--------|-------------|
+| 2026-08-19 | -- | Mise a jour PRD MOC V1.2 : actualisation etat 65% complet, couverture 43.84%, actions P0/P1/P2 actualisees |
 | 2026-08-18 | `4733fb7` | test: add coverage for doctor_commands and blo_mox_bridge |
 | 2026-08-18 | `4869103` | feat(governance): integrate post-implement check in pre-commit and make blo_mox_bridge paths configurable |
 | 2026-08-18 | `55cd1cd` | fix(cli,tests): repair broken integration and legacy registry tests |
 
 ---
 
-*Derniere mise a jour : 2026-08-18 | Genere automatiquement*
+## 12. PROCHAINES ETAPES CONCRETES
+
+1. **Continuer pattern tests** : Creer tests pour `nexus_commands.py` -> `epic_commands.py` -> `wal_commands.py` (plus gros impact)
+2. **Finaliser S4** : Tests pour `parallel_executor.py`, `pipeline_retry.py`, `parallel_on_failure.py` (architecture deja la)
+3. **PRD-016** : Creer scaffold INVERSE-IR phi-conforme
+4. **Migration types** : Remplacer `project_manager.py` par types canoniques de `kiva_cli.core.types`
+
+---
+
+*Derniere mise a jour : 2026-08-19 | Genere automatiquement*

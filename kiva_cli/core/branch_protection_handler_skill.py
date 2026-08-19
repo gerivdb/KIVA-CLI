@@ -135,8 +135,8 @@ class BranchProtectionHandlerSkill:
         """Lazy-load GitHub client."""
         if self._github_client is None:
             try:
-                from github import Github
-                self._github_client = Github(self.github_token)
+                from github import Github, Auth
+                self._github_client = Github(auth=Auth.Token(self.github_token))
             except ImportError:
                 raise RuntimeError(
                     "PyGithub not installed. Run: pip install PyGithub"
