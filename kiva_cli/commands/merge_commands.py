@@ -65,7 +65,7 @@ def _wal_append(repo: str, pr: int, event: str, dry_run: bool = False,
         "repo": repo,
         "pr": pr,
         "intent_hash": "0xKIVA_MERGE_SOVEREIGN_phi4559",
-        "timestamp": datetime.datetime.utcnow().isoformat() + "Z",
+        "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat() + "Z",
     }
     if metadata:
         payload.update(metadata)

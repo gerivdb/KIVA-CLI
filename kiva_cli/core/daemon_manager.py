@@ -38,7 +38,7 @@ import os
 import time
 import threading
 import signal
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Dict, List, Optional, Any, Tuple
 import sys
@@ -176,13 +176,13 @@ class DaemonManager:
     
     def _generate_daemon_id(self, name: str) -> str:
         """Generate unique daemon ID."""
-        hash_input = f"{name}_{datetime.utcnow().isoformat()}"
+        hash_input = f"{name}_{datetime.now(timezone.utc).isoformat()}"
         hash_obj = hashlib.sha256(hash_input.encode())
         return f"dmn_{hash_obj.hexdigest()[:16]}"
     
     def _generate_intent_hash(self, daemon_id: str, operation: str) -> str:
         """Generate IntentHash for daemon operation."""
-        hash_input = f"{daemon_id}_{operation}_{datetime.utcnow().isoformat()}"
+        hash_input = f"{daemon_id}_{operation}_{datetime.now(timezone.utc).isoformat()}"
         hash_obj = hashlib.sha256(hash_input.encode())
         return f"0x{hash_obj.hexdigest()[:16].upper()}"
     
@@ -227,7 +227,7 @@ class DaemonManager:
         
         daemon_id = self._generate_daemon_id(name)
         intent_hash = self._generate_intent_hash(daemon_id, "register")
-        now = datetime.utcnow().isoformat()
+        now = datetime.now(timezone.utc).isoformat()
         phi_cps = self.PHI_CPS_BASE["UNKNOWN"]
         
         cursor.execute("""
@@ -291,8 +291,8 @@ class DaemonManager:
                 UPDATE daemons 
                 SET runtime_state = ?, pid = ?, last_start_time = ?, updated_at = ?
                 WHERE daemon_id = ?
-            """, ("RUNNING", process.pid, datetime.utcnow().isoformat(), 
-                  datetime.utcnow().isoformat(), daemon_id))
+            """, ("RUNNING", process.pid, datetime.now(timezone.utc).isoformat(), 
+                  datetime.now(timezone.utc).isoformat(), daemon_id))
             conn.commit()
             conn.close()
             
@@ -347,8 +347,8 @@ class DaemonManager:
                 UPDATE daemons 
                 SET runtime_state = ?, pid = NULL, last_stop_time = ?, updated_at = ?
                 WHERE daemon_id = ?
-            """, ("STOPPED", datetime.utcnow().isoformat(), 
-                  datetime.utcnow().isoformat(), daemon_id))
+            """, ("STOPPED", datetime.now(timezone.utc).isoformat(), 
+                  datetime.now(timezone.utc).isoformat(), daemon_id))
             conn.commit()
             conn.close()
             
@@ -435,7 +435,7 @@ class DaemonManager:
         cursor = conn.cursor()
         cursor.execute("""
             UPDATE daemons SET runtime_state = ?, updated_at = ? WHERE daemon_id = ?
-        """, (state, datetime.utcnow().isoformat(), daemon_id))
+        """, (state, datetime.now(timezone.utc).isoformat(), daemon_id))
         conn.commit()
         conn.close()
     
@@ -471,7 +471,7 @@ class DaemonManager:
                 cpu_percent = 0
                 memory_mb = 0
             
-            check_id = f"hc_{hashlib.sha256(f'{daemon_id}_{datetime.utcnow().isoformat()}'.encode()).hexdigest()[:16]}"
+            check_id = f"hc_{hashlib.sha256(f'{daemon_id}_{datetime.now(timezone.utc).isoformat()}'.encode()).hexdigest()[:16]}"
             
             conn = sqlite3.connect(self.db_path)
             cursor = conn.cursor()
@@ -480,7 +480,7 @@ class DaemonManager:
                     check_id, daemon_id, check_time, is_healthy, 
                     cpu_percent, memory_mb, response_time_ms
                 ) VALUES (?, ?, ?, ?, ?, ?, ?)
-            """, (check_id, daemon_id, datetime.utcnow().isoformat(), 
+            """, (check_id, daemon_id, datetime.now(timezone.utc).isoformat(), 
                   is_healthy, cpu_percent, memory_mb, 0))
             conn.commit()
             conn.close()
