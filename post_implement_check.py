@@ -2,6 +2,8 @@
 """
 POST-IMPLEMENT CHECK v1.0 -- HOTL (Human-Out-The-Loop)
 IntentHash: 0xPOST_IMPL_CHECK_20260615
+Alias note (PRD-MOC GEN-009): "Human-Out-The-Loop" = niveau A3 (HOTL inactif)
+de l'echelle AXE-0 -- ONTOLOGY/concepts/autonomy-ladder.md.
 """
 
 import argparse
