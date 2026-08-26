@@ -61,7 +61,6 @@ def _wal_append(repo: str, pr: int, event: str, dry_run: bool = False,
                 metadata: dict = None) -> None:
     """Append a WAL event via kiva wal append."""
     payload = {
-        "event": event,
         "repo": repo,
         "pr": pr,
         "intent_hash": "0xKIVA_MERGE_SOVEREIGN_phi4559",
@@ -69,7 +68,13 @@ def _wal_append(repo: str, pr: int, event: str, dry_run: bool = False,
     }
     if metadata:
         payload.update(metadata)
-    _run(["kiva", "wal", "append", "--event", json.dumps(payload)], dry_run=dry_run)
+    _run([
+        "kiva", "wal", "append",
+        "-o", event,
+        "-r", repo,
+        "--phi-delta", "0.0",
+        "--metadata", json.dumps(payload),
+    ], dry_run=dry_run)
 
 
 def _dag3_validate(repo_path: str, source_branch: str, target_branch: str, 
@@ -263,7 +268,7 @@ def merge_pr(repo: str, pr_number: int, source_branch: str | None,
 
     # STEP 5: Drift check phi-CPS (non-blocking)
     click.echo(click.style("  [STEP 5] Drift check phi-CPS (non-blocking)", fg="cyan"))
-    _run(["kiva", "phi", "drift", "--repo", repo], dry_run=dry_run)
+    _run(["kiva", "phi-cps", "status"], dry_run=dry_run)
     click.echo(click.style("  [STEP 5] Drift [OK]", fg="green"))
 
     # Final report
