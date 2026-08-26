@@ -54,10 +54,20 @@ coverage.xml
 .kiva/
 deployments/
 *.kiva.json.bak
+pipelines.db
+
+# Generated artifacts
+.githooks/brgs-manifest.yaml
+.githooks/manifest.yaml
+.wal/
+eco_dry_run_result.txt
 
 # Logs
 logs/
 *.log
+
+# Windows
+Thumbs.db
 
 # Temporary files
 *.tmp
@@ -69,3 +79,8 @@ temp/
 check_jobs.py
 scripts/check_single_repo.py
 scripts/filter_active_repos.py
+
+# Coverage artifacts
+cov*.json
+cov*.txt
+cov_tmp.json

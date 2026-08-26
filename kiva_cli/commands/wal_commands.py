@@ -411,7 +411,7 @@ def create_rollback(reason: str, metadata: Optional[str]):
         event_id = latest["event_id"]
         phi_before = latest["phi_cps_current"]
     else:
-        event_id = "manual_" + datetime.utcnow().strftime("%Y%m%d%H%M%S")
+        event_id = "manual_" + datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
         phi_before = 1.0
     
     rollback_id = wal.perform_rollback(
@@ -531,7 +531,7 @@ def hitl_approve(reason: str, repo: Optional[str]):
         metadata={
             "reason": reason,
             "approved_by": os.environ.get("USER", "unknown"),
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "gate": "HITL_DECLARATIF",
             "intent_hash": "0xTRIX_GT015_HITL_GATE_DECLARATIF_20260627",
         },
@@ -569,7 +569,7 @@ def hitl_check(repo: Optional[str]):
     wal = GlobalWALManager()
 
     # Chercher un HITL recent (< 24h) dans les metadata
-    cutoff = (datetime.utcnow() - timedelta(hours=24)).isoformat()
+    cutoff = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
     events = wal.query_events(
         start_time=cutoff,
         limit=50,
@@ -630,7 +630,7 @@ def wal_status(repo: Optional[str], max_age_minutes: int):
     """
     wal = GlobalWALManager()
 
-    cutoff = (datetime.utcnow() - timedelta(minutes=max_age_minutes)).isoformat()
+    cutoff = (datetime.now(timezone.utc) - timedelta(minutes=max_age_minutes)).isoformat()
     events = wal.query_events(
         repo=repo,
         start_time=cutoff,

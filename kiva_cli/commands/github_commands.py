@@ -1,7 +1,8 @@
 """GitHub native commands for KIVA-CLI.
 
 httpx-only client, zero gh CLI dependency.
-Auth via GITHUB_TOKEN env var. JSON structured logging.
+Auth via GITHUB_TOKEN env var with fallback to gh keyring.
+JSON structured logging.
 Respects --dry-run (zero write when active).
 
 IntentHash: 0xKIVA_CLI_GITHUB_COMMANDS_20260605
@@ -12,15 +13,42 @@ from __future__ import annotations
 import json
 import logging
 import os
+import subprocess
 import time
 from dataclasses import dataclass, field, asdict
 from typing import Optional
 
 import httpx
 
+from kiva_cli.core.github_token import get_github_token as _get_github_token
+
 LOG = logging.getLogger("kiva_cli.github_commands")
 GITHUB_API = "https://api.github.com"
-TOKEN = os.environ.get("GITHUB_TOKEN", "")
+
+
+def _gh_executable() -> str | None:
+    """Return path to gh.exe if available."""
+    candidates = [
+        "gh",
+        os.path.expandvars(r"%LOCALAPPDATA%\Programs\gh\bin\gh.exe"),
+        r"C:\gh\bin\gh.exe",
+    ]
+    for candidate in candidates:
+        if candidate == "gh":
+            try:
+                out = subprocess.run(
+                    "command -v gh",
+                    shell=True,
+                    capture_output=True,
+                    text=True,
+                )
+                if out.returncode == 0 and out.stdout.strip():
+                    return out.stdout.strip()
+            except Exception:
+                pass
+        elif os.path.exists(candidate):
+            return candidate
+    return None
 
 
 @dataclass
@@ -35,10 +63,9 @@ class JsonLog:
 
 
 def _headers() -> dict:
-    if not TOKEN:
-        raise RuntimeError("GITHUB_TOKEN is not set")
+    token = _get_github_token()
     return {
-        "Authorization": f"Bearer {TOKEN}",
+        "Authorization": f"Bearer {token}",
         "Accept": "application/vnd.github+json",
         "X-GitHub-Api-Version": "2022-11-28",
         "User-Agent": "kiva-cli/0.1.0",
@@ -104,6 +131,8 @@ def post_review_comment(
     dry_run: bool = False,
 ) -> dict:
     """Post an inline review comment on a PR."""
+    if dry_run:
+        raise RuntimeError("dry-run active: refusing write operation")
     comment: dict = {"body": body}
     if path is not None:
         comment["path"] = path

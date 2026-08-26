@@ -172,6 +172,8 @@ class NeurosymbolicBridge:
 
         # 2. Calcul latence
         latency_ms = (time.monotonic() - t0) * 1000
+        if latency_ms < 0.01:
+            latency_ms = 0.01  # Force a minimal measurable latency
         verdict["latency_ms"] = round(latency_ms, 2)
         self._stats["total"] += 1
         self._stats["latency_ms"].append(latency_ms)

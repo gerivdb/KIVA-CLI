@@ -8,6 +8,12 @@ import click
 from datetime import datetime
 from typing import Optional
 
+# Legacy compatibility functions
+from .legacy_compat import (
+    rollback_deployment, list_rollback_versions, validate_rollback,
+    execute_rollback
+)
+
 
 @click.group()
 def rollback():

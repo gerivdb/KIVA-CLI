@@ -28,7 +28,7 @@ Usage:
 import asyncio
 import logging
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
@@ -111,7 +111,7 @@ class NoHitlMasterPipeline:
         Returns:
             PipelineResult with ternary state validation
         """
-        start_time = datetime.utcnow()
+        start_time = datetime.now(timezone.utc)
         self.lifecycle = LifecycleState.ACTIVE
         
         issue_number = params.get('issue_number')
@@ -160,7 +160,7 @@ class NoHitlMasterPipeline:
                 state=ValidationState.FAILED,
                 stages=self.stages_completed,
                 lifecycle=LifecycleState.DEPRECATED,
-                total_duration=(datetime.utcnow() - start_time).total_seconds(),
+                total_duration=(datetime.now(timezone.utc) - start_time).total_seconds(),
                 phi_cps_delta=0.0,
                 rollback_triggered=True,
                 intent_hash_chain=self.intent_hash_chain,
@@ -168,7 +168,7 @@ class NoHitlMasterPipeline:
         
         # Success
         self.lifecycle = LifecycleState.ACTIVE
-        duration = (datetime.utcnow() - start_time).total_seconds()
+        duration = (datetime.now(timezone.utc) - start_time).total_seconds()
         
         return PipelineResult(
             state=ValidationState.SUCCESS,
@@ -205,7 +205,7 @@ class NoHitlMasterPipeline:
             data=specs,
             error=None,
             confidence=0.95,
-            timestamp=datetime.utcnow().isoformat(),
+            timestamp=datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z'),
             intent_hash=self._generate_intent_hash(),
         )
     
@@ -233,7 +233,7 @@ class NoHitlMasterPipeline:
             data=implementation,
             error=None,
             confidence=0.90,
-            timestamp=datetime.utcnow().isoformat(),
+            timestamp=datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z'),
             intent_hash=self._generate_intent_hash(),
         )
     
@@ -267,7 +267,7 @@ class NoHitlMasterPipeline:
             data=validation,
             error=None if state == ValidationState.SUCCESS else "φ-CPS threshold exceeded",
             confidence=0.98,
-            timestamp=datetime.utcnow().isoformat(),
+            timestamp=datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z'),
             intent_hash=self._generate_intent_hash(),
         )
     
@@ -307,7 +307,7 @@ class NoHitlMasterPipeline:
                     data=generation_data,
                     error=None,
                     confidence=0.999,
-                    timestamp=datetime.utcnow().isoformat(),
+                    timestamp=datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z'),
                     intent_hash=self._generate_intent_hash(),
                 )
                     
@@ -322,7 +322,7 @@ class NoHitlMasterPipeline:
             data={'generated': False, 'skipped': True},
             error=None,
             confidence=1.0,
-            timestamp=datetime.utcnow().isoformat(),
+            timestamp=datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z'),
             intent_hash=self._generate_intent_hash(),
         )
 
@@ -349,7 +349,7 @@ class NoHitlMasterPipeline:
             data=rollback,
             error=None,
             confidence=1.0,
-            timestamp=datetime.utcnow().isoformat(),
+            timestamp=datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z'),
             intent_hash=self._generate_intent_hash(),
         )
     
@@ -357,13 +357,13 @@ class NoHitlMasterPipeline:
         """Generate unique IntentHash for stage"""
         import hashlib
         import random
-        data = f"{datetime.utcnow().isoformat()}{random.random()}"
+        data = f"{datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')}{random.random()}"
         return f"0x{hashlib.sha256(data.encode()).hexdigest()[:16].upper()}"
     
     def _failed_pipeline(self, error: str, start_time: datetime) -> PipelineResult:
         """Create failed pipeline result"""
         self.lifecycle = LifecycleState.DEPRECATED
-        duration = (datetime.utcnow() - start_time).total_seconds()
+        duration = (datetime.now(timezone.utc) - start_time).total_seconds()
         
         return PipelineResult(
             state=ValidationState.FAILED,

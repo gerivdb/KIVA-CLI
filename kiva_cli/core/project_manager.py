@@ -24,12 +24,12 @@ import hashlib
 import warnings
 
 try:
-    from .global_wal_manager import GlobalWALManager, WALEvent
+    from .global_wal_manager import GlobalWALManager
     from .intent_hash_validator import IntentHashValidator, ValidationResult
     from .phi_cps_calculator import PhiCPSCalculator
 except ImportError:
     # Fallback for standalone execution
-    from global_wal_manager import GlobalWALManager, WALEvent
+    from global_wal_manager import GlobalWALManager
     from intent_hash_validator import IntentHashValidator, ValidationResult
     from phi_cps_calculator import PhiCPSCalculator
 
@@ -45,16 +45,6 @@ from .types import (
     ProjectConfig as _CanonicalProjectConfig,
     DeploymentResult as _CanonicalDeploymentResult,
 )
-
-# Temporary backward-compat aliases (will emit DeprecationWarning in future)
-# All new code MUST import directly from kiva_cli.core.types
-warnings.warn(
-    "project_manager.py still defines local ValidationState/LifecycleState/FrameworkType. "
-    "Migrate to `from kiva_cli.core.types import ...` (PRD-KIVA-004).",
-    DeprecationWarning,
-    stacklevel=2
-)
-
 
 # ========================================
 # DATA STRUCTURES
@@ -357,7 +347,7 @@ class ProjectManager:
             project_path.mkdir(parents=True)
             
             # Apply framework template
-            template_dir = self.templates_dir / framework.value
+            template_dir = self.templates_dir / framework.name.lower()
             
             if template_dir.exists():
                 # Copy template files
@@ -369,7 +359,7 @@ class ProjectManager:
             # Create project config
             config = ProjectConfig(
                 name=name,
-                framework=framework.value,
+                framework=framework.name.lower(),
                 repo_path=project_path,
                 lifecycle_state=LifecycleState.GENESIS.name,
                 validation_state=ValidationState.UNKNOWN.name,
@@ -379,7 +369,7 @@ class ProjectManager:
             )
             
             # Validate structure
-            validation = self._validate_project_structure(project_path, framework.value)
+            validation = self._validate_project_structure(project_path, framework.name.lower())
             config.validation_state = validation.name
             
             # Save configuration
@@ -387,24 +377,22 @@ class ProjectManager:
             
             # WAL event
             try:
-                self.wal_manager.append_event(WALEvent(
-                    event_id=f"scaffold-{name}-{intent_hash}",
-                    timestamp=datetime.now().isoformat(),
-                    repo_name="KIVA-CLI",
-                    event_type="project_scaffold",
-                    entity_id=name,
-                    action="scaffold",
-                    intent_hash=intent_hash,
-                    phi_delta=phi_delta,
-                    phi_pre=0.0,
-                    phi_post=phi_delta,
-                    status="SUCCESS",
+                self.wal_manager.append_event(
+                    operation="project_scaffold",
+                    repository="KIVA-CLI",
+                    phi_cps_delta=phi_delta,
                     metadata={
                         "project_name": name,
                         "framework": framework.value,
-                        "validation_state": validation.name
+                        "validation_state": validation.name,
+                        "intent_hash": intent_hash,
+                        "entity_id": name,
+                        "action": "scaffold",
+                        "phi_pre": 0.0,
+                        "phi_post": phi_delta,
+                        "status": "SUCCESS",
                     }
-                ))
+                )
             except Exception:
                 pass  # WAL is best-effort
             
@@ -528,23 +516,21 @@ class ProjectManager:
             
             # WAL event
             try:
-                self.wal_manager.append_event(WALEvent(
-                    event_id=f"deploy-{project_name}-{intent_hash}",
-                    timestamp=datetime.now().isoformat(),
-                    repo_name="KIVA-CLI",
-                    event_type="project_deploy",
-                    entity_id=project_name,
-                    action="deploy",
-                    intent_hash=intent_hash,
-                    phi_delta=phi_delta,
-                    phi_pre=config.phi_cps_delta - phi_delta,
-                    phi_post=config.phi_cps_delta,
-                    status="SUCCESS",
+                self.wal_manager.append_event(
+                    operation="project_deploy",
+                    repository="KIVA-CLI",
+                    phi_cps_delta=phi_delta,
                     metadata={
                         "project_name": project_name,
-                        "target": target
+                        "target": target,
+                        "intent_hash": intent_hash,
+                        "entity_id": project_name,
+                        "action": "deploy",
+                        "phi_pre": config.phi_cps_delta - phi_delta,
+                        "phi_post": config.phi_cps_delta,
+                        "status": "SUCCESS",
                     }
-                ))
+                )
             except Exception:
                 pass  # WAL is best-effort
             
@@ -669,24 +655,22 @@ class ProjectManager:
         
         # WAL event
         try:
-            self.wal_manager.append_event(WALEvent(
-                event_id=f"transition-{project_name}-{old_state.name}-{new_state.name}",
-                timestamp=datetime.now().isoformat(),
-                repo_name="KIVA-CLI",
-                event_type="project_lifecycle_transition",
-                entity_id=project_name,
-                action="transition",
-                intent_hash="",
-                phi_delta=phi_delta,
-                phi_pre=config.phi_cps_delta - phi_delta,
-                phi_post=config.phi_cps_delta,
-                status="SUCCESS",
+            self.wal_manager.append_event(
+                operation="project_lifecycle_transition",
+                repository="KIVA-CLI",
+                phi_cps_delta=phi_delta,
                 metadata={
                     "project_name": project_name,
                     "old_state": old_state.name,
-                    "new_state": new_state.name
+                    "new_state": new_state.name,
+                    "intent_hash": "",
+                    "entity_id": project_name,
+                    "action": "transition",
+                    "phi_pre": config.phi_cps_delta - phi_delta,
+                    "phi_post": config.phi_cps_delta,
+                    "status": "SUCCESS",
                 }
-            ))
+            )
         except Exception:
             pass  # WAL is best-effort
         

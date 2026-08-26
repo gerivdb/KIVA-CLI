@@ -1,0 +1,92 @@
+# .kiva/pipelines/git_meta_orchestrator.yaml
+# Git Meta-Orchestrator — Pipeline CI souverain pour maintenance git automatisee
+#
+# Usage:
+#   kiva pipeline show git_meta_orchestrator
+#   kiva pipeline run git_meta_orchestrator --dry-run
+#   kiva pipeline run git_meta_orchestrator --mode fix
+#   kiva pipeline run git_meta_orchestrator --repo CTULU
+#   kiva pipeline run git_meta_orchestrator --module branch-lifecycle
+#
+# Reference: EPIC-082, ADR-082, INTENT-082 (gerivdb/REPO-STANDARDS)
+
+name: git_meta_orchestrator
+version: "1.0"
+description: "Git Meta-Orchestrator — maintenance automatisee du cycle de vie git du metacluster"
+intent_hash: 0xGIT_META_ORCHESTRATOR_20260701
+
+on_failure: continue
+max_workers: 2
+
+# Pre-check
+steps:
+
+  # -- 1. ENV check ----------------------------------------------------------
+  - name: env-check
+    description: "Verify Python 3.10+ and GMO tool available"
+    command: "python -c \"import sys; assert sys.version_info >= (3, 10); print(f'Python {sys.version}')\" && python -c \"import yaml; print('PyYAML OK')\""
+    on_failure: abort
+    retry: 0
+
+  # -- 2. Branch Lifecycle ---------------------------------------------------
+  - name: branch-lifecycle
+    description: "Scan, classify and clean branches (PR_MERGE/DELETE/KEEP)"
+    command: "python D:\\DO\\WEB\\TOOLS\\L4-TOOLS\\CTULU\\tools\\git_meta_orchestrator\\git_meta_orchestrator.py --mode ${MODE:-audit} --module branch-lifecycle"
+    depends_on: [env-check]
+    on_failure: warn
+    retry: 0
+    when: "env.get('SKIP_BRANCH_LIFECYCLE', '0') != '1'"
+
+  # -- 3. Stash Lifecycle ----------------------------------------------------
+  - name: stash-lifecycle
+    description: "Scan stashes, classify FRESH/STALE/ZOMBIE, auto-convert if --fix"
+    command: "python D:\\DO\\WEB\\TOOLS\\L4-TOOLS\\CTULU\\tools\\git_meta_orchestrator\\git_meta_orchestrator.py --mode ${MODE:-audit} --module stash-lifecycle"
+    depends_on: [env-check]
+    on_failure: warn
+    retry: 0
+    when: "env.get('SKIP_STASH_LIFECYCLE', '0') != '1'"
+
+  # -- 4. Post-merge Sync ----------------------------------------------------
+  - name: post-merge-sync
+    description: "git fetch --prune + git pull --rebase after modifications"
+    command: "python D:\\DO\\WEB\\TOOLS\\L4-TOOLS\\CTULU\\tools\\git_meta_orchestrator\\git_meta_orchestrator.py --mode ${MODE:-audit} --module post-merge-sync"
+    depends_on: [branch-lifecycle, stash-lifecycle]
+    on_failure: warn
+    retry: 0
+    when: "env.get('SKIP_POST_MERGE_SYNC', '0') != '1'"
+
+  # -- 5. WIP Detector ------------------------------------------------------
+  - name: wip-detector
+    description: "Validate branch naming against ADR-011"
+    command: "python D:\\DO\\WEB\\TOOLS\\L4-TOOLS\\CTULU\\tools\\git_meta_orchestrator\\git_meta_orchestrator.py --mode ${MODE:-audit} --module wip-detector"
+    depends_on: [env-check]
+    on_failure: warn
+    retry: 0
+    when: "env.get('SKIP_WIP_DETECTOR', '0') != '1'"
+
+  # -- 6. Pre-push Path Audit ------------------------------------------------
+  - name: pre-push-path-audit
+    description: "Verify remote URL and HEAD branch before push"
+    command: "python D:\\DO\\WEB\\TOOLS\\L4-TOOLS\\CTULU\\tools\\git_meta_orchestrator\\git_meta_orchestrator.py --mode ${MODE:-audit} --module pre-push-path-audit"
+    depends_on: [env-check]
+    on_failure: warn
+    retry: 0
+    when: "env.get('SKIP_PRE_PUSH_AUDIT', '0') != '1'"
+
+  # -- 7. Diff0-fork Review --------------------------------------------------
+  - name: diff0-fork-review
+    description: "Trigger automatic PR review via diff0-fork"
+    command: "python D:\\DO\\WEB\\TOOLS\\L4-TOOLS\\CTULU\\tools\\git_meta_orchestrator\\git_meta_orchestrator.py --mode ${MODE:-audit} --module diff0-fork"
+    depends_on: [env-check]
+    on_failure: warn
+    retry: 0
+    when: "env.get('SKIP_DIFF0_FORK', '0') != '1'"
+
+  # -- 8. Summary ------------------------------------------------------------
+  - name: summary
+    description: "Print GMO summary"
+    command: "python D:\\DO\\WEB\\TOOLS\\L4-TOOLS\\CTULU\\tools\\git_meta_orchestrator\\git_meta_orchestrator.py --mode ${MODE:-audit} --report-only"
+    depends_on: [branch-lifecycle, stash-lifecycle, post-merge-sync, wip-detector, pre-push-path-audit, diff0-fork-review]
+    on_failure: warn
+    retry: 0
+

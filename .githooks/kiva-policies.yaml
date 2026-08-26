@@ -1,0 +1,26 @@
+gate_id: KIVA_PRE_DESTRUCT
+type: pre_commit
+layer: N+3
+induration_risk: medium
+cost_obedience_seconds: 120
+bypass_mechanism: "--no-verify"
+bypass_logging: mandatory
+wal_channel: induration
+alert_threshold_i_score: 0.3
+redesign_threshold_i_score: 0.5
+owner: "gerivdb/KIVA-CLI"
+description: "Repo Identity Guard - prevents destructive operations without .repo-identity.yaml"
+
+---
+gate_id: KIVA_PRE_PUSH
+type: pre_push
+layer: N+3
+induration_risk: low
+cost_obedience_seconds: 30
+bypass_mechanism: "--no-verify"
+bypass_logging: optional
+wal_channel: induration
+alert_threshold_i_score: 0.3
+redesign_threshold_i_score: 0.5
+owner: "gerivdb/KIVA-CLI"
+description: "Branch taxonomy + Conventional Commits + RSS-v2 lint"

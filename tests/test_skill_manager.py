@@ -5,7 +5,7 @@ Unit tests for SkillManager
 import pytest
 import tempfile
 from pathlib import Path
-from tools.ecosystem.skill_manager import SkillManager, SkillType
+from tools.ecosystem.skill_manager import SkillManager, SkillType, ValidationState as SkillValidationState
 from kiva_cli.core.pipeline_manager import ValidationState
 
 class TestSkillRegistry:
@@ -67,7 +67,7 @@ class TestSkillExecution:
             )
             
             result = sm.execute_skill("echo")
-            assert result['validation_state'] == ValidationState.SUCCESS
+            assert result['validation_state'] == SkillValidationState.SUCCESS
             assert 'Output from skill' in result['output']
     
     def test_execute_skill_failure(self):
@@ -83,7 +83,7 @@ class TestSkillExecution:
             )
             
             result = sm.execute_skill("fail")
-            assert result['validation_state'] == ValidationState.FAILED
+            assert result['validation_state'] == SkillValidationState.FAILED
             assert result['exit_code'] == 1
     
     def test_execute_nonexistent_skill(self):
@@ -92,7 +92,7 @@ class TestSkillExecution:
             sm = SkillManager(db_path=db_path)
             
             result = sm.execute_skill("nonexistent")
-            assert result['validation_state'] == ValidationState.FAILED
+            assert result['validation_state'] == SkillValidationState.FAILED
             assert "not found" in result['error']
 
 class TestPipelineIntegration:
@@ -127,7 +127,7 @@ class TestPipelineIntegration:
 
         # Execute step
         result = pm.execute_step(step_id)
-        assert result['validation_state'] == ValidationState.SUCCESS
+        assert result['validation_state'] == ValidationState.VALID
 
     def test_skill_execution_step_missing_skill(self, tmp_path):
         skill_db = str(tmp_path / "skills.db")
@@ -149,4 +149,4 @@ class TestPipelineIntegration:
         )
 
         result = pm.execute_step(step_id)
-        assert result['validation_state'] == ValidationState.FAILED
+        assert result['validation_state'] == ValidationState.INVALID

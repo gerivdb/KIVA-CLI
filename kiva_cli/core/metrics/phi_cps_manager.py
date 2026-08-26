@@ -27,7 +27,7 @@ class PhiCPSManager:
     def _load_ecos_root(self) -> Dict:
         """Load ECOS_ROOT.json configuration"""
         try:
-            with open(self.ecos_root_path, 'r') as f:
+            with open(self.ecos_root_path, 'r', encoding='utf-8') as f:
                 return json.load(f)
         except FileNotFoundError:
             return {

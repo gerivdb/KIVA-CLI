@@ -112,14 +112,14 @@ class PipelineManager:
                 step_type TEXT NOT NULL,
                 config TEXT,
                 order_index INTEGER DEFAULT 0,
-                status TEXT DEFAULT 'PENDING',
+                status INTEGER DEFAULT 0,
                 FOREIGN KEY (pipeline_id) REFERENCES pipelines(pipeline_id)
             );
 
             CREATE TABLE IF NOT EXISTS pipeline_executions (
                 execution_id TEXT PRIMARY KEY,
                 pipeline_id TEXT NOT NULL,
-                execution_state TEXT DEFAULT 'PENDING',
+                execution_state INTEGER DEFAULT 0,
                 started_at TEXT,
                 completed_at TEXT,
                 FOREIGN KEY (pipeline_id) REFERENCES pipelines(pipeline_id)
@@ -129,7 +129,7 @@ class PipelineManager:
                 step_execution_id TEXT PRIMARY KEY,
                 execution_id TEXT NOT NULL,
                 step_id TEXT NOT NULL,
-                status TEXT DEFAULT 'PENDING',
+                status INTEGER DEFAULT 0,
                 result TEXT,
                 started_at TEXT,
                 completed_at TEXT,
@@ -265,12 +265,12 @@ class PipelineManager:
             skill_name = step.get('config', {}).get('skill_name', '')
             sm = getattr(self, '_skill_manager', None)
             if sm is None or not sm.has_skill(skill_name):
-                self.update_step_status(step_id, ValidationState.FAILED)
-                return {'validation_state': ValidationState.FAILED, 'error': f'Skill not found: {skill_name}'}
+                self.update_step_status(step_id, ValidationState.INVALID)
+                return {'validation_state': ValidationState.INVALID, 'error': f'Skill not found: {skill_name}'}
         
         # Mark step as successful
-        self.update_step_status(step_id, ValidationState.SUCCESS)
-        return {'validation_state': ValidationState.SUCCESS}
+        self.update_step_status(step_id, ValidationState.VALID)
+        return {'validation_state': ValidationState.VALID}
 
     def list_pipelines(self, pipeline_type: PipelineType = None) -> List[Dict[str, Any]]:
         """List all pipelines, optionally filtered by type."""

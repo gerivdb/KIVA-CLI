@@ -30,7 +30,7 @@ import sqlite3
 import subprocess
 import hashlib
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Optional, Any, Tuple
 import sys
@@ -153,7 +153,7 @@ class SkillManager:
         Returns:
             Skill ID in format 'skl_<16 hex chars>'
         """
-        hash_input = f"{name}_{datetime.utcnow().isoformat()}"
+        hash_input = f"{name}_{datetime.now(timezone.utc).isoformat()}"
         hash_obj = hashlib.sha256(hash_input.encode())
         return f"skl_{hash_obj.hexdigest()[:16]}"
     
@@ -167,7 +167,7 @@ class SkillManager:
         Returns:
             IntentHash in format '0x<16 hex chars>'
         """
-        hash_input = f"{skill_id}_{operation}_{datetime.utcnow().isoformat()}"
+        hash_input = f"{skill_id}_{operation}_{datetime.now(timezone.utc).isoformat()}"
         hash_obj = hashlib.sha256(hash_input.encode())
         return f"0x{hash_obj.hexdigest()[:16].upper()}"
     
@@ -214,7 +214,7 @@ class SkillManager:
         
         skill_id = self._generate_skill_id(name)
         intent_hash = self._generate_intent_hash(skill_id, "register")
-        now = datetime.utcnow().isoformat()
+        now = datetime.now(timezone.utc).isoformat()
         
         # Initial φ-CPS for UNKNOWN state
         phi_cps = self.PHI_CPS_BASE["UNKNOWN"]
@@ -282,8 +282,8 @@ class SkillManager:
         if skill["validation_state"] == "INVALID":
             raise ValueError(f"Cannot execute INVALID skill: {skill_id}")
         
-        execution_id = f"exec_{hashlib.sha256(f'{skill_id}_{datetime.utcnow().isoformat()}'.encode()).hexdigest()[:16]}"
-        start_time = datetime.utcnow()
+        execution_id = f"exec_{hashlib.sha256(f'{skill_id}_{datetime.now(timezone.utc).isoformat()}'.encode()).hexdigest()[:16]}"
+        start_time = datetime.now(timezone.utc)
         
         result = {
             "execution_id": execution_id,
@@ -319,7 +319,7 @@ class SkillManager:
             result["status"] = "FAILED"
             result["error"] = str(e)
         
-        end_time = datetime.utcnow()
+        end_time = datetime.now(timezone.utc)
         duration_ms = int((end_time - start_time).total_seconds() * 1000)
         result["duration_ms"] = duration_ms
         
@@ -348,14 +348,14 @@ class SkillManager:
                     success_count = success_count + 1,
                     updated_at = ?
                 WHERE skill_id = ?
-            """, (datetime.utcnow().isoformat(), skill_id))
+            """, (datetime.now(timezone.utc).isoformat(), skill_id))
         else:
             cursor.execute("""
                 UPDATE skills 
                 SET execution_count = execution_count + 1,
                     updated_at = ?
                 WHERE skill_id = ?
-            """, (datetime.utcnow().isoformat(), skill_id))
+            """, (datetime.now(timezone.utc).isoformat(), skill_id))
         
         conn.commit()
         conn.close()
@@ -532,7 +532,7 @@ class SkillManager:
                 phi_cps = ?,
                 updated_at = ?
             WHERE skill_id = ?
-        """, (validation_state, new_phi_cps, datetime.utcnow().isoformat(), skill_id))
+        """, (validation_state, new_phi_cps, datetime.now(timezone.utc).isoformat(), skill_id))
         
         conn.commit()
         conn.close()
@@ -674,7 +674,7 @@ class SkillManager:
             SET linked_citizen_id = ?,
                 updated_at = ?
             WHERE skill_id = ?
-        """, (citizen_id, datetime.utcnow().isoformat(), skill_id))
+        """, (citizen_id, datetime.now(timezone.utc).isoformat(), skill_id))
         
         conn.commit()
         conn.close()

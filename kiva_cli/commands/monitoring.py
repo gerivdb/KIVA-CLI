@@ -9,6 +9,9 @@ import json
 from pathlib import Path
 from typing import Optional
 
+# Legacy compatibility functions
+from .legacy_compat import start_monitoring, get_monitoring_status, configure_alerts
+
 
 @click.group()
 def monitoring():

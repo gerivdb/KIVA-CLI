@@ -334,7 +334,7 @@ def delete_skill(skill_id: str, confirm: bool):
     
     # Archive by setting lifecycle to ARCHIVED
     import sqlite3
-    from datetime import datetime
+    from datetime import datetime, timezone
     
     conn = sqlite3.connect(manager.db_path)
     cursor = conn.cursor()
@@ -344,7 +344,7 @@ def delete_skill(skill_id: str, confirm: bool):
         SET lifecycle_state = 'ARCHIVED',
             updated_at = ?
         WHERE skill_id = ?
-    """, (datetime.utcnow().isoformat(), skill_id))
+    """, (datetime.now(timezone.utc).isoformat(), skill_id))
     
     conn.commit()
     conn.close()

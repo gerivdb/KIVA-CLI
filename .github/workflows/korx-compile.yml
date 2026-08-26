@@ -1,0 +1,146 @@
+name: KORX Compilation — MOC → .kbin + paths.k + queries
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'MOC-*.md'
+      - 'GOVERNANCE-STRUCTURE.md'
+      - 'core/korx/**'
+      - 'INTENTS/**'
+      - 'ROADMAPS/**'
+      - 'ADR/**'
+      - 'PRD/**'
+      - 'EPICS/**'
+      - 'issues/**'
+      - 'IMPENSE/**'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'MOC-*.md'
+      - 'GOVERNANCE-STRUCTURE.md'
+      - 'core/korx/**'
+      - 'INTENTS/**'
+      - 'ROADMAPS/**'
+      - 'ADR/**'
+      - 'PRD/**'
+      - 'EPICS/**'
+      - 'issues/**'
+      - 'IMPENSE/**'
+
+jobs:
+  korx-compile:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout FLUENCE
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Install KORX dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pyyaml
+      
+      - name: Compile MOC → .kbin + paths.k
+        id: korx
+        run: |
+          python core/korx/compiler.py --moc MOC-000-governance.md --paths core/korx/paths.k --out core/korx/out
+          
+          # Vérifier la taille du .kbin
+          KBIN_SIZE=$(stat -c%s core/korx/out/moc.kbin)
+          echo "KORX .kbin size: $KBIN_SIZE bytes"
+          
+          if [ "$KBIN_SIZE" -gt 512 ]; then
+            echo "::error::KORX .kbin exceeds 512 bytes: $KBIN_SIZE"
+            exit 1
+          fi
+          
+          echo "::notice::KORX .kbin compiled successfully: $KBIN_SIZE bytes"
+      
+      - name: Verify paths.k
+        run: |
+          if [ ! -f core/korx/out/paths.k ]; then
+            echo "::error::paths.k not found"
+            exit 1
+          fi
+          
+          # Vérifier que paths.k contient les chemins critiques
+          if ! grep -q "LLUX" core/korx/out/paths.k; then
+            echo "::error::paths.k missing critical path LLUX"
+            exit 1
+          fi
+          
+          if ! grep -q "BatMCP" core/korx/out/paths.k; then
+            echo "::error::paths.k missing critical path BatMCP"
+            exit 1
+          fi
+          
+          echo "::notice::paths.k verified"
+      
+      - name: Test KORX queries
+        run: |
+          # Test query: find path for llux_inference.dll
+          python core/korx/compiler.py --moc MOC-000-governance.md --paths core/korx/paths.k --query '@Q ACTION_PLAN { trigger: "path_missing", action: "compile_llux", blocker: "bin/llux_inference.dll" }'
+          
+          # Test query: phi_cps drift
+          python core/korx/compiler.py --moc MOC-000-governance.md --paths core/korx/paths.k --query '@Q ACTION_PLAN { trigger: "phi_cps_drift", action: "alert_governance", threshold: 4.559 }'
+      
+      - name: Verify vars.k
+        run: |
+          if [ ! -f core/korx/out/vars.k ]; then
+            echo "::error::vars.k not found"
+            exit 1
+          fi
+          
+          # Vérifier que vars.k contient les variables critiques
+          if ! grep -q "phi_cps_min" core/korx/out/vars.k; then
+            echo "::error::vars.k missing critical variable phi_cps_min"
+            exit 1
+          fi
+          
+          echo "::notice::vars.k verified"
+      
+      - name: Verify .mdu/checkpoint.json
+        run: |
+          if [ ! -f .mdu/checkpoint.json ]; then
+            echo "::error::.mdu/checkpoint.json not found"
+            exit 1
+          fi
+          
+          # Vérifier que le checkpoint contient les hashes
+          python -c "
+          import json
+          with open('.mdu/checkpoint.json') as f:
+            data = json.load(f)
+            if 'artifact_hashes' not in data:
+              raise ValueError('Missing artifact_hashes')
+            if 'rollback_atomic' not in data:
+              raise ValueError('Missing rollback_atomic')
+            if 'paths' not in data:
+              raise ValueError('Missing paths metadata')
+          "
+          
+          echo "::notice::.mdu/checkpoint.json verified"
+      
+      - name: Commit KORX artifacts
+        if: success()
+        run: |
+          git config user.name "KORX-AUTO"
+          git config user.email "korx-auto@ecosystem.local"
+          
+          git add core/korx/out/moc.kbin
+          git add core/korx/out/vars.k
+          git add core/korx/out/paths.k
+          git add .mdu/checkpoint.json
+          
+          git diff --cached --quiet && echo "No changes to commit" && exit 0
+          
+          git commit -m "[KORX-AUTO] chore: Recompile MOC → .kbin + vars.k + paths.k + checkpoint"
+          git push

@@ -9,7 +9,7 @@ import subprocess
 from pathlib import Path
 from typing import Dict, List, Optional, Any
 from dataclasses import dataclass, asdict
-from datetime import datetime
+from datetime import datetime, timezone
 import uuid
 
 from ..core.config_validator import ConfigValidator
@@ -80,7 +80,7 @@ class DeploymentManager:
             strategy=strategy,
             replicas=kwargs.get("replicas", 1),
             health_check=kwargs.get("health_check"),
-            created_at=datetime.utcnow().isoformat() + "Z",
+            created_at=datetime.now(timezone.utc).isoformat() + "Z",
             status="PENDING",
         )
         
@@ -166,7 +166,7 @@ class DeploymentManager:
             "original_deployment_id": deployment_id,
             "project_name": deployment.project_name,
             "environment": deployment.environment,
-            "rolled_back_at": datetime.utcnow().isoformat() + "Z",
+            "rolled_back_at": datetime.now(timezone.utc).isoformat() + "Z",
             "status": "SUCCESS",
             "intent_hash": intent_hash,
         }

@@ -40,7 +40,7 @@ def infer_check_type(gap: GapMeta) -> tuple:
     text = "{} {}".format(gap.title, gap.action).lower()
     for keyword, sub_keyword, check_type, hints in CHECK_INFERENCE_RULES:
         if keyword in text:
-            if not sub_keyword or sub_keyword in text:
+            if not sub_keyword or re.search(sub_keyword, text):
                 return check_type, hints
     return "file_exists", {"path": "{root}/TODO_path_to_check"}
 

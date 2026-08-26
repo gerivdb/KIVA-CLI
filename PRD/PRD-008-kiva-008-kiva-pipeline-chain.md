@@ -1,11 +1,16 @@
 ---
 id: PRD-008
-title: "PRD-KIVA-008 — kiva pipeline chain / AutoChainManager"
+title: PRD-KIVA-008 — kiva pipeline chain / AutoChainManager
 repo: unknown
 status: draft
-created: "2026-06-11"
+created: '2026-06-11'
 author: gerivdb
+type: '"PRD"'
+version: '"1.0"'
+date: '2026-06-11'
+intent_hash: 0xPRD_PRD_008_KIVA_008_KIVA_PIPELINE_20260611
 ---
+
 # PRD-KIVA-008 — kiva pipeline chain / AutoChainManager
 
 **ID** : `PRD-KIVA-008`

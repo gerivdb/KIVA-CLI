@@ -169,7 +169,7 @@ class TestProjectScaffolding:
         
         assert success is True
         assert config.name == "test-api"
-        assert config.framework == FrameworkType.FASTAPI.value
+        assert config.framework == FrameworkType.FASTAPI.name.lower()
         assert config.validation_state == ValidationState.VALID.name
         assert config.lifecycle_state == LifecycleState.GENESIS.name
         assert config.phi_cps_delta > 0
@@ -185,7 +185,7 @@ class TestProjectScaffolding:
         
         assert success is True
         assert config.name == "test-webapp"
-        assert config.framework == FrameworkType.REACT.value
+        assert config.framework == FrameworkType.REACT.name.lower()
         assert "typescript" in (config.dependencies or [])
         assert config.validation_state == ValidationState.VALID.name
     
@@ -197,7 +197,7 @@ class TestProjectScaffolding:
         )
         
         assert success is True
-        assert config.framework == FrameworkType.GO_SERVICE.value
+        assert config.framework == FrameworkType.GO_SERVICE.name.lower()
         assert config.lifecycle_state == LifecycleState.GENESIS.name
 
 

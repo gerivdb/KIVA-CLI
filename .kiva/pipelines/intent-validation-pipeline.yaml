@@ -33,15 +33,16 @@ steps:
   - name: gate-prereqs
     description: "GATE-0 - Pre-flight (acces aux fichiers INTENTS et registres)"
     command: |
-      $PYTHON -c "
+      python -c "
+      import os
       from pathlib import Path
       import sys
       
       paths = {
-          'INTENTS': Path('$INTENTS_PATH'),
-          'KNOWN_REPOS': Path('$KNOWN_REPOS'),
-          'INDEX_JSON': Path('$INDEX_JSON'),
-          'GOV_HUB': Path('$GOVERNANCE_HUB')
+          'INTENTS': Path(os.environ.get('INTENTS_PATH')),
+          'KNOWN_REPOS': Path(os.environ.get('KNOWN_REPOS')),
+          'INDEX_JSON': Path(os.environ.get('INDEX_JSON')),
+          'GOV_HUB': Path(os.environ.get('GOVERNANCE_HUB'))
       }
       
       errors = []
@@ -62,17 +63,17 @@ steps:
     description: "STEP-1 - Lister tous les fichiers INTENT-*.md"
     depends_on: [gate-prereqs]
     command: |
-      $PYTHON -c "
-      import json
+      python -c "
+      import os, json
       from pathlib import Path
       
-      intents_dir = Path('$INTENTS_PATH')
+      intents_dir = Path(os.environ.get('INTENTS_PATH'))
       intent_files = list(intents_dir.glob('INTENT-*.md'))
       total = len(intent_files)
       print(f'[OK] {total} INTENTs trouves')
       
       # Sauvegarder liste pour etapes suivantes
-      output_dir = Path('$OUTPUT_DIR')
+      output_dir = Path(os.environ.get('OUTPUT_DIR'))
       output_dir.mkdir(parents=True, exist_ok=True)
       
       intent_list = [f.name for f in intent_files]
@@ -90,8 +91,9 @@ steps:
     description: "STEP-2 - Validation frontmatter YAML (champs requis, statuts valides)"
     depends_on: [list-intents]
     command: |
-      $PYTHON -c "
+      python -c "
       import re, sys, glob
+      import os
       from pathlib import Path
       import yaml
       
@@ -102,7 +104,8 @@ steps:
       errors = []
       warnings = []
       
-      for intent_file in glob.glob('$INTENTS_PATH/INTENT-*.md'):
+      intents_path = os.environ.get('INTENTS_PATH')
+      for intent_file in glob.glob(os.path.join(intents_path, 'INTENT-*.md')):
           try:
               content = open(intent_file, encoding='utf-8').read()
               # Extraire frontmatter entre ---\n...\n---
@@ -165,7 +168,7 @@ steps:
     description: "STEP-3 - Verifier unicite globale intent_hash (vs INDEX.json)"
     depends_on: [list-intents]
     command: |
-      $PYTHON -c "
+      python -c "
       import re, sys, json
       import glob
       from pathlib import Path
@@ -173,7 +176,8 @@ steps:
       
       # Charger INDEX.json
       try:
-          with open('$INDEX_JSON', 'r') as f:
+          index_json = os.environ.get('INDEX_JSON')
+          with open(index_json, 'r') as f:
               index_data = json.load(f)
           # INDEX.json peut etre une liste ou un dict
           if isinstance(index_data, list):
@@ -225,14 +229,16 @@ steps:
     description: "STEP-4 - Valider references gerivdb/* vers repos existants"
     depends_on: [list-intents]
     command: |
-      $PYTHON -c "
+      python -c "
       import re, sys, glob
+      import os
       from pathlib import Path
       import yaml
       
       # Charger known_repositories.yaml
       try:
-          with open('$KNOWN_REPOS', 'r') as f:
+          known_repos = os.environ.get('KNOWN_REPOS')
+          with open(known_repos, 'r') as f:
               repos_data = yaml.safe_load(f)
           known_repo_names = {r['name'] for r in repos_data.get('repositories', [])}
           print(f'[OK] {len(known_repo_names)} repos connus dans known_repositories.yaml')
@@ -243,7 +249,8 @@ steps:
       reference_pattern = r'gerivdb/[\w\-]+'
       suspect_refs = []
       
-      for intent_file in glob.glob('$INTENTS_PATH/INTENT-*.md'):
+      intents_path = os.environ.get('INTENTS_PATH')
+      for intent_file in glob.glob(os.path.join(intents_path, 'INTENT-*.md')):
           try:
               content = open(intent_file, encoding='utf-8').read()
               refs = re.findall(reference_pattern, content)
@@ -272,14 +279,16 @@ steps:
     description: "STEP-5 - Auto-correction mineure frontmatter (owner, repo defaults)"
     depends_on: [validate-frontmatter, check-intent-hash-uniqueness, validate-gerivdb-references]
     command: |
-      $PYTHON -c "
+      python -c "
       import re, sys, glob
+      import os
       from pathlib import Path
       import yaml
       
       fixed_count = 0
       
-      for intent_file in glob.glob('$INTENTS_PATH/INTENT-*.md'):
+      intents_path = os.environ.get('INTENTS_PATH')
+      for intent_file in glob.glob(os.path.join(intents_path, 'INTENT-*.md')):
           try:
               content = open(intent_file, encoding='utf-8').read()
               m = re.match(r'(---\n.*?\n---)', content, re.DOTALL)
@@ -328,17 +337,19 @@ steps:
     description: "STEP-6 - Generation du rapport de validation INTENTs"
     depends_on: [validate-frontmatter, check-intent-hash-uniqueness, validate-gerivdb-references, auto-fix-minor]
     command: |
-      $PYTHON -c "
+      python -c "
       import json
+      import os
       from pathlib import Path
       from datetime import datetime
       import glob
       
-      output_dir = Path('$OUTPUT_DIR')
+      output_dir = Path(os.environ.get('OUTPUT_DIR'))
       timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
       
       # Compter INTENTs
-      intent_files = list(glob.glob('$INTENTS_PATH/INTENT-*.md'))
+      intents_path = os.environ.get('INTENTS_PATH')
+      intent_files = list(glob.glob(os.path.join(intents_path, 'INTENT-*.md')))
       
       report = {
           'pipeline': 'intent-validation-pipeline',
@@ -374,12 +385,13 @@ steps:
     description: "Archive - Organisation par date YYYY-MM-DD/"
     depends_on: [generate-validation-report]
     command: |
-      $PYTHON -c "
+      python -c "
       import shutil
+      import os
       from pathlib import Path
       from datetime import datetime
       
-      src = Path('$OUTPUT_DIR')
+      src = Path(os.environ.get('OUTPUT_DIR'))
       dest = src / datetime.now().strftime('%Y-%m-%d')
       dest.mkdir(parents=True, exist_ok=True)
       

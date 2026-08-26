@@ -18,7 +18,7 @@ import json
 import logging
 import time
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Dict, List, Optional, Tuple
 
@@ -135,8 +135,8 @@ class BranchProtectionHandlerSkill:
         """Lazy-load GitHub client."""
         if self._github_client is None:
             try:
-                from github import Github
-                self._github_client = Github(self.github_token)
+                from github import Github, Auth
+                self._github_client = Github(auth=Auth.Token(self.github_token))
             except ImportError:
                 raise RuntimeError(
                     "PyGithub not installed. Run: pip install PyGithub"
@@ -253,7 +253,7 @@ class BranchProtectionHandlerSkill:
                 if merge_result:
                     workflow.pr_status = PRStatus.MERGED
                     workflow.merge_commit_sha = merge_result["sha"]
-                    workflow.merged_at = datetime.utcnow().isoformat()
+                    workflow.merged_at = datetime.now(timezone.utc).isoformat()
                     
                     self.logger.info(
                         f"PR #{pr.number} merged: {workflow.merge_commit_sha[:8]}"
@@ -300,7 +300,7 @@ class BranchProtectionHandlerSkill:
     
     def _generate_feature_branch_name(self, base_branch: str) -> str:
         """Generate unique feature branch name."""
-        timestamp = datetime.utcnow().strftime("%Y%m%d%H%M%S")
+        timestamp = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
         return f"ecos-auto/{base_branch}-{timestamp}"
 
     def generate_feature_branch_name(self, base_branch: str = "main") -> str:

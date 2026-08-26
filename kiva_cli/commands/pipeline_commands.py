@@ -19,6 +19,7 @@ import click
 from kiva_cli.core.pipeline_loader import detect_cycles, load_pipeline, resolve_order
 from kiva_cli.core.pipeline_types import HAS_PIPELINE, StepResult
 from kiva_cli.core.auto_chain_manager import AutoChainManager, get_auto_chain_manager
+from kiva_cli.core.pipeline_runner import run_pipeline
 
 
 # ---------------------------------------------------------------------------
@@ -32,8 +33,15 @@ _SEP   = "-"   # table separator
 _PIPE  = "|"
 _ARROW = "->"  # step description
 
-# High-level orchestrator (PRD-KIVA-008)
-_manager = get_auto_chain_manager()
+# High-level orchestrator (PRD-KIVA-008) — lazy to allow test monkeypatching
+_manager = None
+
+
+def _get_manager() -> AutoChainManager:
+    global _manager
+    if _manager is None:
+        _manager = get_auto_chain_manager()
+    return _manager
 
 
 def _pipelines_dir() -> Path:
@@ -117,23 +125,23 @@ def pipeline_cli():
 @pipeline_cli.command("list")
 def pipeline_list():
     """List all named declarative pipelines (KIVA-008)."""
-    names = _manager.list_pipelines()
+    names = _get_manager().list_pipelines()
     if not names:
         click.echo("No pipelines found.")
-        click.echo(f"Add YAML files in {_manager.pipelines_dir}")
+        click.echo(f"Add YAML files in {_get_manager().pipelines_dir}")
         return
 
     click.echo(f"Available pipelines ({len(names)}):")
     for name in names:
         try:
-            p = _manager.get_pipeline(name)
+            p = _get_manager().get_pipeline(name)
             pg_hint = f"  [{len(getattr(p, 'parallel_groups', []))} group(s)]" if getattr(p, 'parallel_groups', None) else ""
             desc = getattr(p, 'description', '') or ''
             click.echo(f"  {name:<24} {len(p.steps)} steps{pg_hint}   {desc[:52]}")
         except Exception as e:
             click.echo(f"  {name:<24} [ERROR] {e}")
         except Exception as exc:
-            click.echo(f"  {y.stem:<24} [PARSE ERROR] {exc}")
+            click.echo(f"  {name:<24} [PARSE ERROR] {exc}")
 
 
 # ---------------------------------------------------------------------------
@@ -144,7 +152,7 @@ def pipeline_list():
 @click.argument("name")
 def pipeline_validate(name: str):
     """Validate a named declarative pipeline (KIVA-008)."""
-    result = _manager.validate(name)
+    result = _get_manager().validate(name)
     if not result.valid:
         click.echo(f"[FAIL] Pipeline '{name}' is invalid:", err=True)
         for e in result.errors:
@@ -155,7 +163,6 @@ def pipeline_validate(name: str):
     if result.warnings:
         for w in result.warnings:
             click.echo(f"  [WARN] {w}")
-        click.echo(f"  {s.name:<24} on_failure={s.on_failure:<8}{deps}{when_hint}")
 
 
 # ---------------------------------------------------------------------------
@@ -292,6 +299,11 @@ def pipeline_run(name: Optional[str], steps_list: Optional[str], dry_run: bool, 
     if ci:
         os.environ["KIVA_CI"] = "1"
 
+    # --- Mutual exclusivity: NAME vs --steps ---
+    if name and steps_list:
+        click.echo("[ERROR] NAME and --steps are mutually exclusive. Use either a pipeline NAME or --steps, not both.", err=True)
+        raise SystemExit(1)
+
     # --- KIVA-008: ad-hoc mode via --steps (KIVA-007 compatibility) ---
     if steps_list:
         steps = [s.strip() for s in steps_list.split(",") if s.strip()]
@@ -299,7 +311,10 @@ def pipeline_run(name: Optional[str], steps_list: Optional[str], dry_run: bool, 
             click.echo("[ERROR] --steps requires at least one command", err=True)
             raise SystemExit(1)
 
-        result = _manager.run_adhoc(steps, dry_run=dry_run, verbose=verbose)
+        if from_step:
+            click.echo("[WARN] --from is ignored in --steps mode", err=True)
+
+        result = _get_manager().run_adhoc(steps, dry_run=dry_run, verbose=verbose)
 
         # Minimal reporting for ad-hoc mode
         click.echo(f"\nAd-hoc chain finished: {result.status}")
@@ -361,8 +376,6 @@ def pipeline_run(name: Optional[str], steps_list: Optional[str], dry_run: bool, 
             raise SystemExit(1)
     else:
         p_to_run = p
-
-    from kiva_cli.core.pipeline_runner import run_pipeline
 
     result = run_pipeline(p_to_run, dry_run=dry_run, verbose=verbose)
 

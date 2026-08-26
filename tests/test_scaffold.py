@@ -149,7 +149,7 @@ class TestCLIIntegration:
         rc = cmd_scaffold_scanner(ns)
         assert rc == 0
         # Only SGR-TEST-001 should be created (SGR-CLOSED-001 is closed)
-        created = list(tmp_path.glob("*.yaml"))
+        created = [f for f in tmp_path.glob("*.yaml") if f.name != "GAP_REPORT.yaml"]
         assert len(created) == 1
 
     def test_gap_id_mode(self, mock_report, tmp_path, capsys):
@@ -161,5 +161,5 @@ class TestCLIIntegration:
         )
         rc = cmd_scaffold_scanner(ns)
         assert rc == 0
-        created = list(tmp_path.glob("*.yaml"))
+        created = [f for f in tmp_path.glob("*.yaml") if f.name != "GAP_REPORT.yaml"]
         assert len(created) == 1

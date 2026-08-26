@@ -1,6 +1,37 @@
 # KIVA CLI - Deployment Commands
+import os
 import click
 from ..core.deployment_manager import DeploymentManager
+
+# Legacy compatibility functions
+from .legacy_compat import check_deployment_status, execute_deployment, validate_config
+
+
+def deploy_project(project: str, environment: str = "staging",
+                   validate: bool = True) -> dict:
+    """Deploy a project to specified environment (legacy dict wrapper)."""
+    if validate and not validate_config({"app_name": project}):
+        return {
+            "status": "FAILED",
+            "message": "Validation failed for project configuration",
+        }
+    try:
+        result = execute_deployment(project=project, environment=environment)
+        if isinstance(result, dict) and result.get("status") == "FAILED":
+            return result
+        return {
+            "status": "SUCCESS",
+            "deployment_id": result.get("deployment_id", "dep-{}-{}-{}".format(project, environment, os.getpid())),
+            "project": project,
+            "environment": environment,
+        }
+    except Exception as exc:
+        return {
+            "status": "FAILED",
+            "error": str(exc),
+            "project": project,
+            "environment": environment,
+        }
 
 @click.group()
 def deploy():

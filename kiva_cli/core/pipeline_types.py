@@ -184,6 +184,9 @@ class Pipeline:
     on_failure: Literal["abort", "warn", "continue", "notify"] = "abort"
     """Pipeline-level default on_failure; overridden per-step."""
 
+    env: Dict[str, str] = field(default_factory=dict)
+    """Pipeline-level environment variables inherited by all steps."""
+
     raw: Dict[str, Any] = field(default_factory=dict)
     """Original parsed YAML dict, preserved for debugging."""
 

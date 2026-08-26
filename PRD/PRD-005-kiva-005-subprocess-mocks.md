@@ -1,11 +1,16 @@
 ---
 id: PRD-005
-title: "PRD-KIVA-005 — Subprocess Mock Orchestrator"
+title: PRD-KIVA-005 — Subprocess Mock Orchestrator
 repo: unknown
 status: draft
-created: "2026-06-11"
+created: '2026-06-11'
 author: gerivdb
+type: '"PRD"'
+version: '"1.0"'
+date: '2026-06-11'
+intent_hash: 0xPRD_PRD_005_KIVA_005_SUBPROCESS_MO_20260611
 ---
+
 # PRD-KIVA-005 — Subprocess Mock Orchestrator
 
 ## Métadonnées

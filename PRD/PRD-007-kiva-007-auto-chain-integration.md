@@ -1,11 +1,16 @@
 ---
 id: PRD-007
-title: "PRD-KIVA-007 — AutoChain Integration Layer (KIVA-CLI)"
+title: PRD-KIVA-007 — AutoChain Integration Layer (KIVA-CLI)
 repo: unknown
 status: draft
-created: "2026-06-11"
+created: '2026-06-11'
 author: gerivdb
+type: '"PRD"'
+version: '"1.0"'
+date: '2026-06-11'
+intent_hash: 0xPRD_PRD_007_KIVA_007_AUTO_CHAIN_IN_20260611
 ---
+
 # PRD-KIVA-007 — AutoChain Integration Layer (KIVA-CLI)
 
 ## Métadonnées

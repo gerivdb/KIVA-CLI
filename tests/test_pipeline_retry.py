@@ -47,7 +47,7 @@ class TestRetryFeature:
 
         side_effects = {"step1": _fail("step1")}
 
-        def _mock_run_step(step, dry_run=False, verbose=False):
+        def _mock_run_step(step, dry_run=False, verbose=False, **kwargs):
             return side_effects[step.name]
 
         with patch("kiva_cli.core.pipeline_runner._run_step_with_retry", side_effect=_mock_run_step):
@@ -64,7 +64,7 @@ class TestRetryFeature:
 
         call_count = {"count": 0}
 
-        def _mock_run_step(step, dry_run=False, verbose=False):
+        def _mock_run_step(step, dry_run=False, verbose=False, **kwargs):
             call_count["count"] += 1
             # Fail first, succeed second
             if call_count["count"] == 1:
@@ -85,7 +85,7 @@ class TestRetryFeature:
 
         call_count = {"count": 0}
 
-        def _mock_run_step(step, dry_run=False, verbose=False):
+        def _mock_run_step(step, dry_run=False, verbose=False, **kwargs):
             call_count["count"] += 1
             return _fail("step1")
 
@@ -107,7 +107,7 @@ class TestRetryFeature:
 
         call_count = {"count": 0}
 
-        def _mock_run_step(step, dry_run=False, verbose=False):
+        def _mock_run_step(step, dry_run=False, verbose=False, **kwargs):
             call_count["count"] += 1
             if step.name == "retry_step":
                 # Always fail
@@ -138,7 +138,7 @@ class TestRetryFeature:
 
         call_count = {"a": 0, "b": 0}
 
-        def _mock_run_step(step, dry_run=False, verbose=False):
+        def _mock_run_step(step, dry_run=False, verbose=False, **kwargs):
             call_count[step.name] += 1
             if step.name == "a":
                 # Fail first, succeed second
@@ -167,7 +167,7 @@ class TestRetryFeature:
 
         call_counts = {"s1": 0, "s2": 0, "s3": 0}
 
-        def _mock_run_step(step, dry_run=False, verbose=False):
+        def _mock_run_step(step, dry_run=False, verbose=False, **kwargs):
             call_counts[step.name] += 1
             if step.name == "s1":
                 return _success("s1") if call_counts["s1"] > 1 else _fail("s1")
@@ -188,7 +188,7 @@ class TestRetryFeature:
 
         call_count = {"count": 0}
 
-        def _mock_run_step(step, dry_run=False, verbose=False):
+        def _mock_run_step(step, dry_run=False, verbose=False, **kwargs):
             call_count["count"] += 1
             if call_count["count"] == 1:
                 # Simulate timeout on first attempt
@@ -219,7 +219,7 @@ class TestRetryFeature:
 
         call_count = {"count": 0}
 
-        def _mock_run_step(step, dry_run=False, verbose=False):
+        def _mock_run_step(step, dry_run=False, verbose=False, **kwargs):
             call_count["count"] += 1
             if step.name == "alert_step":
                 # Fail first, fail second (exhaust retries)

@@ -1,10 +1,14 @@
 ---
+type: "PRD"
+version: "1.0"
+date: "2026-06-11"
 id: PRD-001
 title: "PRD-KIVA-001 — Test-Repair Agent"
-repo: unknown
-status: draft
+repo: gerivdb/KIVA-CLI
+status: archived
 created: "2026-06-11"
 author: gerivdb
+intent_hash: 0xPRD_KIVA_001_TEST_REPAIR_20260611
 ---
 # PRD-KIVA-001 — Test-Repair Agent
 

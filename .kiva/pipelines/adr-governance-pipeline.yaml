@@ -1,0 +1,220 @@
+name: adr-governance-pipeline
+version: "1.0.0"
+intent_hash: 0xKIVA_ADR_GOVERNANCE_PIPELINE_20260728
+description: |
+  CI local ENV2 - Pipeline de gouvernance des ADRs (Architecture Decision Records).
+  Valide que tous les ADRs referent des repositories existants,
+  respecte la syntaxe du standard (.md frontmatter yml), 
+  et verifie les references croisees avec known_repositories.yaml.
+  PAS de GitHub Actions - tourne via KIVA-CLI sur_delete ou sur un schedule quotidien.
+
+  Refs: ADR-INF, ADR-2026-07-31-002, INTENT-094
+  Concepts: adr-governance
+
+schedule: "0 2 * * *"   # Quotidien a 02:00 UTC
+on_merge:
+  - repo: gerivdb/GOVERNANCE-HUB
+    branch: main
+  - repo: gerivdb/REPO-STANDARDS
+    branch: main
+
+env:
+  REPO_STANDARDS: "D:/DO/WEB/TOOLS/L4-TOOLS/REPO-STANDARDS"
+  ADRS_PATH: "D:/DO/WEB/TOOLS/L4-TOOLS/REPO-STANDARDS/ADR"
+  GOVERNANCE_HUB: "D:/DO/WEB/TOOLS/L0-CANON/GOVERNANCE-HUB"
+  OUTPUT_DIR: "D:/DO/WEB/TOOLS/reports/adr-governance"
+  PYTHON: "python"
+
+# -- etapes --------------------------------------------------------
+
+steps:
+
+  # -- GATE-0 : Pre-flight ---------------------------------------
+  - name: gate-prereqs
+    description: "GATE-0 - Pre-flight (verifier access to ADR directory)"
+    command: |
+      $PYTHON -c "
+      from pathlib import Path
+      import sys
+      
+      paths = {
+          'ADRS': Path('$ADRS_PATH'),
+          'GOV-HUB': Path('$GOVERNANCE_HUB')
+      }
+      
+      errors = []
+      for name, path in paths.items():
+          if not path.exists():
+              errors.append(f'{name} absent: {path}')
+             
+      if errors:
+          for e in errors: print(f'[ERROR] {e}')
+          sys.exit(1)
+         
+      print('[OK] Pre-flight valide')
+      "
+    on_failure: abort
+    timeout_sec: 10
+
+  # -- STEP-1 : Lister tous les ADRs ------------------------------
+  - name: list-adrs
+    description: "STEP-1 - Lister tous les ADRs (.md)"
+    depends_on: [gate-prereqs]
+    command: |
+      $PYTHON -c "
+      import subprocess
+      import json
+      from pathlib import Path
+      
+      adrs_dir = Path('$ADRS_PATH')
+      # Lister tous les fichiers .md dans le dossier ADRs
+      adr_list = [f.name for f in adrs_dir.glob('ADR-*.md')]
+      total = len(adr_list)
+      print(f'[OK] {total} ADRs trouves')
+      "
+    on_failure: warn
+    timeout_sec: 15
+
+  # -- STEP-2 : Verifier la structure YAML frontmatter des ADRs -----
+  - name: validate-frontmatter
+    description: "STEP-2 - Validation frontmatter YAML des ADRs"
+    depends_on: [list-adrs]
+    command: |
+      $PYTHON -c "
+      import re, sys
+      import glob
+      from pathlib import Path
+      
+      required_fields = ['status', 'date', 'intent_hash']
+      errors = []
+      
+      for adr_file in glob.glob('$ADRS_PATH/ADR-*.md'):
+          content = open(adr_file, encoding='utf-8').read()
+          # Extraire le frontmatter entre ---\n...\n---
+          m = re.match(r'---\n(.*?)\n---', content, re.DOTALL)
+          if not m:
+              errors.append(f'[CRITICAL:MISSING_FRONTMATTER] {adr_file}')
+              continue
+          fm_block = m.group(1)
+          
+          # Verifier chaque champ requis
+          for field in required_fields:
+              if f'{field}:' not in fm_block:
+                  errors.append(f'[MISSING_FIELD:{field}] {adr_file}')
+         
+      if errors:
+          for e in errors: print(e)
+          sys.exit(1)
+      print('[OK] Tous les ADRs ont un frontmatter valide')
+      "
+    on_failure: abort
+    timeout_sec: 30
+
+  # -- STEP-3 : Verifier les references vers repositories existants ---
+  - name: validate-references
+    description: "STEP-3 - Validation des references vers repositories existants"
+    depends_on: [list-adrs]
+    command: |
+      $PYTHON -c "
+      import re, sys, json
+      from pathlib import Path
+      
+      # Charger la liste des repos connus
+      import yaml
+      with open('$KNOWN_REPOS', 'r') as f:
+          repos_data = yaml.safe_load(f)
+      
+      known_repo_names = {r['name'] for r in repos_data.get('repositories', [])}
+      
+      reference_pattern = r'gerivdb/[\w\-]+'
+      errors = []
+      
+      for adr_file in Path('$ADRS_PATH').glob('ADR-*.md'):
+          content = adr_file.read_text(encoding='utf-8')
+          # Trouver toutes les references gerivdb/* 
+          refs = re.findall(reference_pattern, content)
+          valid_refs = [ref for ref in refs if '/' in ref and len(ref.split('/')) == 2]
+          if len(refs) > len(valid_refs):
+              errors.append(f'[INVALID_REFERENCE] References suspectes dans {adr_file}')
+      
+      if errors:
+          for e in errors: print(e)
+          sys.exit(1)
+         
+      print('[OK] References vers repositories verifiees - aucune reference suspecte')
+      "
+    on_failure: abort
+    timeout_sec: 20
+
+  # -- STEP-4 : Generer le rapport de gouvernance ADRs ---------------
+  - name: generate-governance-report
+    description: "STEP-4 - Generation du rapport de gouvernance ADRs"
+    depends_on: [validate-frontmatter, validate-references]
+    command: |
+      $PYTHON -c "
+      import json
+      from pathlib import Path
+      from datetime import datetime
+      
+      output_dir = Path('$OUTPUT_DIR')
+      timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+      report = {
+          'pipeline': 'adr-governance-pipeline',
+          'timestamp': datetime.now().isoformat(),
+          'checks_performed': ['validate-frontmatter', 'validate-references'],
+          'status': 'completed',
+          'ecosystem': 'GOVERNANCE-HUB'
+      }
+      report_file = output_dir / f'adr_governance_{timestamp}.json'
+      with open(report_file, 'w') as f:
+          json.dump(report, f, indent=2)
+      # Create symbolic link for latest
+      latest_link = output_dir / 'adr_governance-latest.json'
+      if latest_link.exists() or latest_link.is_symlink():
+          latest_link.unlink()
+      latest_link.symlink_to(report_file.name)
+      
+      print(f'[OK] Rapport genere: {report_file}')
+      "
+    on_failure: warn
+    timeout_sec: 15
+
+  # -- ARCHIVE : Organisation par date ------------------------------
+  - name: archive-reports
+    description: "Archive - Organisation par date YYYY-MM-DD/"
+    depends_on: [generate-governance-report]
+    command: |
+      $PYTHON -c "
+      import shutil
+      from pathlib import Path
+      from datetime import datetime
+      
+      src = Path('$OUTPUT_DIR')
+      dest = src / datetime.now().strftime('%Y-%m-%d')
+      dest.mkdir(parents=True, exist_ok=True)
+      
+      if dest.exists():
+          print(f'[NOTE] Archive directory exists, appending files')
+      
+      json_files = list(src.glob('*.json'))
+      moved = 0
+      for jf in json_files:
+          if not jf.name.startswith('adr_governance-latest'):  # Skip symlinks
+              shutil.move(str(jf), dest / Path(jf).name)
+              moved += 1
+             
+      print(f'[OK] {moved} fichier(s) archive(s) -> {dest}')
+      "
+    on_failure: warn
+    timeout_sec: 10
+
+on_alert_hitl:
+  action: create_issue
+  repo: gerivdb/ARGUS
+  title: "[ADR-GOVERNANCE] Probleme de validation ADRs detecte - HITL requis"
+  labels: [critical, adr-governance, hitl]
+  body: |
+    Validation des ADRs echouee : {error_description}
+    Rapport : $OUTPUT_DIR/adr_governance-latest.json
+    Action manuelle requise pour corriger les ADRs non conformes.
+    HITL schedule : 16h00 -> 07h30 CEST

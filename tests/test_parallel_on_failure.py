@@ -86,7 +86,7 @@ class TestOnFailureAbortInGroup:
             "seq-after": _success("seq-after"),
         }
 
-        def _mock_run_step(step, dry_run=False, verbose=False):
+        def _mock_run_step(step, dry_run=False, verbose=False, **kwargs):
             return side_effects[step.name]
 
         with patch("kiva_cli.core.pipeline_runner._run_step", side_effect=_mock_run_step):
@@ -98,12 +98,72 @@ class TestOnFailureAbortInGroup:
         assert result.parallel_groups_executed == 1
 
     def test_abort_marks_only_the_failing_step_failed(self):
-        # Similar setup, ensure only the aborting step keeps FAILED status
-        ...
+        """Only the failing step keeps FAILED; siblings keep their real status."""
+        steps = [
+            _make_step("pre"),
+            _make_step("a", on_failure="abort"),
+            _make_step("b", on_failure="abort"),
+            _make_step("c", on_failure="abort"),
+            _make_step("seq-after", depends_on=["a", "b", "c"]),
+        ]
+        pipeline = Pipeline(
+            name="abort-only-failing",
+            steps=steps,
+            parallel_groups=[["a", "b", "c"]],
+        )
+
+        side_effects = {
+            "pre": _success("pre"),
+            "a": _fail("a"),
+            "b": _success("b"),
+            "c": _success("c"),
+            "seq-after": _success("seq-after"),
+        }
+
+        def _mock_run_step(step, dry_run=False, verbose=False, **kwargs):
+            return side_effects[step.name]
+
+        with patch("kiva_cli.core.pipeline_runner._run_step", side_effect=_mock_run_step):
+            result = run_pipeline(pipeline, dry_run=False)
+
+        assert result.status == "ABORTED"
+        assert any(r.step_name == "a" and r.status == "FAILED" for r in result.steps)
+        assert any(r.step_name == "b" and r.status == "SUCCESS" for r in result.steps)
+        assert any(r.step_name == "c" and r.status == "SUCCESS" for r in result.steps)
+        assert any(r.step_name == "seq-after" and r.status == "SKIPPED" for r in result.steps)
 
     def test_abort_inside_group_still_executes_all_group_members(self):
-        # Because they run concurrently, the other members of the group must finish
-        ...
+        """All members of the parallel group finish even when one aborts."""
+        completion_order = []
+
+        def run_step(step, **kwargs):
+            completion_order.append(step.name)
+            if step.name == "fail-me":
+                return _fail("fail-me")
+            return _success(step.name)
+
+        steps = [
+            _make_step("pre"),
+            _make_step("fail-me", on_failure="abort"),
+            _make_step("ok-1", on_failure="abort"),
+            _make_step("ok-2", on_failure="abort"),
+            _make_step("seq-after", depends_on=["fail-me", "ok-1", "ok-2"]),
+        ]
+        pipeline = Pipeline(
+            name="abort-all-members",
+            steps=steps,
+            parallel_groups=[["fail-me", "ok-1", "ok-2"]],
+        )
+
+        with patch("kiva_cli.core.pipeline_runner._run_step", side_effect=run_step):
+            result = run_pipeline(pipeline, dry_run=False)
+
+        # All group members were executed
+        assert "fail-me" in completion_order
+        assert "ok-1" in completion_order
+        assert "ok-2" in completion_order
+        assert result.status == "ABORTED"
+        assert any(r.step_name == "seq-after" and r.status == "SKIPPED" for r in result.steps)
 
 
 # ---------------------------------------------------------------------------
@@ -137,7 +197,7 @@ class TestOnFailureWarnInGroup:
             "seq-after": _success("seq-after"),
         }
 
-        def _mock_run_step(step, dry_run=False, verbose=False):
+        def _mock_run_step(step, dry_run=False, verbose=False, **kwargs):
             return side_effects[step.name]
 
         with patch("kiva_cli.core.pipeline_runner._run_step", side_effect=_mock_run_step):
@@ -148,10 +208,66 @@ class TestOnFailureWarnInGroup:
         assert any(r.step_name == "seq-after" and r.status == "SUCCESS" for r in result.steps)
 
     def test_warn_keeps_group_siblings_running(self):
-        ...
+        """Siblings in a warn group finish even if one member fails."""
+        completion_order = []
+
+        def run_step(step, **kwargs):
+            completion_order.append(step.name)
+            if step.name == "fail-me":
+                return _fail("fail-me")
+            return _success(step.name)
+
+        steps = [
+            _make_step("pre"),
+            _make_step("fail-me", on_failure="warn"),
+            _make_step("ok-1", on_failure="warn"),
+            _make_step("ok-2", on_failure="warn"),
+            _make_step("seq-after"),
+        ]
+        pipeline = Pipeline(
+            name="warn-siblings-run",
+            steps=steps,
+            parallel_groups=[["fail-me", "ok-1", "ok-2"]],
+        )
+
+        with patch("kiva_cli.core.pipeline_runner._run_step", side_effect=run_step):
+            result = run_pipeline(pipeline, dry_run=False)
+
+        assert "ok-1" in completion_order
+        assert "ok-2" in completion_order
+        assert result.status == "PARTIAL"
+        assert any(r.step_name == "fail-me" and r.status == "FAILED" for r in result.steps)
+        assert any(r.step_name == "ok-1" and r.status == "SUCCESS" for r in result.steps)
+        assert any(r.step_name == "seq-after" and r.status == "SUCCESS" for r in result.steps)
 
     def test_warn_records_failure_but_does_not_abort(self):
-        ...
+        """warn must leave the pipeline as PARTIAL, not ABORTED."""
+        steps = [
+            _make_step("pre"),
+            _make_step("a", on_failure="warn"),
+            _make_step("seq-after"),
+        ]
+        pipeline = Pipeline(
+            name="warn-no-abort",
+            steps=steps,
+            parallel_groups=[["a"]],
+        )
+
+        side_effects = {
+            "pre": _success("pre"),
+            "a": _fail("a"),
+            "seq-after": _success("seq-after"),
+        }
+
+        def _mock_run_step(step, dry_run=False, verbose=False, **kwargs):
+            return side_effects[step.name]
+
+        with patch("kiva_cli.core.pipeline_runner._run_step", side_effect=_mock_run_step):
+            result = run_pipeline(pipeline, dry_run=False)
+
+        assert result.status == "PARTIAL"
+        assert any(r.step_name == "a" and r.status == "FAILED" for r in result.steps)
+        assert any(r.step_name == "seq-after" and r.status == "SUCCESS" for r in result.steps)
 
 
 # ---------------------------------------------------------------------------
@@ -181,7 +297,7 @@ class TestOnFailureContinueInGroup:
             "seq": _success("seq"),
         }
 
-        def _mock_run_step(step, dry_run=False, verbose=False):
+        def _mock_run_step(step, dry_run=False, verbose=False, **kwargs):
             return side_effects[step.name]
 
         with patch("kiva_cli.core.pipeline_runner._run_step", side_effect=_mock_run_step):
@@ -192,10 +308,70 @@ class TestOnFailureContinueInGroup:
         assert len(result.steps) == 3
 
     def test_continue_does_not_pollute_stats(self):
-        ...
+        """continue failure must not inflate parallel failure counters."""
+        steps = [
+            _make_step("a", on_failure="continue"),
+            _make_step("b", on_failure="continue"),
+            _make_step("seq"),
+        ]
+        pipeline = Pipeline(
+            name="continue-stats",
+            steps=steps,
+            parallel_groups=[["a", "b"]],
+        )
+
+        side_effects = {
+            "a": _fail("a"),
+            "b": _fail("b"),
+            "seq": _success("seq"),
+        }
+
+        def _mock_run_step(step, dry_run=False, verbose=False, **kwargs):
+            return side_effects[step.name]
+
+        with patch("kiva_cli.core.pipeline_runner._run_step", side_effect=_mock_run_step):
+            result = run_pipeline(pipeline, dry_run=False)
+
+        assert result.status == "SUCCESS"
+        assert any(r.step_name == "a" and r.status == "SKIPPED" for r in result.steps)
+        assert any(r.step_name == "b" and r.status == "SKIPPED" for r in result.steps)
+        assert any(r.step_name == "seq" and r.status == "SUCCESS" for r in result.steps)
+        assert result.parallel_groups_executed == 1
 
     def test_continue_multiple_failures(self):
-        ...
+        """Multiple continue failures all become SKIPPED, pipeline still SUCCESS."""
+        steps = [
+            _make_step("a", on_failure="continue"),
+            _make_step("b", on_failure="continue"),
+            _make_step("c", on_failure="continue"),
+            _make_step("seq"),
+        ]
+        pipeline = Pipeline(
+            name="continue-multi",
+            steps=steps,
+            parallel_groups=[["a", "b", "c"]],
+        )
+
+        side_effects = {
+            "a": _fail("a"),
+            "b": _fail("b"),
+            "c": _fail("c"),
+            "seq": _success("seq"),
+        }
+
+        def _mock_run_step(step, dry_run=False, verbose=False, **kwargs):
+            return side_effects[step.name]
+
+        with patch("kiva_cli.core.pipeline_runner._run_step", side_effect=_mock_run_step):
+            result = run_pipeline(pipeline, dry_run=False)
+
+        assert result.status == "SUCCESS"
+        assert all(
+            r.status == "SKIPPED"
+            for r in result.steps
+            if r.step_name in ("a", "b", "c")
+        )
+        assert any(r.step_name == "seq" and r.status == "SUCCESS" for r in result.steps)
 
 
 # ---------------------------------------------------------------------------
@@ -204,10 +380,62 @@ class TestOnFailureContinueInGroup:
 
 class TestParallelStatsWithFailure:
     def test_stats_reported_on_warn(self):
-        ...
+        """Parallel stats are populated when on_failure=warn."""
+        steps = [
+            _make_step("pre"),
+            _make_step("a", on_failure="warn"),
+            _make_step("seq-after"),
+        ]
+        pipeline = Pipeline(
+            name="warn-stats",
+            steps=steps,
+            parallel_groups=[["a"]],
+        )
+
+        side_effects = {
+            "pre": _success("pre"),
+            "a": _fail("a"),
+            "seq-after": _success("seq-after"),
+        }
+
+        def _mock_run_step(step, dry_run=False, verbose=False, **kwargs):
+            return side_effects[step.name]
+
+        with patch("kiva_cli.core.pipeline_runner._run_step", side_effect=_mock_run_step):
+            result = run_pipeline(pipeline, dry_run=False)
+
+        assert result.parallel_groups_executed == 1
+        # wall_clock is tracked (may be ~0 with instant mocks)
+        assert result.total_parallel_wall_clock >= 0
 
     def test_stats_reported_on_abort(self):
-        ...
+        """Parallel stats are populated when on_failure=abort."""
+        steps = [
+            _make_step("pre"),
+            _make_step("a", on_failure="abort"),
+            _make_step("seq-after"),
+        ]
+        pipeline = Pipeline(
+            name="abort-stats",
+            steps=steps,
+            parallel_groups=[["a"]],
+        )
+
+        side_effects = {
+            "pre": _success("pre"),
+            "a": _fail("a"),
+            "seq-after": _success("seq-after"),
+        }
+
+        def _mock_run_step(step, dry_run=False, verbose=False, **kwargs):
+            return side_effects[step.name]
+
+        with patch("kiva_cli.core.pipeline_runner._run_step", side_effect=_mock_run_step):
+            result = run_pipeline(pipeline, dry_run=False)
+
+        assert result.parallel_groups_executed == 1
+        # wall_clock is tracked (may be ~0 with instant mocks)
+        assert result.total_parallel_wall_clock >= 0
 
     def test_no_parallel_stats_on_pure_sequential_pipeline(self):
         p = Pipeline(name="seq", steps=[_make_step("only")])

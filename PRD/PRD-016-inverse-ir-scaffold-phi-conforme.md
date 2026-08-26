@@ -1,9 +1,12 @@
 ---
+type: "PRD"
+version: "1.0"
+date: "2026-06-20"
 id: PRD-016
 title: "INVERSE-IR -- Reconstruction d'un repo scaffold phi-conforme depuis un IRNode-seed"
 repo: gerivdb/KIVA-CLI
 intent: INTENT-016
-status: proposed
+status: in_review
 created: 2026-06-20
 author: gerivdb
 strate: L2_COMPOSITION

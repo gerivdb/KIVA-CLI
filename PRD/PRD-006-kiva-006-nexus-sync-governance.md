@@ -1,11 +1,16 @@
 ---
 id: PRD-006
-title: "PRD-KIVA-006 — NEXUS Sync Governance Layer (KIVA-CLI)"
+title: PRD-KIVA-006 — NEXUS Sync Governance Layer (KIVA-CLI)
 repo: unknown
 status: draft
-created: "2026-06-11"
+created: '2026-06-11'
 author: gerivdb
+type: '"PRD"'
+version: '"1.0"'
+date: '2026-06-11'
+intent_hash: 0xPRD_PRD_006_KIVA_006_NEXUS_SYNC_GO_20260611
 ---
+
 # PRD-KIVA-006 — NEXUS Sync Governance Layer (KIVA-CLI)
 
 **Scope** : `KIVA-CLI` (mono-repo)  

@@ -10,7 +10,7 @@ import subprocess
 from pathlib import Path
 from typing import Dict, List, Optional, Any
 from dataclasses import dataclass, asdict
-from datetime import datetime
+from datetime import datetime, timezone
 
 from ..core.template_registry import TemplateRegistry
 from ..core.config_validator import ConfigValidator, ValidationResult
@@ -87,7 +87,7 @@ class ProjectManager:
             author=kwargs.get("author", ""),
             license=kwargs.get("license", "MIT"),
             repository=kwargs.get("repository", ""),
-            created_at=datetime.utcnow().isoformat() + "Z",
+            created_at=datetime.now(timezone.utc).isoformat() + "Z",
         )
         
         # Write project config

@@ -58,6 +58,13 @@ config/schemas/ -> config/schemas/
 # BLOCK = block push, WARN = warn only, AUDIT = log only
 export GUARD_MODE="BLOCK"
 
+# ===== Induration Metrics (ADR-2026-07-31-001) =====
+# Gate manifests declare induration_risk and cost_obedience
+# Bypass detection logs to WAL channel 'induration'
+export BRGS_GATE_IDS="BRGS_FORBIDDEN_PATHS BRGS_BRANCH_PREFIX"
+export BRGS_WAL_CHANNEL="induration"
+export BRGS_BYPASS_DETECTION="true"
+
 # ===== Helper Functions =====
 check_forbidden_paths() {
     local changed_files="$1"
@@ -146,8 +153,76 @@ brgs_validate() {
     return 0
 }
 
-# Export for use in pre-push hook
-export -f brgs_validate
-export -f check_forbidden_paths
-export -f check_branch_prefix
-export -f check_redirect_map
+# ===== Induration: Bypass Detection & WAL Logging =====
+# Detects if push used --no-verify and logs to WAL
+
+log_induration_bypass() {
+    local gate_id="$1"
+    local repo="$2"
+    local branch="$3"
+    local method="$4"
+    local reason="${5:-bypass detected}"
+    local cost_obedience="${6:-600}"
+    local bypass_cost="${7:-2}"
+    
+    local wal_dir=".wal"
+    local wal_file="$wal_dir/induration.jsonl"
+    
+    # Ensure WAL directory exists
+    mkdir -p "$wal_dir"
+    
+    # Calculate current I-score (simplified - uses static cost)
+    local total_attempts=1
+    local bypass_count=1
+    local i_score=$(awk -v b="$bypass_count" -v t="$total_attempts" -v c="$cost_obedience" \
+        'BEGIN { if (t==0) print 0; else print (b/t) * log(c) }')
+    
+    # Create JSON entry
+    local entry=$(cat <<EOF
+{
+  "ts": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+  "gate_id": "$gate_id",
+  "repo": "$repo",
+  "branch": "$branch",
+  "actor": "$(git config user.email || echo unknown)",
+  "method": "$method",
+  "reason": "$reason",
+  "cost_obedience_sec": $cost_obedience,
+  "bypass_cost_sec": $bypass_cost,
+  "i_score_before": $i_score,
+  "i_score_after": $i_score
+}
+EOF
+)
+    
+    echo "$entry" >> "$wal_file"
+    echo "[BRGS INDURATION] Bypass logged to WAL: $gate_id (I-score: $i_score)"
+}
+
+# Check if push was bypassed (--no-verify)
+detect_bypass() {
+    local gate_id="$1"
+    local repo_name="$2"
+    local branch_name="$3"
+    
+    # Check if --no-verify was used by looking at git config or env
+    # This is a heuristic - in practice, the pre-push hook runs before push
+    # so we detect via GIT_PUSH_OPTIONS or similar
+    if [[ "${GIT_PUSH_OPTIONS:-}" == *"no-verify"* ]] || [[ "$*" == *"--no-verify"* ]]; then
+        log_induration_bypass "$gate_id" "$repo_name" "$branch_name" "--no-verify" "explicit bypass" 600 2
+        return 0
+    fi
+    
+    # Also check for pre-push hook being skipped via core.hooksPath override
+    local hooks_path=$(git config core.hooksPath 2>/dev/null || echo "")
+    if [[ -n "$hooks_path" && "$hooks_path" != ".githooks" ]]; then
+        log_induration_bypass "$gate_id" "$repo_name" "$branch_name" "core.hooksPath override" "hooks redirected" 600 2
+        return 0
+    fi
+    
+    return 1
+}
+
+# Export induration functions
+export -f log_induration_bypass
+export -f detect_bypass
