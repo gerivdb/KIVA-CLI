@@ -1,5 +1,5 @@
 # Commands module
-from . import project, deploy, config, secrets, monitoring, rollback, health, scaffold, tql
+from . import project, deploy, config, secrets, monitoring, rollback, health, scaffold, tql, delivery_commands
 
 __all__ = [
     'project', 
@@ -11,4 +11,5 @@ __all__ = [
     'health',
     'scaffold',
     'tql',
+    'delivery_commands',
 ]
