@@ -1,0 +1,199 @@
+# KIVA-CLI Enforcers Registry
+# Liste des 150 enforcers à exécuter dans le CI local
+
+enforcers:
+  # Phase 1: Critical Infrastructure (8 enforcers prioritaires)
+  critical:
+    - github-actions-ban
+    - gateway-manager
+    - kix
+    - bootstrap
+    - rlm-config
+    - runner-family-stratification
+    - kg-l-coherence-watchdog
+    - friction-analyzer
+
+  # Phase 2: Runners Cognitifs (21)
+  cognitive_runners:
+    - tlm-lang
+    - nodex
+    - telox
+    - talex
+    - timx
+    - rootx
+    - causex
+    - morphex
+    - identx
+    - topex
+    - chronox
+    - llux-match
+    - llux-index
+    - prognex
+    - llux-learn
+    - llux-replay
+    - deployex
+    - flowx
+    - conversation-cognitive
+    - friction-analyzer
+    - kg-l-coherence-watchdog
+
+  # Phase 3: RLM Layer (9)
+  rlm_layer:
+    - rlm243
+    - rlm-metrics
+    - rlm-config
+    - rlm-deploy
+    - rlm-graph
+    - rlm-secure
+    - rlm-incident
+    - rlm-release
+    - rlm-mdu
+
+  # Phase 4: Orchestration & Infrastructure (11)
+  orchestration_infra:
+    - kix
+    - bootstrap
+    - agent-manager
+    - timx-feature-store
+    - gateway-manager
+    - trixd
+    - wazaa
+    - flex-api
+    - flex
+    - infx
+    - codedb-e5620
+
+  # Phase 5: Externes Gérés + Gouvernance (9)
+  external_governance:
+    - llm-core
+    - piano
+    - trix
+    - gitex
+    - repoxt
+    - syncx
+    - referex
+    - kglx
+    - harnex
+
+  # Phase 6: Meta-Designs (18)
+  meta_designs:
+    - github-actions-ban
+    - kg-l
+    - kix
+    - korx
+    - tlm
+    - EGMI-v0.3
+    - big-picture
+    - breakthrough
+    - consciousness
+    - awareness
+    - intelligence
+    - exploration
+    - introspection
+    - extra-spection
+    - topos
+    - serendipity
+    - entropy-search
+    - runner-family-stratification
+
+  # Architecturaux Existants (82) - Stub only
+  architectural:
+    - admg-dag3-hierarchy
+    - admg-state-model
+    - aep-fractal-repo-structure
+    - agent-manager-json-schema
+    - approval-readiness
+    - argus-orphan-scanner
+    - artifact-ownership-routing
+    - atomic-fragmentation
+    - awareness
+    - balise-identity-freshness
+    - big-picture
+    - breakthrough
+    - buzz-persistent-state
+    - capability-awareness
+    - chain-engineering
+    - circuit-breaker-pattern
+    - clone-dedup-rescue
+    - clone-governance
+    - compliance-scanner
+    - conflict-resolver-pattern
+    - conversation-semantic-layer
+    - ctulu-auto-cleanup-hook
+    - ctulu-zig-debug-adapter
+    - ctulu-zig-fmt-auto
+    - dag3-triadic-workflow
+    - delivery-engine
+    - deterministic-budget-control
+    - ecosystem-artifact-layers-design
+    - file-spool-interprocess
+    - force-path-access
+    - fractal-engineering-strata
+    - fractal-recursion
+    - frequency-engineering
+    - generate-then-syntax-validate
+    - gguf-probe-retention
+    - graceful-degradation-fallback
+    - ide-window-lifecycle
+    - impense-register
+    - incremental-growth
+    - incremental-scan-cache
+    - kg35-migration
+    - limbo-transit
+    - local-ci-protocol
+    - m5-production-ontologique
+    - maxwell-triad
+    - merge-fork-balance
+    - meta-cluster-design
+    - meta-coherence
+    - moc-governance
+    - multi-repo-fundamental
+    - ouroboros
+    - pattern-first-right-capture
+    - persistent-learning-loop
+    - plix-audio
+    - plix
+    - pr-review-resolver-design
+    - prd-moc-progress-sync
+    - procedural-shader-projection
+    - recovery-tooling
+    - script-file-over-inline
+    - seven-turns-reflection
+    - spidx
+    - swarm-lease
+    - teach-learn-asymmetry
+    - thought-commit-pipeline
+    - unforeseen-lifecycle
+    - unified-design-alignment-dag3
+    - viable-initial-state
+    - wazaa-social-bus
+    - zero-heap-ring-buffer
+    - dual-path-rbf-llm
+    - neuro-symbolic-model-converter
+    - procedural-shader-projection
+    - kg-l-causal-diff
+    - kg-l-fixture-registry
+    - kg-l-kernel-versioner
+    - kg-l-type-guard
+    - kg-test
+    - kg-edge-kinds
+    - LOOPX-Routines
+    - EGMI-v0.3
+
+# Ordre d'exécution CI (phases séquentielles)
+execution_order:
+  - critical
+  - cognitive_runners
+  - rlm_layer
+  - orchestration_infra
+  - external_governance
+  - meta_designs
+  - architectural
+
+# Configuration d'exécution
+execution:
+  parallel: false  # Séquentiel pour SLM
+  timeout_per_enforcer: 30
+  fail_fast: true
+  report_format: "json"
+  output_dir: ".kiva/reports"

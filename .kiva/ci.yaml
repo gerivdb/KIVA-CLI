@@ -1,0 +1,153 @@
+# KIVA-CLI Local CI Configuration
+# ZERO GITHUB ACTIONS — Local CI Only via KIVA-CLI
+
+ci:
+  name: "KG-L Local CI Pipeline"
+  version: "1.0.0"
+  mode: "local"
+  runner: "kiva-cli"
+
+# Pre-commit hooks (exécute à chaque commit)
+pre_commit:
+  - name: "GF-15 Design Coverage Check"
+    command: "python D:/DO/WEB/TOOLS/L4-TOOLS/KG-L/scripts/validate_designs.py --scope kg-l"
+    description: "Vérifie que tous les 150 designs sont implémentés (GF-15)"
+    timeout: 60
+    critical: true
+
+  - name: "GF-16 Runner Stratification"
+    command: "python D:/DO/WEB/TOOLS/L4-TOOLS/KG-L/scripts/run_gf16_v2.py"
+    description: "Vérifie stratification 50 runners en 7 familles (GF-16)"
+    timeout: 30
+    critical: true
+
+  - name: "Enforcement Files Check"
+    command: "python -c \"import os; f=len([f for f in os.listdir('D:/DO/WEB/TOOLS/L4-TOOLS/KG-L/kilocode/guards/design_enforcement') if f.endswith('.py')]); assert f==150, f'{f}/150'; print(f'{f}/150 enforcement files OK')\""
+    description: "Vérifie que 150 fichiers enforcement .py existent"
+    timeout: 10
+    critical: true
+
+  - name: "Runners Active Check"
+    command: "python D:/DO/WEB/TOOLS/L4-TOOLS/KG-L/scripts/check_runners.py"
+    description: "Vérifie 50/50 runners actifs"
+    timeout: 10
+    critical: true
+
+  - name: "Unit Tests (Design Enforcement Only)"
+    command: "set PYTHONPATH=D:/DO/WEB/TOOLS/L4-TOOLS/KG-L && python -m pytest D:/DO/WEB/TOOLS/L4-TOOLS/KG-L/tests/test_design_enforcement.py -x -q --tb=short"
+    description: "Tests unitaires enforcement designs seulement"
+    timeout: 60
+    critical: true
+
+# Pre-push hooks (exécute avant push)
+pre_push:
+  - name: "Full GF-15 Check"
+    command: "python D:/DO/WEB/TOOLS/L4-TOOLS/KG-L/scripts/validate_designs.py --scope all"
+    description: "Validation complète GF-15 (tous scopes)"
+    timeout: 120
+    critical: true
+
+  - name: "Full GF-16 Check"
+    command: "python D:/DO/WEB/TOOLS/L4-TOOLS/KG-L/scripts/run_gf16_v2.py"
+    description: "Validation complète GF-16 (toutes familles)"
+    timeout: 60
+    critical: true
+
+  - name: "Full Test Suite"
+    command: "set PYTHONPATH=D:/DO/WEB/TOOLS/L4-TOOLS/KG-L && python -m pytest D:/DO/WEB/TOOLS/L4-TOOLS/KG-L/tests/ -x --tb=short --ignore=D:/DO/WEB/TOOLS/L4-TOOLS/KG-L/tests/cross-repo"
+    description: "Suite de tests complète (hors cross-repo)"
+    timeout: 300
+    critical: true
+
+  - name: "Enforcement Logic Check"
+    command: "python -c \"import sys; sys.path.insert(0,'D:/DO/WEB/TOOLS/L4-TOOLS/KG-L'); from kilocode.guards.design_enforcement import *; print('All enforcers importable')\""
+    description: "Vérifie que tous les enforcers sont importables"
+    timeout: 30
+    critical: false
+
+# Manual CI command
+manual_ci:
+  command: "kiva ci run --local --scope kg-l"
+  description: "Lance le pipeline CI complet localement"
+  timeout: 600
+
+# Enforcers to run in CI
+enforcers:
+  - "github-actions-ban"
+  - "gateway-manager"
+  - "kix"
+  - "bootstrap"
+  - "rlm-config"
+  - "runner-family-stratification"
+  - "kg-l-coherence-watchdog"
+  - "friction-analyzer"
+  - "kix"
+  - "rlm243"
+  - "nodex"
+  - "talex"
+  - "rootx"
+  - "conversation-cognitive"
+  - "friction-analyzer"
+  - "kg-l-coherence-watchdog"
+  - "rlm243"
+  - "rlm-metrics"
+  - "rlm-config"
+  - "rlm-deploy"
+  - "rlm-graph"
+  - "rlm-secure"
+  - "rlm-incident"
+  - "rlm-release"
+  - "rlm-mdu"
+  - "llm-core"
+  - "piano"
+  - "trix"
+  - "gitex"
+  - "repoxt"
+  - "syncx"
+  - "referex"
+  - "kglx"
+  - "harnex"
+  - "tlm-lang"
+  - "nodex"
+  - "telox"
+  - "talex"
+  - "timx"
+  - "rootx"
+  - "causex"
+  - "morphex"
+  - "identx"
+  - "topex"
+  - "chronox"
+  - "llux-match"
+  - "llux-index"
+  - "prognex"
+  - "llux-learn"
+  - "llux-replay"
+  - "deployex"
+  - "flowx"
+  - "conversation-cognitive"
+  - "friction-analyzer"
+  - "kg-l-coherence-watchdog"
+  - "flex"
+  - "infx"
+  - "codedb-e5620"
+  - "timx"
+  - "timx-feature-store"
+  - "kix"
+  - "bootstrap"
+  - "agent-manager"
+  - "gateway-manager"
+  - "trixd"
+  - "wazaa"
+  - "flex-api"
+  - "llm-core"
+  - "piano"
+  - "trix"
+
+# Zero GitHub Actions Enforcement
+zero_github_actions:
+  enabled: true
+  check_paths:
+    - ".github/workflows"
+    - ".github/actions"
+  error_message: "GITHUB ACTIONS INTERDIT — Utilisez KIVA-CLI Local CI uniquement (.kiva/ci.yaml)"

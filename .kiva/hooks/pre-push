@@ -1,0 +1,68 @@
+#!/usr/bin/env python3
+"""
+KIVA-CLI Local Pre-Push Hook
+ZERO GitHub Actions — Local CI Only
+"""
+
+import sys
+import subprocess
+import os
+from pathlib import Path
+
+def run_check(name, command, cwd=None, timeout=120):
+    """Exécute une commande et retourne (success, output)."""
+    print(f"\n🔍 {name}...")
+    try:
+        result = subprocess.run(
+            command, shell=True, cwd=cwd or os.getcwd(),
+            capture_output=True, text=True, timeout=timeout
+        )
+        if result.returncode == 0:
+            print(f"   ✅ {name} — OK")
+            return True, result.stdout
+        else:
+            print(f"   ❌ {name} — ÉCHEC")
+            print(f"   stdout: {result.stdout[:500]}")
+            print(f"   stderr: {result.stderr[:500]}")
+            return False, result.stderr
+    except subprocess.TimeoutExpired:
+        print(f"   ⏱️ {name} — TIMEOUT ({timeout}s)")
+        return False, "Timeout"
+    except Exception as e:
+        print(f"   💥 {name} — ERREUR: {e}")
+        return False, str(e)
+
+def main():
+    print("=" * 60)
+    print("🚀 KIVA-CLI LOCAL PRE-PUSH HOOK")
+    print("   ZERO GitHub Actions — Local CI Only")
+    print("=" * 60)
+
+    repo_root = Path(__file__).parent.parent.parent
+    os.chdir(repo_root)
+
+    checks = [
+        ("GF-15 Full Scope", "python scripts/validate_designs.py --scope all", 120),
+        ("GF-16 Full Stratification", "python scripts/run_gf16_v2.py", 60),
+        ("Full Test Suite", "python -m pytest tests/ -x --tb=short", 300),
+        ("Enforcement Import Check", "python -c \"import sys; sys.path.insert(0,'.'); from kilocode.guards.design_enforcement import *; print('All 150 enforcers importable')\"", 30),
+    ]
+
+    all_passed = True
+    for name, cmd, timeout in checks:
+        passed, _ = run_check(name, cmd, timeout=timeout)
+        if not passed:
+            all_passed = False
+
+    print("\n" + "=" * 60)
+    if all_passed:
+        print("✅ TOUS LES CHECKS PRE-PUSH PASSENT")
+        print("   Push autorisé — Zero GitHub Actions")
+        return 0
+    else:
+        print("❌ CERTAINS CHECKS ONT ÉCHOUÉ")
+        print("   Push BLOQUÉ — Corrigez avant de pousser")
+        return 1
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -1,0 +1,69 @@
+#!/usr/bin/env python3
+"""
+KIVA-CLI Local Pre-Commit Hook
+ZERO GitHub Actions — Local CI Only
+"""
+
+import sys
+import subprocess
+import os
+from pathlib import Path
+
+def run_check(name, command, cwd=None, timeout=60):
+    """Exécute une commande et retourne (success, output)."""
+    print(f"\n🔍 {name}...")
+    try:
+        result = subprocess.run(
+            command, shell=True, cwd=cwd or os.getcwd(),
+            capture_output=True, text=True, timeout=timeout
+        )
+        if result.returncode == 0:
+            print(f"   ✅ {name} — OK")
+            return True, result.stdout
+        else:
+            print(f"   ❌ {name} — ÉCHEC")
+            print(f"   stdout: {result.stdout}")
+            print(f"   stderr: {result.stderr}")
+            return False, result.stderr
+    except subprocess.TimeoutExpired:
+        print(f"   ⏱️ {name} — TIMEOUT ({timeout}s)")
+        return False, "Timeout"
+    except Exception as e:
+        print(f"   💥 {name} — ERREUR: {e}")
+        return False, str(e)
+
+def main():
+    print("=" * 60)
+    print("🔒 KIVA-CLI LOCAL PRE-COMMIT HOOK")
+    print("   ZERO GitHub Actions — Local CI Only")
+    print("=" * 60)
+
+    repo_root = Path(__file__).parent.parent.parent
+    os.chdir(repo_root)
+
+    checks = [
+        ("GF-15 Design Coverage", "python scripts/validate_designs.py --scope kg-l", 60),
+        ("GF-16 Runner Stratification", "python scripts/run_gf16_v2.py", 30),
+        ("Enforcement Files (150/150)", "python -c \"import os; f=len([f for f in os.listdir('kilocode/guards/design_enforcement') if f.endswith('.py')]); assert f==150, f'{f}/150'; print(f'{f}/150 enforcement files OK')\"", 10),
+        ("Runners Active (50/50)", "python scripts/check_runners.py", 10),
+        ("Unit Tests", "python -m pytest tests/ -x -q --tb=short", 120),
+    ]
+
+    all_passed = True
+    for name, cmd, timeout in checks:
+        passed, _ = run_check(name, cmd, timeout=timeout)
+        if not passed:
+            all_passed = False
+
+    print("\n" + "=" * 60)
+    if all_passed:
+        print("✅ TOUS LES CHECKS PRE-COMMIT PASSENT")
+        print("   Commit autorisé — Zero GitHub Actions")
+        return 0
+    else:
+        print("❌ CERTAINS CHECKS ONT ÉCHOUÉ")
+        print("   Commit BLOQUÉ — Corrigez avant de commiter")
+        return 1
+
+if __name__ == "__main__":
+    sys.exit(main())
