@@ -1,0 +1,72 @@
+---
+type: PIPELINE
+version: "1.0"
+pipeline: vyoa-verify
+description: "Pipeline VYOA Verification — validation de l'archeologie et de la coherence des fichiers"
+extends: RSS-v3
+date: "2026-07-29"
+intent_hash: 0xKIVA_CI_VYOA_VERIFY_20260729
+repo: gerivdb/KIVA-CLI
+
+phases:
+  - id: phase_1_encoding
+    name: "Encoding Check"
+    order: 1
+    required: true
+    rules:
+      - "Verifier UTF-8 sans BOM"
+      - "Pas de caracteres non-ASCII involontaires"
+      - "Pas d'emojis dans les scripts bash/PS1"
+    validation: "encoding check passes"
+
+  - id: phase_2_yaml
+    name: "YAML Validation"
+    order: 2
+    required: true
+    rules:
+      - "python scripts/fix_yaml.py --check"
+      - "Valider tous les YAML avec yaml.safe_load"
+      - "Verifier frontmatter governance (EPIC/PRD/INTENT/ADR)"
+    validation: "0 YAML parse error"
+
+  - id: phase_3_structure
+    name: "Structure Verification"
+    order: 3
+    required: true
+    rules:
+      - "Verifier presence de README.md"
+      - "Verifier presence de LICENSE"
+      - "Verifier structure RSS-v2 (src/, tests/, docs/)"
+    validation: "structure compliant"
+
+  - id: phase_4_dependencies
+    name: "Dependencies Check"
+    order: 4
+    required: false
+    rules:
+      - "Verifier requirements.txt / package.json"
+      - "Verifier imports Python/Node"
+    validation: "dependencies listed"
+
+gates:
+  gate_yaml:
+    require_yaml_valid: true
+    require_frontmatter_valid: true
+
+  gate_structure:
+    require_readme: true
+    require_license: true
+
+anti_patterns:
+  - pattern: "emoji in bash/PS1 script"
+    severity: BLOCK
+    reason: "Corruption encodage"
+
+  - pattern: "missing frontmatter in governance doc"
+    severity: BLOCK
+    reason: "Violation standard gouvernance"
+
+compliance:
+  auto_check_script: "scripts/fix_yaml.py"
+  frequency: "per_commit"
+  format: "exit 0 if pass"

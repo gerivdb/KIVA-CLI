@@ -1,0 +1,87 @@
+---
+type: PIPELINE
+version: "1.0"
+pipeline: ecosystem-health
+description: "Pipeline Ecosystem Health — check sante globale de l'ecosysteme gerivdb"
+extends: RSS-v3
+date: "2026-07-29"
+intent_hash: 0xKIVA_CI_ECOSYSTEM_HEALTH_20260729
+repo: gerivdb/KIVA-CLI
+
+phases:
+  - id: phase_1_bdcp
+    name: "BDCP Status"
+    order: 1
+    required: true
+    rules:
+      - "GATEWAY-MANAGER clapet state: CLOSED"
+      - "Verifier aucun flux sortant non autorise"
+      - "Verifier BDCP-CORE actif sur port 18000"
+    validation: "BDCP strict actif"
+
+  - id: phase_2_spidx
+    name: "SPIDX WAL"
+    order: 2
+    required: true
+    rules:
+      - "Verifier WAL SPIDX synchronise"
+      - "Verifier integrite des entrees"
+      - "Verifier pas d'entree orpheline"
+    validation: "WAL coherent"
+
+  - id: phase_3_kix
+    name: "KIX Dashboard"
+    order: 3
+    required: true
+    rules:
+      - "KIX accessible sur port 8800"
+      - "GET /dashboard/finops == 200"
+      - "Verifier pulse_status dans la reponse"
+    validation: "KIX dashboard operational"
+
+  - id: phase_4_known_repos
+    name: "Known Repositories"
+    order: 4
+    required: true
+    rules:
+      - "Verifier known_repositories.yaml valide"
+      - "Verifier 19+ repos catalogues"
+      - "Verifier champs obligatoires (env, layer, visibility)"
+    validation: "SOT compliant"
+
+  - id: phase_5_inventory
+    name: "Inventory Check"
+    order: 5
+    required: false
+    rules:
+      - "Verifier clones locaux existent"
+      - "Verifier chemins conformes strates L*"
+      - "Signaler clones illégitimes"
+    validation: "inventory report genere"
+
+gates:
+  gate_bdcp:
+    require_bdcp_closed: true
+    require_no_saas: true
+
+  gate_kix:
+    require_kix_accessible: true
+    require_finops_200: true
+
+anti_patterns:
+  - pattern: "BDCP clapet OPEN without explicit order"
+    severity: BLOCK
+    reason: "Sortie non autorisee"
+
+  - pattern: "GITHUB token in environment"
+    severity: BLOCK
+    reason: "Fuite de secret"
+
+  - pattern: "clone outside L* stratum"
+    severity: BLOCK
+    reason: "Violation architecture"
+
+compliance:
+  auto_check_script: "scripts/ecosystem_health_verify.py"
+  frequency: "daily"
+  format: "exit 0 if all phases pass, exit 1 with report"

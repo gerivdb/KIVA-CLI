@@ -1,0 +1,72 @@
+---
+type: PIPELINE
+version: "1.0"
+pipeline: git-maintenance
+description: "Pipeline Git Maintenance — verification sync, nettoyage branches et audit gitgraph"
+extends: RSS-v3
+date: "2026-07-29"
+intent_hash: 0xKIVA_CI_GIT_MAINT_20260729
+repo: gerivdb/KIVA-CLI
+
+phases:
+  - id: phase_1_sync
+    name: "Verify Sync"
+    order: 1
+    required: true
+    rules:
+      - "git fetch origin"
+      - "git rev-parse HEAD == git rev-parse origin/main"
+      - "Verifier main a jour avec distant"
+    validation: "LOCAL_SHA == REMOTE_SHA"
+
+  - id: phase_2_cleanup
+    name: "Cleanup Branches"
+    order: 2
+    required: true
+    rules:
+      - "python scripts/cleanup_merged_branches.py"
+      - "Supprimer branches locales merges"
+      - "Supprimer branches distantes merges"
+    validation: "0 merged branch remaining"
+
+  - id: phase_3_gitignore
+    name: "Verify Gitignore"
+    order: 3
+    required: true
+    rules:
+      - "python scripts/verify_gitignore.py"
+      - "Verifier .gitignore couvre tous les artefacts"
+    validation: "gitignore compliant"
+
+  - id: phase_4_audit
+    name: "Audit Gitgraph"
+    order: 4
+    required: true
+    rules:
+      - "python scripts/audit_gitgraph.py"
+      - "Detecter doublons de commits"
+      - "Verifier linearite de main"
+    validation: "0 duplicate commit"
+
+gates:
+  gate_sync:
+    require_upstream_match: true
+    forbid_force_push: true
+
+  gate_cleanup:
+    require_confirmation: true
+    max_branches_to_delete_per_run: 50
+
+anti_patterns:
+  - pattern: "local main != origin/main"
+    severity: BLOCK
+    reason: "Main desynchronise"
+
+  - pattern: "duplicate commit in history"
+    severity: WARN
+    reason: "Dette technique git"
+
+compliance:
+  auto_check_script: "scripts/ecosystem_health_verify.py"
+  frequency: "weekly"
+  format: "exit 0 if pass"

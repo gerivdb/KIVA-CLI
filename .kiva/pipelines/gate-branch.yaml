@@ -1,0 +1,61 @@
+---
+type: PIPELINE
+version: "1.0"
+pipeline: gate-branch
+description: "Pipeline Gate Branch — validation du nommage et de l'etat des branches"
+extends: RSS-v3
+date: "2026-07-29"
+intent_hash: 0xKIVA_CI_GATE_BRANCH_20260729
+repo: gerivdb/KIVA-CLI
+
+phases:
+  - id: phase_1_list
+    name: "List Branches"
+    order: 1
+    required: true
+    rules:
+      - "git branch -a"
+      - "Identifier branches orphelines sans PR ouverte"
+    validation: "liste branches generee"
+
+  - id: phase_2_validate_naming
+    name: "Validate Naming"
+    order: 2
+    required: true
+    rules:
+      - "Pattern: ^(feat|fix|chore|docs)\\(epic-\\d{4}\\)-"
+      - "Interdiction de branches release/ sans ticket"
+      - "Pas de branche directe sur main"
+    validation: "0 branch naming violation"
+
+  - id: phase_3_cleanup
+    name: "Cleanup"
+    order: 3
+    required: false
+    rules:
+      - "Supprimer branches merges locales"
+      - "Supprimer branches orphelines avec confirmation"
+    validation: "git branch --merged | wc -l == 1 (main)"
+
+gates:
+  gate_naming:
+    pattern: "^(feat|fix|chore|docs)\\(epic-\\d{4}\\)-"
+    forbid_direct_main_commit: true
+
+  gate_cleanup:
+    require_confirmation: true
+    max_branches_to_delete_per_run: 20
+
+anti_patterns:
+  - pattern: "branch 'release/' without ticket ref"
+    severity: BLOCK
+    reason: "Release sans tracabilite"
+
+  - pattern: "commit direct on main"
+    severity: BLOCK
+    reason: "Violation branch workflow"
+
+compliance:
+  auto_check_script: "scripts/branch-wip-policy.yaml"
+  frequency: "per_session"
+  format: "exit 0 if compliant, exit 1 with report otherwise"

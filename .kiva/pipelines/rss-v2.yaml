@@ -1,0 +1,68 @@
+---
+type: PIPELINE
+version: "1.0"
+pipeline: rss-v2
+description: "Pipeline RSS-v2 — injection, lint et audit du workflow réutilisable"
+extends: RSS-v3
+date: "2026-07-29"
+intent_hash: 0xKIVA_CI_RSSV2_20260729
+repo: gerivdb/KIVA-CLI
+
+phases:
+  - id: phase_1_scan
+    name: "Scan Workflow"
+    order: 1
+    required: true
+    rules:
+      - "python scripts/rss_guardian_audit.py --scan"
+      - "Detecter repos sans .github/workflows/rss-v2-reusable.yml"
+    validation: "scan report genere"
+
+  - id: phase_2_lint
+    name: "Lint Workflow"
+    order: 2
+    required: true
+    rules:
+      - "python scripts/rss_lint.py"
+      - "Verifier structure YAML du workflow"
+    validation: "rss-lint passes"
+
+  - id: phase_3_inject
+    name: "Inject Workflow"
+    order: 3
+    required: false
+    rules:
+      - "python scripts/selina_ci.py --inject"
+      - "Creer PR feat/epic-400-rss-v2-workflow"
+    validation: "PR creee pour chaque repo cible"
+
+  - id: phase_4_verify
+    name: "Verify"
+    order: 4
+    required: true
+    rules:
+      - "Verifier que tous les repos actifs ont le workflow"
+      - "GITHUB_TOKEN absent"
+    validation: "0 repo missing workflow"
+
+gates:
+  gate_lint:
+    require_rss_lint_pass: true
+
+  gate_inject:
+    max_repos_per_batch: 10
+    require_pr_created: true
+
+anti_patterns:
+  - pattern: "missing workflow in active repo"
+    severity: WARN
+    reason: "Repo actif sans CI souveraine"
+
+  - pattern: "GITHUB_TOKEN usage"
+    severity: BLOCK
+    reason: "Fuite de secret possible"
+
+compliance:
+  auto_check_script: "scripts/rss_lint.py"
+  frequency: "per_commit"
+  format: "exit 0 if pass"

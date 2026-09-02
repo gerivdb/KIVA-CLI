@@ -1,0 +1,78 @@
+---
+type: PIPELINE
+version: "1.0"
+pipeline: git-compliance
+description: "Pipeline Git Compliance — verifie la conformite des commits, branches et tags"
+extends: RSS-v3
+date: "2026-07-29"
+intent_hash: 0xKIVA_CI_GIT_COMPLIANCE_20260729
+repo: gerivdb/KIVA-CLI
+
+phases:
+  - id: phase_1_conventional_commits
+    name: "Conventional Commits"
+    order: 1
+    required: true
+    rules:
+      - "Format: type(scope): description"
+      - "Types autorises: feat, fix, docs, chore, refactor, test, ci"
+      - "Scope optionnel entre parentheses"
+    validation: "git log --oneline | grep -E '^(feat|fix|docs|chore|refactor|test|ci)'"
+
+  - id: phase_2_branch_policy
+    name: "Branch Policy"
+    order: 2
+    required: true
+    rules:
+      - "Pas de commit direct sur main"
+      - "Tous les commits passent par des branches feature"
+      - "Branches merges proprement (no fast-forward)"
+    validation: "git log --oneline --merges | wc -l > 0"
+
+  - id: phase_3_tags
+    name: "Tags Compliance"
+    order: 3
+    required: false
+    rules:
+      - "Semantic Versioning: vX.Y.Z"
+      - "Tags anotes pour releases"
+      - "Pas de tag sur main sans validation ENV4"
+    validation: "git tag --list | grep '^v[0-9]'"
+
+  - id: phase_4_remote_safety
+    name: "Remote Safety"
+    order: 4
+    required: true
+    rules:
+      - "git remote -v == origin gerivdb/<repo>"
+      - "Pas de push --force sans verification"
+      - "URL remote conforme au YAML"
+    validation: "remote URL passes check"
+
+gates:
+  gate_commits:
+    require_conventional_format: true
+    forbid_wip_commits: true
+    max_message_length: 100
+
+  gate_remote:
+    require_remote_validation: true
+    forbid_force_push: true
+
+anti_patterns:
+  - pattern: "commit 'WIP' or 'temp' on main"
+    severity: BLOCK
+    reason: "Qualite code"
+
+  - pattern: "git push --force"
+    severity: BLOCK
+    reason: "Risque d'ecrasement distant"
+
+  - pattern: "wrong remote URL"
+    severity: BLOCK
+    reason: "Classe dans mauvais repo"
+
+compliance:
+  auto_check_script: "scripts/commit-discipline-check.py"
+  frequency: "per_commit"
+  format: "exit 0 if pass"

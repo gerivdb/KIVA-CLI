@@ -1,0 +1,79 @@
+---
+type: PIPELINE
+version: "1.0"
+pipeline: selina-ci
+description: "Pipeline SELINA-CI — injection atomique de workflows avec gestion d'etat et rollback"
+extends: RSS-v3
+date: "2026-07-29"
+intent_hash: 0xKIVA_CI_SELINA_CI_20260729
+repo: gerivdb/KIVA-CLI
+
+phases:
+  - id: phase_1_scan
+    name: "Scan Missing Workflows"
+    order: 1
+    required: true
+    rules:
+      - "python scripts/selina_ci.py --scan"
+      - "Lister repos sans .github/workflows/rss-v2-reusable.yml"
+      - "Exclure ENV5 (GitOps only)"
+    validation: "scan report genere"
+
+  - id: phase_2_prepare
+    name: "Prepare Injection"
+    order: 2
+    required: true
+    rules:
+      - "Verifier GITHUB_TOKEN absent (mode BDCP)"
+      - "Verifier KIX Dashboard accessible"
+      - "Creer branche feat/selina-ci-<date>"
+    validation: "pre-flight checks pass"
+
+  - id: phase_3_inject
+    name: "Inject Workflow"
+    order: 3
+    required: true
+    rules:
+      - "python scripts/selina_ci.py --inject"
+      - "Copier rss-v2-reusable.yml dans chaque repo cible"
+      - "Commit: feat(workflow): inject RSS-v2 reusable workflow (EPIC-400)"
+      - "Push + PR par repo"
+    validation: "PR creee pour chaque repo"
+
+  - id: phase_4_verify
+    name: "Verify Injection"
+    order: 4
+    required: true
+    rules:
+      - "Verifier workflow present dans chaque repo"
+      - "Verifier workflow syntax YAML valide"
+      - "Verifier pas de GITHUB_TOKEN dans workflow"
+    validation: "100% repos injectes"
+
+gates:
+  gate_inject:
+    max_repos_per_batch: 10
+    require_pr_created: true
+    require_kix_accessible: true
+
+  gate_verify:
+    require_yaml_valid: true
+    require_no_secrets: true
+
+anti_patterns:
+  - pattern: "inject without scan first"
+    severity: BLOCK
+    reason: "Injection aveugle"
+
+  - pattern: "GITHUB_TOKEN in workflow"
+    severity: BLOCK
+    reason: "Fuite secret"
+
+  - pattern: "inject into ENV5 repo"
+    severity: BLOCK
+    reason: "ENV5 GitOps only, pas de modification locale"
+
+compliance:
+  auto_check_script: "scripts/selina_ci.py --dry-run"
+  frequency: "per_run"
+  format: "exit 0 if 100% injected, exit 1 otherwise"
