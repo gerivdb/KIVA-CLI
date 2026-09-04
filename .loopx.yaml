@@ -1,0 +1,84 @@
+# .loopx.yaml -- Configuration LOOPX pour KIVA-CLI
+# Version: 1.0 | Strate: L1-INFRA
+
+git:
+  sync:
+    enabled: true
+    schedule: "0 * * * *"
+    auto_commit: true
+    atomic_commits: true
+    max_files_per_commit: 3
+    force_push: true
+    commit_type: "chore"
+    commit_scope: "sync"
+    ignore_patterns:
+      - "*.log"
+      - "*.tmp"
+      - "__pycache__/"
+      - ".pytest_cache/"
+      - "*.pyc"
+      - "*.egg-info/"
+      - "reports/*.json"
+      - ".archive/"
+      - ".kilo/"
+      - "pipelines.db"
+      - "*.obj"
+      - "*.pdb"
+
+  branch:
+    cleanup:
+      enabled: true
+      schedule: "0 2 * * *"
+      pattern: "feat/*|fix/*|chore/*|docs/*|refactor/*|test/*"
+      target_branch: "main"
+      force_delete: true
+      protected_branches:
+        - "main"
+        - "master"
+        - "develop"
+        - "release/*"
+        - "hotfix/*"
+
+  push:
+    verify:
+      enabled: true
+      run_regression: true
+      verify_remote_ahead: true
+
+scheduler:
+  enabled: false
+  poll_interval_seconds: 60
+
+hooks:
+  pre_commit:
+    branch_cleanup: true
+    auto_sync_untracked: false
+
+  pre_push:
+    verify_remote_ahead: true
+    run_regression: false
+
+repo:
+  name: "KIVA-CLI"
+  stratum: "L1-INFRA"
+  branch_patterns:
+    - "feat/*"
+    - "fix/*"
+    - "chore/*"
+    - "docs/*"
+    - "refactor/*"
+    - "test/*"
+  never_auto_commit:
+    - "restored-rustup/"
+    - "restored-cargo/"
+    - ".zig-cache/"
+    - "zig-test-framework/"
+    - "*.zip"
+    - "pipelines.db"
+    - "lycos.snapshot"
+    - "reports/"
+    - "metrics/"
+    - "htmlcov/"
+    - ".coverage"
+    - ".kilo/"
+    - ".kilo-code/"
