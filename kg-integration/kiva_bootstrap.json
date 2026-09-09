@@ -1,0 +1,154 @@
+{
+  "type": "kiva_bootstrap_state",
+  "timestamp_utc": "2026-09-09T01:00:52.082681+00:00",
+  "graph_source": "D:\\lattice\\L4\\kg_export\\brain_gen_20260909T000505Z.kg.json",
+  "intents": [
+    {
+      "id": "root_d420161a957d0cce",
+      "label": "L'astronaute de Mars d\u00e9couvre une intelligence non-humaine dans les canaux de forage",
+      "type": "concept",
+      "status": "pending",
+      "priority": "medium",
+      "actions": [
+        {
+          "target": "node_000",
+          "relation": "engendre",
+          "pipeline_phase": "engendre"
+        },
+        {
+          "target": "node_001",
+          "relation": "engendre",
+          "pipeline_phase": "engendre"
+        },
+        {
+          "target": "node_002",
+          "relation": "engendre",
+          "pipeline_phase": "engendre"
+        },
+        {
+          "target": "node_003",
+          "relation": "engendre",
+          "pipeline_phase": "engendre"
+        },
+        {
+          "target": "node_004",
+          "relation": "engendre",
+          "pipeline_phase": "engendre"
+        },
+        {
+          "target": "node_005",
+          "relation": "engendre",
+          "pipeline_phase": "engendre"
+        },
+        {
+          "target": "node_006",
+          "relation": "engendre",
+          "pipeline_phase": "engendre"
+        },
+        {
+          "target": "node_007",
+          "relation": "engendre",
+          "pipeline_phase": "engendre"
+        },
+        {
+          "target": "node_008",
+          "relation": "engendre",
+          "pipeline_phase": "engendre"
+        },
+        {
+          "target": "node_009",
+          "relation": "engendre",
+          "pipeline_phase": "engendre"
+        },
+        {
+          "target": "node_010",
+          "relation": "engendre",
+          "pipeline_phase": "engendre"
+        }
+      ]
+    },
+    {
+      "id": "node_000",
+      "label": "l'astronaute",
+      "type": "entity",
+      "status": "pending",
+      "priority": "medium"
+    },
+    {
+      "id": "node_001",
+      "label": "mars",
+      "type": "entity",
+      "status": "pending",
+      "priority": "medium"
+    },
+    {
+      "id": "node_002",
+      "label": "d\u00e9couvre",
+      "type": "entity",
+      "status": "pending",
+      "priority": "medium"
+    },
+    {
+      "id": "node_003",
+      "label": "intelligence",
+      "type": "entity",
+      "status": "pending",
+      "priority": "medium"
+    },
+    {
+      "id": "node_004",
+      "label": "non-humaine",
+      "type": "entity",
+      "status": "pending",
+      "priority": "medium"
+    },
+    {
+      "id": "node_005",
+      "label": "dans",
+      "type": "entity",
+      "status": "pending",
+      "priority": "medium"
+    },
+    {
+      "id": "node_006",
+      "label": "canaux",
+      "type": "entity",
+      "status": "pending",
+      "priority": "medium"
+    },
+    {
+      "id": "node_007",
+      "label": "forage",
+      "type": "entity",
+      "status": "pending",
+      "priority": "medium"
+    },
+    {
+      "id": "node_008",
+      "label": "astronaute",
+      "type": "entity",
+      "status": "pending",
+      "priority": "medium"
+    },
+    {
+      "id": "node_009",
+      "label": "intelligence",
+      "type": "entity",
+      "status": "pending",
+      "priority": "medium"
+    },
+    {
+      "id": "node_010",
+      "label": "forage",
+      "type": "entity",
+      "status": "pending",
+      "priority": "medium"
+    }
+  ],
+  "pipeline_config": {
+    "lattice_root": "D:/lattice",
+    "kg_l_export": "D:/lattice\\L4\\kg_export",
+    "bootstrap_timeout_s": 5,
+    "target_score": 110
+  }
+}
