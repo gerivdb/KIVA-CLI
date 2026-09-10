@@ -22,6 +22,8 @@ REPOS = {
     "voltx": Path(r"D:\DO\WEB\TOOLS\L0-CANON\VOLTX"),
 }
 
+SEED_SCRIPT = REPOS["voltx"] / "seed_kg_l.py"
+
 TEST_FILES = {
     "talex": [
         REPOS["talex"] / "tests" / "test_curx_decision_engine.py",
@@ -57,6 +59,13 @@ def main() -> int:
     parser.add_argument("--level", type=int, choices=[1, 2, 3], help="CURX level filter")
     parser.add_argument("--coverage", action="store_true", help="Enable coverage")
     args = parser.parse_args()
+
+    # Seed KG-L with canonical graph before running CURX tests
+    if SEED_SCRIPT.exists():
+        print(f"\nSeeding KG-L from {SEED_SCRIPT}")
+        subprocess.run([sys.executable, str(SEED_SCRIPT)], check=False)
+    else:
+        print(f"\nWarning: KG-L seed script not found at {SEED_SCRIPT}")
 
     failures = []
     for repo_name, files in TEST_FILES.items():
