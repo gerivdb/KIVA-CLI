@@ -42,11 +42,11 @@ def run_pytest(repo_name: str, files: list[Path], coverage: bool = False) -> int
     if coverage:
         cmd += ["--cov=.", "--cov-report=term-missing"]
     cmd += [str(f) for f in files]
-    
+
     print(f"\n{'='*60}")
     print(f"CURX tests — {repo_name.upper()}")
     print(f"{'='*60}")
-    
+
     result = subprocess.run(cmd, cwd=REPOS[repo_name], capture_output=False)
     return result.returncode
 
@@ -56,13 +56,13 @@ def main() -> int:
     parser.add_argument("--level", type=int, choices=[1, 2, 3], help="CURX level filter")
     parser.add_argument("--coverage", action="store_true", help="Enable coverage")
     args = parser.parse_args()
-    
+
     failures = []
     for repo_name, files in TEST_FILES.items():
         rc = run_pytest(repo_name, files, args.coverage)
         if rc != 0:
             failures.append(repo_name)
-    
+
     print(f"\n{'='*60}")
     if failures:
         print(f"FAILED repos: {', '.join(failures)}")
