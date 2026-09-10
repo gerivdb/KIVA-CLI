@@ -6,7 +6,7 @@ Runs CURX tests across TALEX, KG-L and VOLTX repos.
 Usage:
     python run_curx_tests.py [--level 1|2|3] [--coverage]
 
-IntentHash: 0xH0_CURX_KIVA_TEST_RUNNER_20260910T010500Z
+IntentHash: 0xH0_CURX_KIVA_TEST_RUNNER_20260910T041100Z
 """
 
 from __future__ import annotations
@@ -26,6 +26,7 @@ TEST_FILES = {
     "talex": [
         REPOS["talex"] / "tests" / "test_curx_decision_engine.py",
         REPOS["talex"] / "tests" / "test_curx_integration.py",
+        REPOS["talex"] / "tests" / "test_curx_full_level_integration.py",
     ],
     "kg-l": [
         REPOS["kg-l"] / "tests" / "test_kg_l_narrator.py",
