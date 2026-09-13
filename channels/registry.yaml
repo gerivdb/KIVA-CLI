@@ -1,0 +1,148 @@
+---
+# channels/registry.yaml - Canonical distribution channels registry
+# IntentHash: 0xINTENT_DISTRIBUTION_LAYER_ECOSYSTEM_20260913
+# Version: 1.0.0
+# 
+# Ce fichier déclare tous les canaux de diffusion ecosystem-wide.
+# Il ne modifie pas les canaux existants ; il les référence et les rend découvrables.
+
+channels:
+  - id: git-multi
+    name: "Git multi-repo"
+    type: "sync"
+    description: "Synchronisation code/config via git clone/pull/push cross-repo"
+    protocol: "git"
+    status: "active"
+    scope: ["CODE", "CONFIG", "PRD-MOC", "ADR"]
+    bridges:
+      - "meta-git-orchestration"
+      - "ECOS-CLI"
+      - "LOOPX git.sync"
+    config:
+      cli: "ECOS-CLI"
+      registry: "TOPOS/registry/repos.json"
+      policies: "GOVERNANCE-HUB"
+
+  - id: wazaa-bus
+    name: "WAZAA cognitive event bus"
+    type: "event-bus"
+    description: "WebSocket pub/sub, WAL persistence, backpressure, RVBA compression"
+    protocol: "wazaa-bus"
+    status: "active"
+    scope: ["INTENT", "EVENT", "METRIC", "DEBUG", "ERR"]
+    bridges:
+      - "wazaa-bus-orchestration"
+      - "KG-L/WAZAA N243"
+    config:
+      transport: "websocket"
+      persistence: "wal"
+      compression: "rvba"
+      port: 1873
+      inbox: "~/.wazaa/inbox"
+
+  - id: wavefront
+    name: "Wavefront gossip channel"
+    type: "gossip"
+    description: "Propagation par hops avec TTL, phi_cps gate, HITL"
+    protocol: "wavefront"
+    status: "active"
+    scope: ["CONCEPT", "ONTOLOGY", "BEACON"]
+    bridges:
+      - "wavefront_channel"
+    config:
+      ttl: 3
+      hitl_gate: "phi_cps > 5.0"
+      source: "FLUX"
+      hops:
+        - "FLUX -> KIVA-CLI"
+        - "KIVA-CLI -> BRAIN"
+        - "BRAIN -> ONTOLOGY"
+        - "ONTOLOGY -> BOINC-LLM-P2P"
+        - "BOINC-LLM-P2P -> FLUENCE"
+        - "FLUENCE -> CTULU"
+        - "CTULU -> EMIT"
+        - "EMIT -> GOVERNANCE-HUB"
+
+  - id: boinc-p2p
+    name: "BOINC-LLM-P2P"
+    type: "p2p"
+    description: "Distribution pair-à-pair, beacon-based, compute sharing"
+    protocol: "boinc-p2p"
+    status: "active"
+    scope: ["BEACON", "COMPUTE", "MODEL", "DATASET"]
+    bridges:
+      - "wavefront_channel"
+    config:
+      local_path: "D:/DO/WEB/TOOLS/L1-INFRA/BOINC-LLM-P2P"
+      beacon: "beacon_P1"
+      intent_hash: "0xBOINC-LLM-P2P_INTENT_20260624"
+
+  - id: skills-registry
+    name: "Skills registry"
+    type: "registry"
+    description: "Distribution de skills across citizen repos"
+    protocol: "skill-sync"
+    status: "active"
+    scope: ["SKILL"]
+    bridges:
+      - "skill-registry"
+    config:
+      skills_repo: "gerivdb/SKILLS"
+      citizens:
+        - "WAZAA"
+        - "CANDIDATOR"
+        - "GERIBOOKING"
+        - "FLUENCE"
+        - "BANK-BUSTER"
+        - "RACINES"
+
+  - id: wal-sync
+    name: "WAL synchronization"
+    type: "sync"
+    description: "Distributed WAL sync across all repos via KIVA-CLI"
+    protocol: "wal-sync"
+    status: "active"
+    scope: ["WAL", "EVENT"]
+    bridges:
+      - "wal-sync"
+    config:
+      sync_interval: "5m"
+      conflict_resolution: "last-write-wins"
+      backup_retention: "30d"
+
+  - id: pipeline-execution
+    name: "Pipeline execution"
+    type: "pipeline"
+    description: "KIVA-CLI pipelines executed via ECOS-CLI with CTULU diagnostics"
+    protocol: "pipeline-run"
+    status: "active"
+    scope: ["PIPELINE", "WORKFLOW"]
+    bridges:
+      - "pipeline-execution"
+    config:
+      pipeline_runner: "KIVA-CLI/core/pipeline_runner.py"
+      diagnostics: "CTULU"
+      health_check: "ECOS-CLI health"
+
+  - id: devtools-hub
+    name: "DevTools hub"
+    type: "hub"
+    description: "C:\\DevTools as central hub for cross-repo operations"
+    protocol: "ecos-cli"
+    status: "active"
+    scope: ["SCRIPT", "TOOL", "CONFIG"]
+    bridges:
+      - "devtools-hub"
+    config:
+      path: "C:\\DevTools"
+      bin: "C:\\DevTools\\bin\\ecos.ps1"
+      scripts: "C:\\DevTools\\SCRIPTS"
+      registry: "C:\\DevTools\\registry"
+
+# Métadonnées
+metadata:
+  total_channels: 8
+  active_channels: 8
+  deprecated_channels: []
+  last_updated: "2026-09-13T21:24:00+02:00"
+  intent_hash: "0xINTENT_DISTRIBUTION_LAYER_ECOSYSTEM_20260913"
