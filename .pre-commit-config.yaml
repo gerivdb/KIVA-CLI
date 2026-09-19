@@ -38,7 +38,7 @@ repos:
     hooks:
       - id: stash-recovery-gate
         name: stash-recovery-gate
-        entry: python scripts/pre-commit-stash-recovery-gate.py
+        entry: python SCRIPTS/pre-commit-stash-recovery-gate.py
         language: python
         pass_filenames: []
         always_run: true
