@@ -1,0 +1,56 @@
+{
+  "timestamp": "2026-09-12T00:31:49.109751+00:00",
+  "status": "degraded",
+  "anomaly_score": 0.25,
+  "checks": [
+    {
+      "name": "wal_integrity",
+      "severity": "CheckSeverity.WARN",
+      "message": "WAL directory does not exist",
+      "details": {},
+      "timestamp": "2026-09-12T00:31:49.109751+00:00",
+      "duration_ms": 0.0
+    },
+    {
+      "name": "wal_drift",
+      "severity": "CheckSeverity.OK",
+      "message": "No drift detected",
+      "details": {
+        "total_drifts": 0,
+        "critical": 0,
+        "warnings": 0,
+        "by_type": {},
+        "by_severity": {}
+      },
+      "timestamp": "2026-09-12T00:31:49.109751+00:00",
+      "duration_ms": 0.0
+    },
+    {
+      "name": "transaction_health",
+      "severity": "CheckSeverity.OK",
+      "message": "Transactions healthy: 0 committed, 0 rolled back, 0 incomplete",
+      "details": {
+        "committed": 0,
+        "rolled_back": 0,
+        "incomplete": 0,
+        "total_entries": 0
+      },
+      "timestamp": "2026-09-12T00:31:49.109751+00:00",
+      "duration_ms": 0.0
+    },
+    {
+      "name": "segment_health",
+      "severity": "CheckSeverity.WARN",
+      "message": "No WAL segments found",
+      "details": {},
+      "timestamp": "2026-09-12T00:31:49.109751+00:00",
+      "duration_ms": 0.0
+    }
+  ],
+  "metadata": {
+    "vault_id": "KIVA",
+    "vault_path": "D:\\DO\\WEB\\TOOLS\\L1-INFRA\\KIVA-CLI",
+    "duration_ms": 0.0,
+    "brief": "\u26a0\ufe0f wal_integrity: WAL directory does not exist | \u2705 wal_drift: No drift detected | \u2705 transaction_health: Transactions healthy: 0 committed, 0 rolled back, 0 incomplete | \u26a0\ufe0f segment_health: No WAL segments found"
+  }
+}
