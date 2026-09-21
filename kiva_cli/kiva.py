@@ -80,6 +80,7 @@ from kiva_cli.commands.merge_commands import merge_cli
 from kiva_cli.commands.ci_commands import ci_cli
 from kiva_cli.commands.doctor_commands import doctor_cli
 from kiva_cli.commands.delivery_commands import deliver_cli
+from kiva_cli.commands.workflow_commands import workflow_cli
 
 
 @click.group()
@@ -163,6 +164,7 @@ cli.add_command(doctor_cli, name='doctor')
 cli.add_command(deliver_cli, name='deliver')
 
 
+cli.add_command(workflow_cli, name="workflow")
 def main():
     """Main entry point for KIVA-CLI"""
     cli()
