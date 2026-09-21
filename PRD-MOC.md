@@ -46,17 +46,17 @@ Voir commits :
 ## 7. Proof-of-Life
 | Item | Preuve | Status |
 |---|---|---|
-| Tests unitaires | `pytest tests/test_anything_cli.py -q` → 7/7 | [OK] |
+| Tests unitaires | `pytest tests/test_anything_cli.py -q` -> 7/7 | [OK] |
 | Shell normalization | `normalize_shell_command("git diff | head -20")` | [OK] |
 | Pipeline validation | `validate_pipeline_schema()` rejects `stop` | [OK] |
-| PRD-MOC racine | `PRD-MOC.md` présent | [OK] |
+| PRD-MOC racine | `PRD-MOC.md` present | [OK] |
 
 ## 8. Glossaire des statuts
-- 📄 Documenté
-- 🔧 Implémenté
-- 🧪 Testé
-- 🚀 Opérationnel
-- 🟢 Actif
-- 🟡 Passif
-- ⏸️ Pending
-- ❌ Bloqué
+- [DOC] Documenté
+- [IMP] Implémenté
+- [TST] Testé
+- [OPS] Opérationnel
+- [ACT] Actif
+- [PSV] Passif
+- [PDN] Pending
+- [BLK] Bloqué

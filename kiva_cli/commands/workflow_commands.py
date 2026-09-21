@@ -326,23 +326,30 @@ def workflow_register(
 
 @workflow_cli.command("drift")
 @click.option("--json", "as_json", is_flag=True, default=False)
-def workflow_drift(as_json: bool):
+@click.option("--scope", default=None, help="Filter by repo name (e.g. GeriCode)")
+def workflow_drift(as_json: bool, scope: Optional[str]):
     """Detect unregistered/phantom workflows."""
     discovered = {}
 
     for p in _discover_pipeline_files():
-        discovered[p.stem] = {"path": str(p), "format": "kiva-pipeline"}
+        discovered[p.stem] = {"path": str(p), "format": "kiva-pipeline", "repo": "GeriCode"}
     for p in _discover_kiva_workflow_files():
-        discovered[p.stem] = {"path": str(p), "format": "kiva-workflow"}
+        discovered[p.stem] = {"path": str(p), "format": "kiva-workflow", "repo": "KIVA-CLI"}
     for p in _discover_governance_workflow_files():
-        discovered[p.stem] = {"path": str(p), "format": "governance"}
+        discovered[p.stem] = {"path": str(p), "format": "governance", "repo": "GOVERNANCE-HUB"}
 
     local = _load_local_registry()
     gov = _load_gov_registry()
-    gov_names = {w.get("name") for w in gov.get("workflows", [])}
+    gov_workflows = gov.get("workflows", [])
+    gov_names = {w.get("name") for w in gov_workflows}
+
+    # Build repo mapping from GOVERNANCE-HUB registry
+    gov_repo_map = {w.get("name"): w.get("repo", "") for w in gov_workflows}
 
     unregistered = []
     for name, info in discovered.items():
+        if scope and info.get("repo") != scope:
+            continue
         in_local = name in local
         in_gov = name in gov_names
         if not in_local and not in_gov:
@@ -350,14 +357,18 @@ def workflow_drift(as_json: bool):
                 "name": name,
                 "path": info["path"],
                 "format": info["format"],
+                "repo": info.get("repo", ""),
                 "issue": "not_registered",
             })
 
     phantom = []
     for name in set(list(local.keys()) + list(gov_names)):
+        if scope and gov_repo_map.get(name, "") != scope:
+            continue
         if name not in discovered:
             phantom.append({
                 "name": name,
+                "repo": gov_repo_map.get(name, ""),
                 "issue": "phantom",
             })
 
