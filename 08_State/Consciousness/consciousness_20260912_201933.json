@@ -1,0 +1,63 @@
+{
+  "timestamp": "2026-09-12T18:19:33.109396+00:00",
+  "status": "degraded",
+  "anomaly_score": 0.5,
+  "checks": [
+    {
+      "name": "wal_integrity",
+      "severity": "CheckSeverity.WARN",
+      "message": "WAL directory does not exist",
+      "details": {
+        "path": "D:\\DO\\WEB\\TOOLS\\L1-INFRA\\KIVA-CLI\\08_State\\WAL"
+      },
+      "timestamp": "2026-09-12T18:19:33.108393+00:00",
+      "duration_ms": 0.0
+    },
+    {
+      "name": "transaction_history",
+      "severity": "CheckSeverity.WARN",
+      "message": "WAL directory does not exist",
+      "details": {
+        "path": "D:\\DO\\WEB\\TOOLS\\L1-INFRA\\KIVA-CLI\\08_State\\WAL"
+      },
+      "timestamp": "2026-09-12T18:19:33.109396+00:00",
+      "duration_ms": 15.0
+    },
+    {
+      "name": "state_archives",
+      "severity": "CheckSeverity.WARN",
+      "message": "WAL directory does not exist",
+      "details": {
+        "path": "D:\\DO\\WEB\\TOOLS\\L1-INFRA\\KIVA-CLI\\08_State\\WAL"
+      },
+      "timestamp": "2026-09-12T18:19:33.109396+00:00",
+      "duration_ms": 0.0
+    },
+    {
+      "name": "lineage_tracking",
+      "severity": "CheckSeverity.WARN",
+      "message": "WAL directory does not exist",
+      "details": {
+        "path": "D:\\DO\\WEB\\TOOLS\\L1-INFRA\\KIVA-CLI\\08_State\\WAL"
+      },
+      "timestamp": "2026-09-12T18:19:33.109396+00:00",
+      "duration_ms": 0.0
+    },
+    {
+      "name": "audit_trail",
+      "severity": "CheckSeverity.WARN",
+      "message": "WAL directory does not exist",
+      "details": {
+        "path": "D:\\DO\\WEB\\TOOLS\\L1-INFRA\\KIVA-CLI\\08_State\\WAL"
+      },
+      "timestamp": "2026-09-12T18:19:33.109396+00:00",
+      "duration_ms": 0.0
+    }
+  ],
+  "metadata": {
+    "vault_id": "KIVA_HERITAGE",
+    "vault_path": "D:\\DO\\WEB\\TOOLS\\L1-INFRA\\KIVA-CLI",
+    "duration_ms": 1.0,
+    "brief": "WARN wal_integrity: WAL directory does not exist | WARN transaction_history: WAL directory does not exist | WARN state_archives: WAL directory does not exist | WARN lineage_tracking: WAL directory does not exist | WARN audit_trail: WAL directory does not exist"
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "build": "20260912T015556Z",
+  "repo": "KIVA-CLI",
+  "concept": "ecosystem-check",
+  "intent_hash": "0xGEN_052_SCALE_OUT",
+  "metrics": {
+    "H": 0.38,
+    "TM": 0.2,
+    "F_grav": 0.92,
+    "C": 0.96,
+    "I": 0.2
+  },
+  "evidence_refs": [
+    "checkpoint.json"
+  ],
+  "curx_validated": true,
+  "causal_accuracy": 0.88,
+  "curx_validated_at": "2026-09-12T01:55:58.169818+00:00"
+}

@@ -1,0 +1,437 @@
+{
+  "generated_at_utc": "2026-09-11T17:34:00.935622+00:00",
+  "count": 25,
+  "nodes": [
+    {
+      "id": "VOLTX",
+      "name": "VOLTX",
+      "sources": [
+        "known_repositories"
+      ],
+      "layer": "L0_CANON",
+      "status": "ACTIVE",
+      "local_path": "D:\\DO\\WEB\\TOOLS\\L0-CANON\\VOLTX",
+      "remote": "https://github.com/gerivdb/VOLTX",
+      "role": "Vault Orchestrator Root (VOLTX master) — Moteur Narratif Souverain",
+      "intent_hash": "0xINTENT_CONSCIENCE_ECOSYSTEMIQUE_VOLTX_20260909",
+      "logical_layers": [
+        "N1",
+        "N2",
+        "N3"
+      ],
+      "entity_type": "REPO"
+    },
+    {
+      "id": "NEXUS",
+      "name": "NEXUS",
+      "sources": [
+        "known_repositories"
+      ],
+      "layer": "L0_CANON",
+      "status": "ACTIVE",
+      "local_path": "D:\\DO\\WEB\\TOOLS\\L1-INFRA\\NEXUS",
+      "remote": "https://github.com/gerivdb/NEXUS",
+      "role": "Mega-SOT -- registre des registres, gouvernance",
+      "intent_hash": "",
+      "logical_layers": [
+        "N1",
+        "N2"
+      ],
+      "entity_type": "REPO"
+    },
+    {
+      "id": "KIVA",
+      "name": "KIVA",
+      "sources": [
+        "known_repositories"
+      ],
+      "layer": "L1_CAUSALITY",
+      "status": "ACTIVE",
+      "local_path": "D:\\DO\\WEB\\TOOLS\\L1-INFRA\\KIVA",
+      "remote": "https://github.com/gerivdb/KIVA",
+      "role": "Infrastructure runtime, agents, scheduler, WAL",
+      "intent_hash": "",
+      "logical_layers": [
+        "N1",
+        "N2"
+      ],
+      "entity_type": "REPO"
+    },
+    {
+      "id": "GATEWAY-MANAGER",
+      "name": "GATEWAY-MANAGER",
+      "sources": [
+        "known_repositories"
+      ],
+      "layer": "L1_CAUSALITY",
+      "status": "ACTIVE",
+      "local_path": "D:\\DO\\WEB\\TOOLS\\L1-INFRA\\GATEWAY-MANAGER",
+      "remote": "https://github.com/gerivdb/GATEWAY-MANAGER",
+      "role": "Proxy/reverse proxy, BDCP, Clapet",
+      "intent_hash": "",
+      "logical_layers": [
+        "N1",
+        "N2"
+      ],
+      "entity_type": "REPO"
+    },
+    {
+      "id": "BRAIN",
+      "name": "BRAIN",
+      "sources": [
+        "known_repositories"
+      ],
+      "layer": "L0_CANON",
+      "status": "ACTIVE",
+      "local_path": "D:\\DO\\WEB\\TOOLS\\L0-CANON\\BRAIN",
+      "remote": "https://github.com/gerivdb/BRAIN",
+      "role": "Couche IA, agents cognitifs",
+      "intent_hash": "",
+      "logical_layers": [
+        "N3"
+      ],
+      "entity_type": "REPO"
+    },
+    {
+      "id": "ECOS-CLI",
+      "name": "ECOS-CLI",
+      "sources": [
+        "known_repositories"
+      ],
+      "layer": "L1_CAUSALITY",
+      "status": "ACTIVE",
+      "local_path": "D:\\DO\\WEB\\TOOLS\\L1-INFRA\\ECOS-CLI",
+      "remote": "https://github.com/gerivdb/ECOS-CLI",
+      "role": "Orchestrateur local CLI, workflows EECS",
+      "intent_hash": "",
+      "logical_layers": [
+        "N1",
+        "N2"
+      ],
+      "entity_type": "REPO"
+    },
+    {
+      "id": "OBSCURA",
+      "name": "OBSCURA",
+      "sources": [
+        "known_repositories"
+      ],
+      "layer": "L4_TOOLS",
+      "status": "active",
+      "local_path": "D:\\DO\\WEB\\TOOLS\\L4-TOOLS\\OBSCURA",
+      "remote": "https://github.com/gerivdb/OBSCURA",
+      "role": "Rust/CDP headless browser",
+      "intent_hash": "",
+      "logical_layers": [
+        "N2",
+        "N4"
+      ],
+      "entity_type": "REPO"
+    },
+    {
+      "id": "ONTOLOGY",
+      "name": "ONTOLOGY",
+      "sources": [
+        "known_repositories"
+      ],
+      "layer": "L0_CANON",
+      "status": "ACTIVE",
+      "local_path": "D:\\DO\\WEB\\ONTOLOGY",
+      "remote": "https://github.com/gerivdb/ONTOLOGY",
+      "role": "SOT semantique, dictionnaire canonique, ontologies",
+      "intent_hash": "",
+      "logical_layers": [
+        "N1",
+        "N2"
+      ],
+      "entity_type": "REPO"
+    },
+    {
+      "id": "GOVERNANCE-HUB",
+      "name": "GOVERNANCE-HUB",
+      "sources": [
+        "known_repositories"
+      ],
+      "layer": "L0_CANON",
+      "status": "ACTIVE",
+      "local_path": "D:\\DO\\WEB\\TOOLS\\L0-CANON\\GOVERNANCE-HUB",
+      "remote": "https://github.com/gerivdb/GOVERNANCE-HUB",
+      "role": "SOT execution, regles de gouvernance executables, Trit*, registres",
+      "intent_hash": "",
+      "logical_layers": [
+        "N1"
+      ],
+      "entity_type": "REPO"
+    },
+    {
+      "id": "BLO",
+      "name": "BLO",
+      "sources": [
+        "known_repositories"
+      ],
+      "layer": "L0-CANON",
+      "status": "active",
+      "local_path": "D:\\DO\\WEB\\TOOLS\\L0-CANON\\BLO",
+      "remote": "https://github.com/gerivdb/BLO",
+      "role": "Repo BLO",
+      "intent_hash": "",
+      "logical_layers": [
+        "N1"
+      ],
+      "entity_type": "REPO"
+    },
+    {
+      "id": "FERMI-EVER",
+      "name": "FERMI-EVER",
+      "sources": [
+        "known_repositories"
+      ],
+      "layer": "L0-CANON",
+      "status": "active",
+      "local_path": "D:\\DO\\WEB\\TOOLS\\L0-CANON\\FERMI-EVER",
+      "remote": "https://github.com/gerivdb/FERMI-EVER",
+      "role": "Fermi",
+      "intent_hash": "",
+      "logical_layers": [
+        "N1"
+      ],
+      "entity_type": "REPO"
+    },
+    {
+      "id": "GOST",
+      "name": "GOST",
+      "sources": [
+        "known_repositories"
+      ],
+      "layer": "L0-CANON",
+      "status": "active",
+      "local_path": "D:\\DO\\WEB\\TOOLS\\L0-CANON\\GOST",
+      "remote": "https://github.com/gerivdb/GOST",
+      "role": "Gost",
+      "intent_hash": "",
+      "logical_layers": [
+        "N1"
+      ],
+      "entity_type": "REPO"
+    },
+    {
+      "id": "unified-design",
+      "name": "unified-design",
+      "sources": [
+        "known_repositories"
+      ],
+      "layer": "",
+      "status": "ACTIVE",
+      "local_path": null,
+      "remote": "",
+      "role": "Unified design",
+      "intent_hash": "",
+      "logical_layers": [],
+      "entity_type": "REPO"
+    },
+    {
+      "id": "personae",
+      "name": "personae",
+      "sources": [
+        "known_repositories"
+      ],
+      "layer": "L0-CANON",
+      "status": "active",
+      "local_path": "D:\\DO\\WEB\\TOOLS\\L0-CANON\\unified-design",
+      "remote": "https://github.com/gerivdb/unified-design",
+      "role": "Meta-Design (MDU) -- Atlas global des invariants architecturaux",
+      "intent_hash": "0xUNIFIED_DESIGN_20260715",
+      "logical_layers": [
+        "N1"
+      ],
+      "entity_type": "REPO"
+    },
+    {
+      "id": "connard-design",
+      "name": "connard-design",
+      "sources": [
+        "known_repositories"
+      ],
+      "layer": "L0-CANON",
+      "status": "active",
+      "local_path": "D:\\DO\\WEB\\TOOLS\\L0-CANON\\connard-design",
+      "remote": "https://github.com/gerivdb/connard-design",
+      "role": "Validateur design MDU -- dissipateur d'entropie",
+      "intent_hash": "0xCONNARD_DESIGN_20260715",
+      "logical_layers": [
+        "N1"
+      ],
+      "entity_type": "REPO"
+    },
+    {
+      "id": "morphohdl-anamorphic-growth",
+      "name": "morphohdl-anamorphic-growth",
+      "sources": [
+        "known_repositories"
+      ],
+      "layer": "L0-CANON",
+      "status": "active",
+      "local_path": "D:\\DO\\WEB\\TOOLS\\L0-CANON\\morphohdl-anamorphic-growth",
+      "remote": "https://github.com/gerivdb/morphohdl-anamorphic-growth",
+      "role": "Optimisation matérielle -- croissance anamorphique Base 243",
+      "intent_hash": "0xMAG_ANAMORPHIC_GROWTH_20260715",
+      "logical_layers": [
+        "N1"
+      ],
+      "entity_type": "REPO"
+    },
+    {
+      "id": "triadic-compound-eye",
+      "name": "triadic-compound-eye",
+      "sources": [
+        "known_repositories"
+      ],
+      "layer": "L0-CANON",
+      "status": "active",
+      "local_path": "D:\\DO\\WEB\\TOOLS\\L0-CANON\\triadic-compound-eye",
+      "remote": "https://github.com/gerivdb/triadic-compound-eye",
+      "role": "Orchestration agents -- Triade C-E-Obs",
+      "intent_hash": "0xTCE_TRIADIC_COMPOUND_EYE_20260715",
+      "logical_layers": [
+        "N1"
+      ],
+      "entity_type": "REPO"
+    },
+    {
+      "id": "sonar-driven-design",
+      "name": "sonar-driven-design",
+      "sources": [
+        "known_repositories"
+      ],
+      "layer": "L0-CANON",
+      "status": "active",
+      "local_path": "D:\\DO\\WEB\\TOOLS\\L0-CANON\\sonar-driven-design",
+      "remote": "https://github.com/gerivdb/sonar-driven-design",
+      "role": "Observabilité -- Ping/Echo, Sonar Map, PRF",
+      "intent_hash": "0xSDD_SONAR_DRIVEN_DESIGN_20260715",
+      "logical_layers": [
+        "N1"
+      ],
+      "entity_type": "REPO"
+    },
+    {
+      "id": "APOLLO",
+      "name": "APOLLO",
+      "sources": [
+        "known_repositories"
+      ],
+      "layer": "L0_CONSTITUTIONAL",
+      "status": "archived",
+      "local_path": null,
+      "remote": "https://github.com/gerivdb/APOLLO",
+      "role": "Apollo",
+      "intent_hash": "",
+      "logical_layers": [
+        "N1"
+      ],
+      "entity_type": "REPO"
+    },
+    {
+      "id": "ARES",
+      "name": "ARES",
+      "sources": [
+        "known_repositories"
+      ],
+      "layer": "L0_CONSTITUTIONAL",
+      "status": "archived",
+      "local_path": null,
+      "remote": "https://github.com/gerivdb/ARES",
+      "role": "Moteur de decision Diamond v16",
+      "intent_hash": "",
+      "logical_layers": [
+        "N1"
+      ],
+      "entity_type": "REPO"
+    },
+    {
+      "id": "ATHENA",
+      "name": "ATHENA",
+      "sources": [
+        "known_repositories"
+      ],
+      "layer": "L0_CONSTITUTIONAL",
+      "status": "archived",
+      "local_path": null,
+      "remote": "https://github.com/gerivdb/ATHENA",
+      "role": "Hub central Diamond v16",
+      "intent_hash": "",
+      "logical_layers": [
+        "N1"
+      ],
+      "entity_type": "REPO"
+    },
+    {
+      "id": "ATLAS",
+      "name": "ATLAS",
+      "sources": [
+        "known_repositories"
+      ],
+      "layer": "L0_CONSTITUTIONAL",
+      "status": "dormant",
+      "local_path": null,
+      "remote": "https://github.com/gerivdb/ATLAS",
+      "role": "Infrastructure as Code",
+      "intent_hash": "",
+      "logical_layers": [
+        "N1"
+      ],
+      "entity_type": "REPO"
+    },
+    {
+      "id": "FORGE",
+      "name": "FORGE",
+      "sources": [
+        "known_repositories"
+      ],
+      "layer": "L0_CONSTITUTIONAL",
+      "status": "dormant",
+      "local_path": null,
+      "remote": "https://github.com/gerivdb/FORGE",
+      "role": "Forge",
+      "intent_hash": "",
+      "logical_layers": [
+        "N1"
+      ],
+      "entity_type": "REPO"
+    },
+    {
+      "id": "HERMES",
+      "name": "HERMES",
+      "sources": [
+        "known_repositories"
+      ],
+      "layer": "L0_CONSTITUTIONAL",
+      "status": "ACTIVE",
+      "local_path": "D:\\DO\\WEB\\TOOLS\\L0-CANON\\HERMES",
+      "remote": "https://github.com/gerivdb/HERMES",
+      "role": "SOT mémoire hiérarchique -- MEMORY.md, USER.md, Skills, Facts DB",
+      "intent_hash": "",
+      "logical_layers": [
+        "N1"
+      ],
+      "entity_type": "REPO"
+    },
+    {
+      "id": "MATRIX",
+      "name": "MATRIX",
+      "sources": [
+        "known_repositories"
+      ],
+      "layer": "L0_CONSTITUTIONAL",
+      "status": "dormant",
+      "local_path": null,
+      "remote": "https://github.com/gerivdb/MATRIX",
+      "role": "ML/AI Orchestration",
+      "intent_hash": "",
+      "logical_layers": [
+        "N1"
+      ],
+      "entity_type": "REPO"
+    }
+  ]
+}

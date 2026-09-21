@@ -1,0 +1,37 @@
+{
+  "repo": "KIVA-CLI",
+  "scope_dir": "D:\\DO\\WEB\\TOOLS\\L1-INFRA\\KIVA-CLI",
+  "targets": [
+    {
+      "category": "citizen",
+      "name": "CitizenManager",
+      "status": "existing",
+      "path": "README.md",
+      "references": [
+        "README.md"
+      ],
+      "rationale": "Concept citizen L0-L5 existant"
+    },
+    {
+      "category": "routine",
+      "name": "auto_trigger",
+      "status": "missing",
+      "path": null,
+      "references": [
+        "docs\\global_wal_manager.md"
+      ],
+      "rationale": "Mentionné dans contexte KG (KG-L/VOLTX/VERSES) mais routine non formalisée"
+    }
+  ],
+  "patterns": [
+    {
+      "pattern_name": "registry sync",
+      "frequency": 5,
+      "files": [
+        ".kiva\\pipelines\\ecosystem-orchestration-pipeline.yaml",
+        "kiva_cli\\commands\\repo_commands.py"
+      ],
+      "automation_target": "registry-sync-checker"
+    }
+  ]
+}

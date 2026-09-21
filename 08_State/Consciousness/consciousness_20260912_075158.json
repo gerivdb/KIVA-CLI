@@ -1,0 +1,63 @@
+{
+  "timestamp": "2026-09-12T05:51:58.844360+00:00",
+  "status": "degraded",
+  "anomaly_score": 0.5,
+  "checks": [
+    {
+      "name": "wal_integrity",
+      "severity": "CheckSeverity.WARN",
+      "message": "WAL directory does not exist",
+      "details": {
+        "path": "D:\\DO\\WEB\\TOOLS\\L1-INFRA\\KIVA-CLI\\08_State\\WAL"
+      },
+      "timestamp": "2026-09-12T05:51:58.843363+00:00",
+      "duration_ms": 0.0
+    },
+    {
+      "name": "drift_detection",
+      "severity": "CheckSeverity.WARN",
+      "message": "WAL directory does not exist",
+      "details": {
+        "path": "D:\\DO\\WEB\\TOOLS\\L1-INFRA\\KIVA-CLI\\08_State\\WAL"
+      },
+      "timestamp": "2026-09-12T05:51:58.843363+00:00",
+      "duration_ms": 0.0
+    },
+    {
+      "name": "heritage_preservation",
+      "severity": "CheckSeverity.WARN",
+      "message": "WAL directory does not exist",
+      "details": {
+        "path": "D:\\DO\\WEB\\TOOLS\\L1-INFRA\\KIVA-CLI\\08_State\\WAL"
+      },
+      "timestamp": "2026-09-12T05:51:58.844360+00:00",
+      "duration_ms": 0.0
+    },
+    {
+      "name": "repair_automation",
+      "severity": "CheckSeverity.WARN",
+      "message": "WAL directory does not exist",
+      "details": {
+        "path": "D:\\DO\\WEB\\TOOLS\\L1-INFRA\\KIVA-CLI\\08_State\\WAL"
+      },
+      "timestamp": "2026-09-12T05:51:58.844360+00:00",
+      "duration_ms": 0.0
+    },
+    {
+      "name": "state_recovery",
+      "severity": "CheckSeverity.WARN",
+      "message": "WAL directory does not exist",
+      "details": {
+        "path": "D:\\DO\\WEB\\TOOLS\\L1-INFRA\\KIVA-CLI\\08_State\\WAL"
+      },
+      "timestamp": "2026-09-12T05:51:58.844360+00:00",
+      "duration_ms": 0.0
+    }
+  ],
+  "metadata": {
+    "vault_id": "KIVA_HERITAGE_REPAIR",
+    "vault_path": "D:\\DO\\WEB\\TOOLS\\L1-INFRA\\KIVA-CLI",
+    "duration_ms": 1.0,
+    "brief": "WARN wal_integrity: WAL directory does not exist | WARN drift_detection: WAL directory does not exist | WARN heritage_preservation: WAL directory does not exist | WARN repair_automation: WAL directory does not exist | WARN state_recovery: WAL directory does not exist"
+  }
+}
