@@ -1,0 +1,27 @@
+# nav_bateau.kiva.yml — CI/CD bateau métaphore (PRD-MOC-027)
+# IntentHash: 0xKIVA_NAV_BATEAU_20260910
+# Mode BDCP — pas de GitHub Actions (bdcp-kiva-workflow v1.0)
+
+workflow:
+  name: nav_bateau
+  on:
+    push:
+      paths: ["scripts/nav_verses.sh"]
+      repo: "gerivdb/VERSES"
+    pull_request:
+      paths: ["scripts/nav_verses.sh"]
+      repo: "gerivdb/VERSES"
+
+jobs:
+  nav_check:
+    runs-on: local
+    steps:
+      - name: checkout
+        uses: kiva/checkout@v1
+        with:
+          repo: "gerivdb/VERSES"
+      
+      - name: nav_check_all
+        script: |
+          chmod +x scripts/nav_verses.sh
+          ./scripts/nav_verses.sh check all

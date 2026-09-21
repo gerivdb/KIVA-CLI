@@ -76,9 +76,10 @@ if [ -f "${POST_IMPL}" ]; then
     POST_IMPL_STATUS=$?
     if [ ${POST_IMPL_STATUS} -ne 0 ]; then
         echo ""
-        echo "[PRE-COMMIT WARN] Post-implement check found frictions."
+        echo "[PRE-COMMIT BLOCK] Post-implement check failed."
         echo "  Re-run with --fix on post_implement_check.py to auto-correct."
         echo "  Or commit with --no-verify if intentional."
+        exit 1
     fi
 fi
 

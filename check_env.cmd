@@ -1,1 +1,1 @@
-python -c "import os; print('OUTPUT_DIR:', os.environ.get('OUTPUT_DIR')); print('INTENTS_PATH:', os.environ.get('INTENTS_PATH'))"
+python scripts/check_env.py

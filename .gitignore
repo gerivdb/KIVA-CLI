@@ -84,3 +84,5 @@ scripts/filter_active_repos.py
 cov*.json
 cov*.txt
 cov_tmp.json
+!channels/registry.yaml
+
