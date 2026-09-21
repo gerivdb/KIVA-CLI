@@ -155,3 +155,60 @@ def detect_cycles(steps: List[Step]) -> List[str]:
     except graphlib.CycleError as exc:
         nodes = exc.args[1] if len(exc.args) > 1 else []
         return list(nodes) if nodes else ["<unknown cycle>"]
+
+
+# ---------------------------------------------------------------------------
+# Schema validation helpers (KIVA-012 S3)
+# ---------------------------------------------------------------------------
+
+ALLOWED_ON_FAILURE = {"abort", "warn", "continue", "notify"}
+
+
+def validate_step_schema(raw_step: dict, index: int) -> List[str]:
+    """Validate a single step dict and return a list of error strings."""
+    errors: List[str] = []
+
+    if not isinstance(raw_step, dict):
+        errors.append(f"Step #{index}: must be a YAML mapping, got {type(raw_step).__name__}")
+        return errors
+
+    name = raw_step.get("name")
+    if not name or not isinstance(name, str):
+        errors.append(f"Step #{index}: missing or invalid 'name' field")
+
+    on_failure = raw_step.get("on_failure", "abort")
+    if on_failure not in ALLOWED_ON_FAILURE:
+        errors.append(
+            f"Step '{name or index}': on_failure must be one of {sorted(ALLOWED_ON_FAILURE)}; got '{on_failure}'"
+        )
+
+    return errors
+
+
+def validate_pipeline_schema(path: Path) -> List[str]:
+    """Validate a pipeline YAML file and return a list of error strings."""
+    errors: List[str] = []
+
+    if not path.exists():
+        errors.append(f"Pipeline file not found: {path}")
+        return errors
+
+    try:
+        raw = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    except Exception as exc:
+        errors.append(f"YAML parse error: {exc}")
+        return errors
+
+    if not isinstance(raw, dict):
+        errors.append("Pipeline root must be a YAML mapping")
+        return errors
+
+    steps = raw.get("steps") or []
+    if not isinstance(steps, list):
+        errors.append("'steps' must be a list")
+        return errors
+
+    for idx, raw_step in enumerate(steps):
+        errors.extend(validate_step_schema(raw_step, idx))
+
+    return errors
