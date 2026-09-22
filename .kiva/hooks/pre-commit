@@ -47,6 +47,7 @@ def main():
         ("Enforcement Files (150/150)", "python -c \"import os; f=len([f for f in os.listdir('kilocode/guards/design_enforcement') if f.endswith('.py')]); assert f==150, f'{f}/150'; print(f'{f}/150 enforcement files OK')\"", 10),
         ("Runners Active (50/50)", "python scripts/check_runners.py", 10),
         ("Unit Tests", "python -m pytest tests/ -x -q --tb=short", 120),
+        ("No-Verify Prohibition", "python scripts/verify_no_verify.py pre-commit", 10),
     ]
 
     all_passed = True
