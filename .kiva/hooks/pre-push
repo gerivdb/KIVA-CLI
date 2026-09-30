@@ -45,7 +45,8 @@ def main():
         ("GF-15 Full Scope", "python scripts/validate_designs.py --scope all", 120),
         ("GF-16 Full Stratification", "python scripts/run_gf16_v2.py", 60),
         ("Full Test Suite", "python -m pytest tests/ -x --tb=short", 300),
-        ("Enforcement Import Check", "python -c \"import sys; sys.path.insert(0,'.'); from kilocode.guards.design_enforcement import *; print('All 150 enforcers importable')\"", 30),
+        ("Enforcement Import Check", "python -c \"import sys; sys.path.insert(0,'.'); from kilocode.guards.design_enforcement import *; print('All enforcers importable')\"", 30),
+        ("No-Verify Prohibition", "python scripts/verify_no_verify.py pre-push", 30),
     ]
 
     all_passed = True

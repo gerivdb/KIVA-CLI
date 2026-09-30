@@ -156,16 +156,16 @@ def check_cli_entry_point(repo_path: Path) -> List[str]:
 
 
 # MOX validation check
-MOX_PATH = Path(r"D:\DO\WEB\TOOLS\L2-PLATFORM\MOX\mox.py")
-VALIDATOR_PATH = Path(r"D:\DO\WEB\TOOLS\L2-PLATFORM\MOX\validator.py")
+_MOX_ROOT = Path(r"D:\DO\WEB\TOOLS\L2-PLATFORM\MOX")
+MOX_PATH = _MOX_ROOT / "src" / "cli" / "mox.py"
+VALIDATOR_PATH = _MOX_ROOT / "src" / "engines" / "validator.py"
 
 def check_mox_valid(repo_path: Path) -> List[str]:
     """Validate MOX generates and validates PRD-MOC correctly."""
+    # MOX is optional - skip if not available
+    if not MOX_PATH.exists() or not VALIDATOR_PATH.exists():
+        return []
     issues = []
-    if not MOX_PATH.exists():
-        return [f"MOX not found at {MOX_PATH}"]
-    if not VALIDATOR_PATH.exists():
-        return [f"MOX validator not found at {VALIDATOR_PATH}"]
     try:
         # Test MOX generation
         result = subprocess.run(

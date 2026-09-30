@@ -1,5 +1,5 @@
 # KIVA-CLI Local CI Configuration
-# ZERO GITHUB ACTIONS — Local CI Only via KIVA-CLI
+# ZERO GITHUB ACTIONS - Local CI Only via KIVA-CLI
 
 ci:
   name: "KG-L Local CI Pipeline"
@@ -39,6 +39,12 @@ pre_commit:
     timeout: 60
     critical: true
 
+  - name: "No-Verify Prohibition"
+    command: "python D:/DO/WEB/TOOLS/L1-INFRA/KIVA-CLI/scripts/verify_no_verify.py pre-commit"
+    description: "Detects historical use of --no-verify in recent commits"
+    timeout: 10
+    critical: true
+
 # Pre-push hooks (exécute avant push)
 pre_push:
   - name: "Full GF-15 Check"
@@ -64,6 +70,12 @@ pre_push:
     description: "Vérifie que tous les enforcers sont importables"
     timeout: 30
     critical: false
+
+  - name: "No-Verify Prohibition"
+    command: "python D:/DO/WEB/TOOLS/L1-INFRA/KIVA-CLI/scripts/verify_no_verify.py pre-push"
+    description: "Detects --no-verify usage in commits being pushed"
+    timeout: 30
+    critical: true
 
 # Manual CI command
 manual_ci:
@@ -143,6 +155,7 @@ enforcers:
   - "llm-core"
   - "piano"
   - "trix"
+  - "no-verify-prohibition"
 
 # Zero GitHub Actions Enforcement
 zero_github_actions:
@@ -150,4 +163,4 @@ zero_github_actions:
   check_paths:
     - ".github/workflows"
     - ".github/actions"
-  error_message: "GITHUB ACTIONS INTERDIT — Utilisez KIVA-CLI Local CI uniquement (.kiva/ci.yaml)"
+    error_message: "GITHUB ACTIONS INTERDIT - Utilisez KIVA-CLI Local CI uniquement (.kiva/ci.yaml)"
