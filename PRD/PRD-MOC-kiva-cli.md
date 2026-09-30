@@ -145,7 +145,7 @@ Le **PRD MOC KIVA-CLI** est la boussole produit du CLI souverain de l'ecosysteme
 | 5 | project_manager.py non migre vers types canoniques | kiva_cli/core/ | P1 |
 | 6 | Documentation workflows BDCP fallback incomplete | bdcp-github-api-fallback.md | P1 |
 | 7 | Test test_audit_stale_branch : probleme parsing date ISO | tests/ | P2 |
-| 8 | Warnings datetime.utcnow() deprecié dans tout le codebase | *.py | P2 |
+| 8 | Warnings datetime.utcnow() deprecie dans tout le codebase | *.py | P2 |
 
 ---
 
@@ -160,7 +160,7 @@ Le **PRD MOC KIVA-CLI** est la boussole produit du CLI souverain de l'ecosysteme
 | 5 | Documenter workflows BDCP fallback et skills associes | P1 | A faire |
 | 6 | Ajouter tests pour modules 0% (nexus, epic, wal, pipeline, tql, etc.) | P1 | A faire |
 | 7 | Corriger test_audit_stale_branch (probleme parsing date ISO) | P2 | A faire |
-| 8 | Nettoyer warnings datetime.utcnow() deprecié | P2 | A faire |
+| 8 | Nettoyer warnings datetime.utcnow() deprecie | P2 | A faire |
 
 ---
 

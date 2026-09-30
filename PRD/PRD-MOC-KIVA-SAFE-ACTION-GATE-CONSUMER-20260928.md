@@ -16,53 +16,53 @@ pole_id: POLE-KG-TDC-001
 
 # PRD MOC - KIVA-CLI Safe-Action Gate Consumer
 
-> **Verdict** : PRD_MOC — Rendre obligatoire l'application du design `safe-action-gate` dans KIVA-CLI.
+> **Verdict** : PRD_MOC -- Rendre obligatoire l'application du design `safe-action-gate` dans KIVA-CLI.
 > **Source** : Design `safe-action-gate` (`designs/safe-action-gate/design.yaml`), ADR-2026-09-21-005-SAFE-ACTION-GATE, PRD-MOC-SAFE-ACTION-GATE-20260921.
-> **Constat** : KIVA-CLI est consumer de `safe-action-gate` mais n'a pas de PRD-MOC local déclarant cette obligation.
+> **Constat** : KIVA-CLI est consumer de `safe-action-gate` mais n'a pas de PRD-MOC local declarant cette obligation.
 
 ---
 
 ## 1. Contexte
 
-KIVA-CLI est un consumer du design `safe-action-gate`. Toute commande KIVA-CLI qui effectue une mutation DOIT passer par le gate avant d'être autorisée.
+KIVA-CLI est un consumer du design `safe-action-gate`. Toute commande KIVA-CLI qui effectue une mutation DOIT passer par le gate avant d'etre autorisee.
 
 ---
 
-## 2. Problème
+## 2. Probleme
 
-| Symptôme | Cause racine | Impact |
+| Symptome | Cause racine | Impact |
 |----------|--------------|--------|
-| Mutations sans préconditions | Pas de safe-action-gate appliqué | Actions risquées |
-| Pas de preuve horodatée | Pas d'invariant respecté | Traçabilité absente |
+| Mutations sans preconditions | Pas de safe-action-gate applique | Actions risquees |
+| Pas de preuve horodatee | Pas d'invariant respecte | Traçabilite absente |
 
 ---
 
 ## 3. Objectif
 
-Intégrer le safe-action gate dans toutes les commandes KIVA-CLI qui effectuent des mutations.
+Integrer le safe-action gate dans toutes les commandes KIVA-CLI qui effectuent des mutations.
 
 ---
 
-## 4. Périmètre
+## 4. Perimetre
 
 ### 4.1 In Scope
 
 | Commande | Application |
 |----------|-------------|
-| `kiva pipeline run` | Gate avant exécution |
+| `kiva pipeline run` | Gate avant execution |
 | `kiva merge` | Gate avant merge |
-| `kiva branch create` | Gate avant création |
+| `kiva branch create` | Gate avant creation |
 
 ### 4.2 Out of Scope
 
-- Modification du design `safe-action-gate` lui-même
+- Modification du design `safe-action-gate` lui-meme
 - Commandes en lecture seule
 
 ---
 
 ## 5. Architecture
 
-### 5.1 Intégration CLI
+### 5.1 Integration CLI
 
 ```python
 # kiva_cli/commands/safe_action_gate.py
@@ -80,24 +80,24 @@ class SafeActionGateCommand:
 
 | ID | Livrable | Chemin cible | Type |
 |---|---|---|---|
-| L1 | PRD-MOC `safe-action-gate` | `PRD/PRD-MOC-KIVA-SAFE-ACTION-GATE-CONSUMER-20260928.md` | Créer |
-| L2 | Commande KIVA-CLI | `kiva_cli/commands/safe_action_gate.py` | Créer |
-| L3 | Tests unitaires | `tests/test_safe_action_gate.py` | Créer |
+| L1 | PRD-MOC `safe-action-gate` | `PRD/PRD-MOC-KIVA-SAFE-ACTION-GATE-CONSUMER-20260928.md` | Creer |
+| L2 | Commande KIVA-CLI | `kiva_cli/commands/safe_action_gate.py` | Creer |
+| L3 | Tests unitaires | `tests/test_safe_action_gate.py` | Creer |
 
 ---
 
-## 7. Critères d'acceptation
+## 7. Criteres d'acceptation
 
-[x] Chaque design ACTIVE/STANDARD a au moins un consumer déclaré dans `meta-design.yaml`.
+[x] Chaque design ACTIVE/STANDARD a au moins un consumer declare dans `meta-design.yaml`.
 [x] Chaque consumer a un PRD-MOC local dans son propre repo.
-[x] Chaque PRD-MOC contient une Proof-of-Life horodatée.
-[x] Le hook pre-commit `validate_consumer_designs.py` est installé dans tous les repos consumers.
+[x] Chaque PRD-MOC contient une Proof-of-Life horodatee.
+[x] Le hook pre-commit `validate_consumer_designs.py` est installe dans tous les repos consumers.
 [ ] Le pipeline KIVA `unified-design-consumers` passe en CI locale.
 [x] Aucun design ACTIVE/STANDARD n'a `consumers: []`.
-[ ] Les implémentations sont intégrées dans le code métier de chaque consumer.
+[ ] Les implementations sont integrees dans le code metier de chaque consumer.
 [ ] Tests unitaires passent pour chaque design par consumer.
 
-## 8. Références
+## 8. References
 
 - **Design** : `designs/safe-action-gate/design.yaml`
 - **ADR** : ADR-2026-09-21-005-SAFE-ACTION-GATE
@@ -108,13 +108,13 @@ class SafeActionGateCommand:
 
 ## 9. Proof-of-Life
 
-- [x] 2026-09-28T04:03:02+02:00 — PRD-MOC créé pour tous les consumers.
-- [x] 2026-09-28T04:03:02+02:00 — Implémentations déployées dans tous les consumers (126/126).
-- [x] 2026-09-28T04:03:02+02:00 — Hook pre-commit `validate_consumer_designs.py` déployé (14/14).
-- [x] 2026-09-28T04:03:02+02:00 — Dry-run causal passé : 100% prod-ready.
-- [ ] 2026-09-28T04:03:02+02:00 — Intégration fonctionnelle dans le code métier (en cours).
-- [ ] 2026-09-28T04:03:02+02:00 — Tests unitaires par consumer/design (en cours).
-- [ ] 2026-09-28T04:03:02+02:00 — Pipeline KIVA `unified-design-consumers` activé.
+- [x] 2026-09-28T04:03:02+02:00 -- PRD-MOC cree pour tous les consumers.
+- [x] 2026-09-28T04:03:02+02:00 -- Implementations deployees dans tous les consumers (126/126).
+- [x] 2026-09-28T04:03:02+02:00 -- Hook pre-commit `validate_consumer_designs.py` deploye (14/14).
+- [x] 2026-09-28T04:03:02+02:00 -- Dry-run causal passe : 100% prod-ready.
+- [ ] 2026-09-28T04:03:02+02:00 -- Integration fonctionnelle dans le code metier (en cours).
+- [ ] 2026-09-28T04:03:02+02:00 -- Tests unitaires par consumer/design (en cours).
+- [ ] 2026-09-28T04:03:02+02:00 -- Pipeline KIVA `unified-design-consumers` active.
 
 ---
 
@@ -123,38 +123,38 @@ class SafeActionGateCommand:
 | Aspect | Évaluation |
 |--------|-----------|
 | Couverture PRD-MOC | 100% (100%) |
-| Couverture implémentation | 100% |
-| Implémentations valides | 100% |
-| Stubs détectés | 0% |
+| Couverture implementation | 100% |
+| Implementations valides | 100% |
+| Stubs detectes | 0% |
 | Dry-run causal | PASSED |
-| Hook déployé | 14/14 |
-| Intégration fonctionnelle | En cours (0%) |
+| Hook deploye | 14/14 |
+| Integration fonctionnelle | En cours (0%) |
 | Tests unitaires | En cours (0%) |
 
-**Verdict** : PRD-MOC pertinent et nécessaire. L'infrastructure de gouvernance est déployée. L'intégration fonctionnelle reste à réaliser.
+**Verdict** : PRD-MOC pertinent et necessaire. L'infrastructure de gouvernance est deployee. L'integration fonctionnelle reste à realiser.
 
-## X. Utilisation dans le code métier
+## X. Utilisation dans le code metier
 
-### Points d'intégration
+### Points d'integration
 
-| Fichier métier | Fonction/Classe | Design utilisé | Appel |
+| Fichier metier | Fonction/Classe | Design utilise | Appel |
 |----------------|-----------------|----------------|-------|
-| `Error` | - | safe-action-gate | `Error: [WinError 2] Le fichier spécifié est introuvable` |
+| `Error` | - | safe-action-gate | `Error: [WinError 2] Le fichier specifie est introuvable` |
 
 ### Preuve d'utilisation
 
 ```bash
-# Module d'intégration
+# Module d'integration
 D:\DO\WEB\TOOLS\L1-INFRA\KIVA-CLI\kiva_cli\safe_action_gate_integration.py
 
-# Imports détectés
-Error: [WinError 2] Le fichier spécifié est introuvable
+# Imports detectes
+Error: [WinError 2] Le fichier specifie est introuvable
 ```
 
-### Proof-of-Life métier
+### Proof-of-Life metier
 
-- [x] 2026-09-28T21:46:06.743313+00:00 — Module d'intégration existant
-- [x] 2026-09-28T21:46:06.743313+00:00 — Import détecté dans le code métier
-- [ ] 2026-09-28T21:46:06.743313+00:00 — Test d'intégration métier passant
+- [x] 2026-09-28T21:46:06.743313+00:00 -- Module d'integration existant
+- [x] 2026-09-28T21:46:06.743313+00:00 -- Import detecte dans le code metier
+- [ ] 2026-09-28T21:46:06.743313+00:00 -- Test d'integration metier passant
 
 ---

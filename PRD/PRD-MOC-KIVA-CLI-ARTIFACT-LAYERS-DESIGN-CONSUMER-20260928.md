@@ -11,49 +11,49 @@ intent_hash: 0xARTIFACT_LAYERS_DESIGN_20260928
 # PRD-MOC: KIVA-CLI - Artifact Layers Design Consumer
 
 ## Context
-Ce document déclare l'obligation pour le dépôt **KIVA-CLI** d'appliquer le design central **Artifact Layers Design** depuis le repo unifié `unified-design`.
+Ce document declare l'obligation pour le depot **KIVA-CLI** d'appliquer le design central **Artifact Layers Design** depuis le repo unifie `unified-design`.
 
 ## Problem Statement
-Tous les dépôts consumers de l'écosystème gerivdb DOIVENT implémenter les designs centraux pour garantir:
-- Cohérence architecturale transverse
-- Réutilisabilité des patterns éprouvés
-- Traçabilité des décisions de conception
-- Maintenance simplifiée sur 9+ dépôts
+Tous les depots consumers de l'ecosysteme gerivdb DOIVENT implementer les designs centraux pour garantir:
+- Coherence architecturale transverse
+- Reutilisabilite des patterns eprouves
+- Traçabilite des decisions de conception
+- Maintenance simplifiee sur 9+ depots
 
 ## Scope
 - **In scope**: Application du design Artifact Layers Design dans KIVA-CLI
-- **Out of scope**: Modifications du design central lui-même
+- **Out of scope**: Modifications du design central lui-meme
 - **Dependencies**: unified-design/designs/artifact-layers-design.yaml
 
 ## Architecture
 ```
 unified-design/designs/artifact-layers-design.yaml  (canonical)
-    ↓
+    v
 KIVA-CLI/
-    ├── PRD/ ou PRD-MOC/        (ce fichier)
-    └── artifact_layers_design.py    (implémentation)
+    |--- PRD/ ou PRD-MOC/        (ce fichier)
+    `--- artifact_layers_design.py    (implementation)
 ```
 
 ## Deliverables
-1. **PRD-MOC**: Ce fichier déclarant l'obligation
+1. **PRD-MOC**: Ce fichier declarant l'obligation
 2. **Implementation**: `artifact_layers_design.py` dans PRD/ ou PRD-MOC/
-3. **Validation**: Tests unitaires confirmant la conformité
+3. **Validation**: Tests unitaires confirmant la conformite
 
 ## Acceptance Criteria
-- [ ] PRD-MOC présent avec frontmatter valide
-- [ ] Implémentation déployée et fonctionnelle
+- [ ] PRD-MOC present avec frontmatter valide
+- [ ] Implementation deployee et fonctionnelle
 - [ ] Tests passants (pytest)
 - [ ] Validation ACT-024b = IMPLEMENTED
 
 ## References
 - **Design central**: unified-design/designs/artifact-layers-design.yaml
 - **IntentHash**: 0xARTIFACT_LAYERS_DESIGN_20260928
-- **Dépôt unifié**: gerivdb/unified-design
+- **Depot unifie**: gerivdb/unified-design
 - **Statut**: approved
 
 ## Proof-of-Life
 ```bash
-# Vérifier la présence
+# Verifier la presence
 ls PRD/ ou PRD-MOC/*artifact_layers_design*.py
 ls PRD/ ou PRD-MOC/PRD-MOC-*ARTIFACT_LAYERS_DESIGN*CONSUMER*.md
 
@@ -73,38 +73,38 @@ python D:/DO/WEB/TOOLS/L0-CANON/unified-design/scripts/ACT-024b-final-scan.py
 | Aspect | Évaluation |
 |--------|-----------|
 | Couverture PRD-MOC | 100% (100%) |
-| Couverture implémentation | 100% |
-| Implémentations valides | 100% |
-| Stubs détectés | 0% |
+| Couverture implementation | 100% |
+| Implementations valides | 100% |
+| Stubs detectes | 0% |
 | Dry-run causal | PASSED |
-| Hook déployé | 14/14 |
-| Intégration fonctionnelle | En cours (0%) |
+| Hook deploye | 14/14 |
+| Integration fonctionnelle | En cours (0%) |
 | Tests unitaires | En cours (0%) |
 
-**Verdict** : PRD-MOC pertinent et nécessaire. L'infrastructure de gouvernance est déployée. L'intégration fonctionnelle reste à réaliser.
+**Verdict** : PRD-MOC pertinent et necessaire. L'infrastructure de gouvernance est deployee. L'integration fonctionnelle reste à realiser.
 
-## X. Utilisation dans le code métier
+## X. Utilisation dans le code metier
 
-### Points d'intégration
+### Points d'integration
 
-| Fichier métier | Fonction/Classe | Design utilisé | Appel |
+| Fichier metier | Fonction/Classe | Design utilise | Appel |
 |----------------|-----------------|----------------|-------|
-| `Error` | - | artifact-layers-design | `Error: [WinError 2] Le fichier spécifié est introuvable` |
+| `Error` | - | artifact-layers-design | `Error: [WinError 2] Le fichier specifie est introuvable` |
 
 ### Preuve d'utilisation
 
 ```bash
-# Module d'intégration
+# Module d'integration
 D:\DO\WEB\TOOLS\L1-INFRA\KIVA-CLI\kiva_cli\artifact_layers_design_integration.py
 
-# Imports détectés
-Error: [WinError 2] Le fichier spécifié est introuvable
+# Imports detectes
+Error: [WinError 2] Le fichier specifie est introuvable
 ```
 
-### Proof-of-Life métier
+### Proof-of-Life metier
 
-- [x] 2026-09-28T21:46:06.728548+00:00 — Module d'intégration existant
-- [x] 2026-09-28T21:46:06.728548+00:00 — Import détecté dans le code métier
-- [ ] 2026-09-28T21:46:06.728548+00:00 — Test d'intégration métier passant
+- [x] 2026-09-28T21:46:06.728548+00:00 -- Module d'integration existant
+- [x] 2026-09-28T21:46:06.728548+00:00 -- Import detecte dans le code metier
+- [ ] 2026-09-28T21:46:06.728548+00:00 -- Test d'integration metier passant
 
 ---
