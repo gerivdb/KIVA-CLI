@@ -1,8 +1,8 @@
 #!/bin/sh
-# ALFRED pre-push v2.0 (UNIFIÉ : BRGS guards + Branch Governor taxonomie)
-# Source de vérité hooks  : REPO-STANDARDS/.githooks/pre-push
-# Source de vérité rules  : GOVERNANCE-HUB/multi-repo-governance.yaml (généré via generate_rules.py)
-# Source de vérité contraintes : REPO-STANDARDS/schemas/BRANCH-CHECK.yaml
+# ALFRED pre-push v2.0 (UNIFIE : BRGS guards + Branch Governor taxonomie)
+# Source de verite hooks  : REPO-STANDARDS/.githooks/pre-push
+# Source de verite rules  : GOVERNANCE-HUB/multi-repo-governance.yaml (genere via generate_rules.py)
+# Source de verite contraintes : REPO-STANDARDS/schemas/BRANCH-CHECK.yaml
 # IntentHash: 0xALFRED_PREPUSH_V2_UNIFIED_20260531
 
 set -e
@@ -12,7 +12,7 @@ BRANCH="$(git rev-parse --abbrev-ref HEAD)"
 REPO_NAME="$(basename "$REPO_ROOT")"
 
 ###############################################################################
-# ÉTAPE 1 : BYPASSES
+# ETAPE 1 : BYPASSES
 ###############################################################################
 
 # Induration: Detect bypass attempts (--no-verify, core.hooksPath override)
@@ -53,9 +53,9 @@ if [[ -n "$hooks_path" && "$hooks_path" != ".githooks" ]]; then
 fi
 
 # PROTECTION main/master (client-side, pas de GitHub Pro requis)
-# Remplace l'ancien bypass — le push direct sur main est BLOQUÉ
+# Remplace l'ancien bypass - le push direct sur main est BLOQUE
 # Contournement intentionnel uniquement : git push --no-verify
-# Exception: git push --delete (suppression de branche distante) est autorisé
+# Exception: git push --delete (suppression de branche distante) est autorise
 IS_DELETE_PUSH=false
 while read -r local_ref local_sha remote_ref remote_sha; do
     if [ "$local_sha" = "0000000000000000000000000000000000000000" ]; then
@@ -71,10 +71,10 @@ if [ "$IS_DELETE_PUSH" = "false" ] && { [ "$BRANCH" = "main" ] || [ "$BRANCH" = 
     echo "============================================================"
     echo ""
     echo "Workflow requis (Plan Lens Module 2 - branch-lifecycle.md) :"
-    echo "  1. Créer une branche : git checkout -b feat/<desc>"
+    echo "  1. Creer une branche : git checkout -b feat/<desc>"
     echo "  2. Committer : git commit -m 'feat(<scope>): <desc>'"
     echo "  3. Pousser la branche : git push origin feat/<desc>"
-    echo "  4. Créer une PR : gh pr create"
+    echo "  4. Creer une PR : gh pr create"
     echo ""
     echo "Contournement intentionnel : git push --no-verify"
     echo "============================================================"
@@ -84,20 +84,20 @@ fi
 # Bypass pour commits d'urgence [FIX]
 LAST_MSG="$(git log -1 --pretty=%B)"
 if echo "$LAST_MSG" | grep -qE "^\[FIX\]"; then
-    echo "[ALFRED SKIP] Commit d'urgence [FIX] — validation réduite"
+    echo "[ALFRED SKIP] Commit d'urgence [FIX] - validation reduite"
     exit 0
 fi
 
 ###############################################################################
-# ÉTAPE 2 : BRGS GUARDS (depuis rules.sh généré ou fallback inline)
+# ETAPE 2 : BRGS GUARDS (depuis rules.sh genere ou fallback inline)
 ###############################################################################
 
-# Chercher rules.sh dans .githooks/ (généré par generate_rules.py)
+# Chercher rules.sh dans .githooks/ (genere par generate_rules.py)
 RULES_FILE="$REPO_ROOT/.githooks/rules.sh"
 
 if [ -f "$RULES_FILE" ]; then
-    # Exécuter les guards depuis rules.sh généré
-    # Le rules.sh doit définir GUARD_MODE, FORBIDDEN_PATHS, ALLOWED_PREFIXES, REDIRECT_MAP
+    # Executer les guards depuis rules.sh genere
+    # Le rules.sh doit definir GUARD_MODE, FORBIDDEN_PATHS, ALLOWED_PREFIXES, REDIRECT_MAP
     . "$RULES_FILE"
 
     # Guard 3 : Forbidden paths (rediriger fichiers vers bon repo)
@@ -107,7 +107,7 @@ if [ -f "$RULES_FILE" ]; then
             for pattern in $(echo "$FORBIDDEN_PATHS" | tr '|' ' '); do
                 MATCH=$(echo "$CHANGED_FILES" | grep -E "$pattern" 2>/dev/null || true)
                 if [ -n "$MATCH" ]; then
-                    echo "[BRGS BLOCK] Forbidden path détecté : $MATCH"
+                    echo "[BRGS BLOCK] Forbidden path detecte : $MATCH"
                     echo "  Pattern: $pattern"
                     echo "  Redirect vers: $REDIRECT_MAP"
                     exit 1
@@ -126,39 +126,39 @@ if [ -f "$RULES_FILE" ]; then
             fi
         done
         if [ "$ALLOWED" -eq 0 ]; then
-            echo "[BRGS BLOCK] Branche '$BRANCH' ne commence pas par un préfixe autorisé"
-            echo "  Préfixes: $ALLOWED_PREFIXES"
+            echo "[BRGS BLOCK] Branche '$BRANCH' ne commence pas par un prefixe autorise"
+            echo "  Prefixes: $ALLOWED_PREFIXES"
             echo "  Pour forcer: git push --no-verify"
             [ "$GUARD_MODE" = "BLOCK" ] && exit 1
         fi
     fi
 
-    echo "[BRGS OK] Guards passés pour $REPO_NAME"
+    echo "[BRGS OK] Guards passes pour $REPO_NAME"
 else
-    # Fallback : pas de rules.sh généré → pas de guards BRGS
-    echo "[BRGS SKIP] rules.sh absent pour $REPO_NAME — guards BRGS non appliqués"
+    # Fallback : pas de rules.sh genere -> pas de guards BRGS
+    echo "[BRGS SKIP] rules.sh absent pour $REPO_NAME - guards BRGS non appliques"
 fi
 
 ###############################################################################
-# ÉTAPE 3 : VALIDATION TAXONOMIE BRANCH GOVERNOR
+# ETAPE 3 : VALIDATION TAXONOMIE BRANCH GOVERNOR
 ###############################################################################
 
-# Pattern unifié : {type}/{juridiction}-{slug}-{id}
+# Pattern unifie : {type}/{juridiction}-{slug}-{id}
 BRANCH_PATTERN='^(feat|fix|docs|chore|refactor|perf|test|hotfix|emergency|release|experiment|deploy|rollback)/(env[0-5]|infra|web|cross)-[a-z0-9-]+-[0-9]{3}$'
 
 if ! echo "$BRANCH" | grep -qE "$BRANCH_PATTERN"; then
-    echo "[ALFRED WARN] Branche '$BRANCH' non conforme à la taxonomie unifiée"
+    echo "[ALFRED WARN] Branche '$BRANCH' non conforme a la taxonomie unifiee"
     echo "  Pattern attendu: type/jurisdiction-slug-id"
     echo "  Exemple: feat/env2-lxc-network-001"
     echo "  Pour forcer: git push --no-verify"
-    # WARN seulement — ne bloque pas (phase adoption)
+    # WARN seulement - ne bloque pas (phase adoption)
 fi
 
 ###############################################################################
-# ÉTAPE 4 : VÉRIFICATION JURIDICTION TOPOS (optionnel)
+# ETAPE 4 : VERIFICATION JURIDICTION TOPOS (optionnel)
 ###############################################################################
 
-# Vérifier que la juridiction existe dans TOPOS (si accessible depuis ce repo)
+# Verifier que la juridiction existe dans TOPOS (si accessible depuis ce repo)
 JURISDICTION_PATTERN='^(env[0-5])-'
 if echo "$BRANCH" | grep -qE "/$JURISDICTION_PATTERN"; then
     JURISDICTION="$(echo "$BRANCH" | sed -E 's|^[^/]+/(env[0-5])-.*|\1|')"
@@ -175,13 +175,13 @@ if echo "$BRANCH" | grep -qE "/$JURISDICTION_PATTERN"; then
         fi
     done
     if [ -n "$TOPOS_FOUND" ]; then
-        echo "[ALFRED] Juridiction '$JURISDICTION' validée (TOPOS/envs/$JURISDICTION)"
+        echo "[ALFRED] Juridiction '$JURISDICTION' validee (TOPOS/envs/$JURISDICTION)"
     fi
-    # Si TOPOS pas accessible → skip silencieux (repos hors écosystème)
+    # Si TOPOS pas accessible -> skip silencieux (repos hors ecosysteme)
 fi
 
 ###############################################################################
-# ÉTAPE 5 : RSS-v2 lint (si rss_lint.py présent)
+# ETAPE 5 : RSS-v2 lint (si rss_lint.py present)
 ###############################################################################
 
 if [ -f "$REPO_ROOT/rss_lint.py" ]; then
@@ -196,27 +196,27 @@ if [ -f "$REPO_ROOT/rss_lint.py" ]; then
 fi
 
 ###############################################################################
-# ÉTAPE 6 : BRANCH-CHECK.yaml (si présent)
+# ETAPE 6 : BRANCH-CHECK.yaml (si present)
 ###############################################################################
 
 if [ -f "$REPO_ROOT/BRANCH-CHECK.yaml" ]; then
-    # Vérifier les règles de base (présence du fichier suffit pour l'instant)
-    # L'intégration complète avec rss_lint.py v3 est prévue en Phase F
-    echo "[ALFRED] BRANCH-CHECK.yaml présent — règles appliquées via rss_lint.py"
+    # Verifier les regles de base (presence du fichier suffit pour l'instant)
+    # L'integration complete avec rss_lint.py v3 est prevue en Phase F
+    echo "[ALFRED] BRANCH-CHECK.yaml present - regles appliquees via rss_lint.py"
 fi
 
 ###############################################################################
-# ÉTAPE 7 : Stash reminder + HEAD détaché (Plan Lens Module 3)
+# ETAPE 7 : Stash reminder + HEAD detache (Plan Lens Module 3)
 ###############################################################################
 
 STASH_COUNT=$(git stash list 2>/dev/null | wc -l | tr -d ' ')
 if [ "${STASH_COUNT}" -gt 0 ]; then
-    echo "[ALFRED INFO] ${STASH_COUNT} stash(es) en attente — vérifier que le stash ne contient pas de travail non poussé."
+    echo "[ALFRED INFO] ${STASH_COUNT} stash(es) en attente - verifier que le stash ne contient pas de travail non pousse."
 fi
 
 if [ "$BRANCH" = "HEAD" ]; then
-    echo "[ALFRED BLOCK] HEAD détaché — impossible de pousser."
-    echo "Créer une branche : git checkout -b <branch-name>"
+    echo "[ALFRED BLOCK] HEAD detache - impossible de pousser."
+    echo "Creer une branche : git checkout -b <branch-name>"
     exit 1
 fi
 
@@ -224,5 +224,5 @@ fi
 # SORTIE
 #################################################################################
 
-echo "[ALFRED OK] Push autorisé pour $BRANCH (repo: $REPO_NAME)"
+echo "[ALFRED OK] Push autorise pour $BRANCH (repo: $REPO_NAME)"
 exit 0
