@@ -8,36 +8,11 @@
 
 # ===== BRGS Guard 3: Forbidden Paths =====
 # Paths that are forbidden for direct modification without ADR
-export FORBIDDEN_PATHS="
-EPICS/
-PRD/
-ADR/
-INTENTS/
-SPEC/
-docs/architecture/
-config/schemas/
-.githooks/
-.kilocode/
-.github/workflows/
-"
+export FORBIDDEN_PATHS="EPICS/|PRD/|ADR/|INTENTS/|SPEC/|docs/architecture/|config/schemas/|.githooks/|.kilocode/|.github/workflows/"
 
 # ===== BRGS Guard 4: Allowed Branch Prefixes =====
 # Valid branch name prefixes
-export ALLOWED_PREFIXES="
-feat/
-fix/
-docs/
-chore/
-refactor/
-perf/
-test/
-hotfix/
-emergency/
-release/
-experiment/
-deploy/
-rollback/
-"
+export ALLOWED_PREFIXES="feat/|fix/|docs/|chore/|refactor/|perf/|test/|hotfix/|emergency/|release/|experiment/|deploy/|rollback/"
 
 # ===== BRGS Redirect Map =====
 # Maps forbidden paths to their canonical locations
