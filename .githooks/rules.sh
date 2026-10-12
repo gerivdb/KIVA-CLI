@@ -10,10 +10,10 @@ GUARD_MODE="BLOCK"
 TARGET_REPO="main"
 
 # Forbidden paths (pipe-separated globs)
-FORBIDDEN_PATHS=""
+FORBIDDEN_PATHS="EPICS/|PRD/|ADR/|INTENTS/|SPEC/|docs/architecture/|config/schemas/|.githooks/|.kilocode/|.github/workflows/"
 
 # Allowed branch prefixes (pipe-separated)
-ALLOWED_PREFIXES="ci/|feat/|fix/|main|release/"
+ALLOWED_PREFIXES="feat/|fix/|docs/|chore/|refactor/|perf/|test/|hotfix/|emergency/|release/|experiment/|deploy/|rollback/"
 
 # Redirect map (format: source_path:target_repo|...)
 REDIRECT_MAP=""
