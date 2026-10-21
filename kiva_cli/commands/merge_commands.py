@@ -71,19 +71,38 @@ def _verify_pr_merged(repo: str, pr_number: int) -> tuple[bool, str]:
     `merged=True` ET `state == "closed"`. Sans cette verification, le wrapper
     annoncait "MERGE COMPLETE" y compris sur une PR deja mergee (rien n avait
     alors ete fait) -- un succes trompeur.
+
+    Interrogation par l API GitHub directe (token keyring) : la regle locale
+    interdit `gh pr` hors du wrapper de merge, et `gh` peut etre absent du
+    PATH du sous-processus.
     """
     import json as _json
-    import urllib.request as _request
+    import urllib.error as _uerr
+    import urllib.request as _ureq
 
     try:
-        out = subprocess.run(
-            ["gh", "pr", "view", str(pr_number), "--repo", f"gerivdb/{repo}",
-             "--json", "state,merged"],
-            capture_output=True, text=True, timeout=60)
-        if out.returncode != 0:
-            return False, f"verification impossible (gh rc={out.returncode})"
-        data = _json.loads(out.stdout or "{}")
-        return bool(data.get("merged")) and data.get("state") == "closed", str(data.get("state"))
+        token = ""
+        for cmd in ([r"C:\gh\bin\gh.exe", "auth", "token"], ["gh", "auth", "token"]):
+            try:
+                out = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+                token = (out.stdout or "").strip()
+            except Exception:
+                token = ""
+            if token:
+                break
+        if not token:
+            return False, "token GitHub indisponible (keyring)"
+
+        url = f"https://api.github.com/repos/gerivdb/{repo}/pulls/{pr_number}"
+        req = _ureq.Request(url, headers={
+            "Authorization": f"token {token}",
+            "Accept": "application/vnd.github+json",
+        })
+        with _ureq.urlopen(req, timeout=60) as resp:
+            data = _json.loads(resp.read().decode() or "{}")
+        state = str(data.get("state", "?"))
+        merged = bool(data.get("merged"))
+        return merged and state == "closed", state
     except Exception as e:
         return False, f"verification impossible ({e})"
 
