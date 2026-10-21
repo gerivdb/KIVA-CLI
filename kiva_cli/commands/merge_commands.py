@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import datetime
 import json
+from pathlib import Path
 import subprocess
 import sys
 
@@ -26,24 +27,30 @@ from kiva_cli.core.dag3 import DAG3Manager, ADMRStatus, CycleSeverity
 # -- Source of truth : chemins locaux ENV2 ------------------------------
 # Synchroniser avec .workspace.index.yaml (GOVERNANCE-HUB L0).
 # En v2, lire le YAML directement au runtime (voir docstring du module).
+_SOT_PATH = Path(r"D:\DO\WEB\TOOLS\L0-CANON\GOVERNANCE-HUB\known_repositories.yaml")
+
+# Table codee en dur : PERIMEE, ne sert plus que de repli (voir _resolve_repo_path).
+# Table codee en dur : REPLI uniquement (la SOT prime -- voir
+# _resolve_repo_path). Toutes les entrees pointent vers un repertoire
+# existant ; les depots absents d ENV2 sont explicitement None.
 REPOS_LOCAL_PATHS = {
-    "CTULU":          r"D:\DO\WEB\TOOLS\L4-TOOLS\CTULU",
+    "CTULU": r"D:\DO\WEB\TOOLS\L4-TOOLS\CTULU",
     "GOVERNANCE-HUB": r"D:\DO\WEB\TOOLS\L0-CANON\GOVERNANCE-HUB",
-    "NEXUS":          None,  # remote_only -- not cloned on ENV2
-    "ECOYSTEM":       r"D:\DO\WEB\TOOLS\L1-INFRA\ECOYSTEM",
-    "ECOS-CLI":       r"D:\DO\WEB\TOOLS\L1-INFRA\ECOS-CLI",
-    "KIVA-CLI":       r"D:\DO\WEB\TOOLS\L1-INFRA\KIVA-CLI",
-    "BRAIN":          r"D:\DO\WEB\TOOLS\L0-CANON\BRAIN",
-    "FLUENCE":        r"D:\DO\WEB\TOOLS\L1-INFRA\FLUENCE",
-    "WAZAA":          r"D:\DO\WEB\TOOLS\L3-CITIZENS\WAZAA",
-    "ARGUS":          r"D:\DO\WEB\TOOLS\L3-CITIZENS\ARGUS",
-    "UAE":            r"D:\DO\WEB\TOOLS\L3-CITIZENS\UAE",
-    "IRIS":           r"D:\DO\WEB\TOOLS\L3-CITIZENS\IRIS",
-    "KRONOS":         r"D:\DO\WEB\TOOLS\L3-CITIZENS\KRONOS",
-    "TINA":           r"D:\DO\WEB\TOOLS\L3-CITIZENS\TINA",
-    "INTENT-ENCODER": r"D:\DO\WEB\TOOLS\L3-CITIZENS\INTENT-ENCODER",
-    "STRIX":          r"D:\DO\WEB\TOOLS\L3-CITIZENS\STRIX",
-    "DevTools":       r"C:\DevTools",
+    "NEXUS": r"D:\DO\WEB\TOOLS\L1-INFRA\NEXUS",
+    "ECOYSTEM": None,  # remote_only -- absent d ENV2
+    "ECOS-CLI": r"D:\DO\WEB\TOOLS\L1-INFRA\ECOS-CLI",
+    "KIVA-CLI": r"D:\DO\WEB\TOOLS\L1-INFRA\KIVA-CLI",
+    "BRAIN": r"D:\DO\WEB\TOOLS\L0-CANON\BRAIN",
+    "FLUENCE": r"D:\DO\WEB\TOOLS\L3-CITIZENS\FLUENCE",
+    "WAZAA": r"D:\DO\WEB\TOOLS\L4-TOOLS\WAZAA",
+    "ARGUS": r"D:\DO\WEB\TOOLS\L1-INFRA\ARGUS",
+    "UAE": r"D:\DO\WEB\TOOLS\L1-INFRA\UAE",
+    "IRIS": r"D:\DO\WEB\TOOLS\L3-CITIZENS\IRIS",
+    "KRONOS": r"D:\DO\WEB\TOOLS\L3-CITIZENS\KRONOS",
+    "TINA": None,  # remote_only -- absent d ENV2
+    "INTENT-ENCODER": None,  # remote_only -- absent d ENV2
+    "STRIX": None,  # remote_only -- absent d ENV2
+    "DevTools": r"C:\DevTools",
 }
 
 
@@ -55,6 +62,99 @@ def _run(cmd: list[str], cwd: str | None = None, dry_run: bool = False) -> int:
         return 0
     result = subprocess.run(cmd, cwd=cwd)
     return result.returncode
+
+
+def _verify_pr_merged(repo: str, pr_number: int) -> tuple[bool, str]:
+    """Verifie l etat REEL d une PR apres tentative de merge.
+
+    Retourne (merged, state). `merged` n est True que si l API confirme
+    `merged=True` ET `state == "closed"`. Sans cette verification, le wrapper
+    annoncait "MERGE COMPLETE" y compris sur une PR deja mergee (rien n avait
+    alors ete fait) -- un succes trompeur.
+
+    Interrogation par l API GitHub directe (token keyring) : la regle locale
+    interdit `gh pr` hors du wrapper de merge, et `gh` peut etre absent du
+    PATH du sous-processus.
+    """
+    import json as _json
+    import urllib.error as _uerr
+    import urllib.request as _ureq
+
+    try:
+        token = ""
+        for cmd in ([r"C:\gh\bin\gh.exe", "auth", "token"], ["gh", "auth", "token"]):
+            try:
+                out = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+                token = (out.stdout or "").strip()
+            except Exception:
+                token = ""
+            if token:
+                break
+        if not token:
+            return False, "token GitHub indisponible (keyring)"
+
+        url = f"https://api.github.com/repos/gerivdb/{repo}/pulls/{pr_number}"
+        req = _ureq.Request(url, headers={
+            "Authorization": f"token {token}",
+            "Accept": "application/vnd.github+json",
+        })
+        with _ureq.urlopen(req, timeout=60) as resp:
+            data = _json.loads(resp.read().decode() or "{}")
+        state = str(data.get("state", "?"))
+        merged = bool(data.get("merged"))
+        return merged and state == "closed", state
+    except Exception as e:
+        return False, f"verification impossible ({e})"
+
+
+def _resolve_repo_path(repo: str) -> str | None:
+    """Resout le chemin local d'un depot, de facon robuste.
+
+    Ordre de resolution :
+      1. **SOT** `GOVERNANCE-HUB/known_repositories.yaml` -> champ `local_path`
+         (source de verite, seule a jour) ;
+      2. table locale codee en dur `REPOS_LOCAL_PATHS` (perimee, mais utile
+         pour les depots hors SOT) ;
+      3. `None` si rien de valide.
+
+    Le chemin renvoye est **valide** : absolu, existant, et repertoire.
+
+    Pourquoi : la table codee en dur contenait des chemins perimes
+    (WAZAA pointait vers `L3-CITIZENS` au lieu de `L4-TOOLS`, FLUENCE vers
+    `L1-INFRA` au lieu de `L3-CITIZENS`). Le sous-processus DAG-3 etait alors
+    lance avec un `cwd` inexistant -> `NotADirectoryError` (WinError 267),
+    sans message exploitable. Une table figee ne peut pas suivre l'arborescence
+    ; la SOT, si.
+    """
+    from pathlib import Path as _Path
+
+    name = (repo or "").replace("gerivdb/", "").strip()
+    if not name:
+        return None
+
+    # 1. SOT (source de verite)
+    try:
+        import yaml  # type: ignore
+        if _SOT_PATH.exists():
+            data = yaml.safe_load(_SOT_PATH.read_text(encoding="utf-8")) or {}
+            for entry in data.get("repos", []) or []:
+                if not isinstance(entry, dict):
+                    continue
+                rname = str(entry.get("repo", "")).replace("gerivdb/", "").strip()
+                if rname.lower() != name.lower():
+                    continue
+                lp = entry.get("local_path")
+                if lp and _Path(lp).is_dir():
+                    return str(_Path(lp).resolve())
+    except Exception:
+        pass
+
+    # 2. table codee en dur (repli)
+    hard = REPOS_LOCAL_PATHS.get(name) or REPOS_LOCAL_PATHS.get(name.upper())
+    if hard and _Path(hard).is_dir():
+        return str(_Path(hard).resolve())
+
+    return None
 
 
 def _wal_append(repo: str, pr: int, event: str, dry_run: bool = False, 
@@ -151,7 +251,12 @@ def merge_pr(repo: str, pr_number: int, source_branch: str | None,
       kiva merge pr UAE 9 main --dry-run
       kiva merge pr UAE 9 main --hotfix   # bypass CI, HITL required
     """
-    repo_path = REPOS_LOCAL_PATHS.get(repo)
+    repo_path = _resolve_repo_path(repo)
+    if not repo_path:
+        click.echo(click.style(
+            f"  [KO] chemin local introuvable pour '{repo}' "
+            "(SOT known_repositories.yaml + REPOS_LOCAL_PATHS)", fg="red"))
+        raise SystemExit(1)
     target_branch = "main"  # Default target
 
     click.echo("")
@@ -273,9 +378,21 @@ def merge_pr(repo: str, pr_number: int, source_branch: str | None,
 
     # Final report
     click.echo("")
-    click.echo(click.style(
-        f"  [OK] MERGE COMPLETE -- {repo} PR #{pr_number} -> main",
-        fg="green", bold=True))
+    # Le succes n est PAS annonce sur la seule parole de l outil : l etat
+    # REEL de la PR est verifie (merged + state) avant l annonce. Sans cela,
+    # le wrapper annoncait "MERGE COMPLETE" y compris sur une PR deja
+    # mergee (rien n avait alors ete fait) -- un succes trompeur.
+    _merged, _state = _verify_pr_merged(repo, pr_number)
+    if _merged:
+        click.echo(click.style(
+            f"  [OK] MERGE COMPLETE -- {repo} PR #{pr_number} -> main",
+            fg="green", bold=True))
+    else:
+        click.echo(click.style(
+            f"  [KO] MERGE NON CONFIRME -- {repo} PR #{pr_number} "
+            f"(etat reel : {_state})",
+            fg="red", bold=True))
+        raise SystemExit(1)
     click.echo(click.style(
         f"  IntentHash: 0xKIVA_MERGE_SOVEREIGN_phi4559",
         fg="bright_black"))
