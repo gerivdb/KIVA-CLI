@@ -109,8 +109,12 @@ def generate_rules(manifest_path: str, repo_name: str, output_path: str) -> None
     if repo_config is None:
         repo_config = {"_routing_scope": "global"}
         repo_name = "(routage global)"
-    # True quand aucun routage propre n'a ete trouve. Dans ce cas, seule la
-    # preservation du rules.sh existant evite une regression silencieuse.
+    # True quand aucun routage propre n'a ete trouve. Informe, mais NE
+    # conditionne plus la preservation : celle-ci depend des valeurs FOURNIES
+    # par le manifeste, pas de la route trouvee. Le manifeste indexe des
+    # BRANCHES (`feat/*`), donc le fallback n'est jamais atteint sur une
+    # branche de travail -- la condition videait la politique a chaque
+    # regeneration (incident parc 2026-10-12 / 2026-10-21).
     _uses_global_fallback = repo_config.get("_routing_scope") == "global"
 
     forbidden = repo_config.get("forbidden_paths", [])
@@ -129,7 +133,7 @@ def generate_rules(manifest_path: str, repo_name: str, output_path: str) -> None
     # politique, on la PRESERVE. Un generateur qui ecrase une politique par
     # du vide est un defaut, pas une regeneration. Un depot jamais genere
     # n'est pas affecte : rien a preserver, et aucun fichier n'est ecrit.
-    _existing = _read_existing_rules(output_path) if _uses_global_fallback else {}
+    _existing = _read_existing_rules(output_path)
 
     if not forbidden and _existing.get("FORBIDDEN_PATHS"):
         forbidden = _existing["FORBIDDEN_PATHS"]
