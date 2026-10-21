@@ -1,6 +1,6 @@
 #!/usr/bin/env pwsh
-# ─────────────────────────────────────────────────────────────────────────────
-# pre-push.ps1 — Branch Routing & Governance System (BRGS) v3.0 (Windows/Linux)
+# -----------------------------------------------------------------------------
+# pre-push.ps1 - Branch Routing & Governance System (BRGS) v3.0 (Windows/Linux)
 #
 # PowerShell-native pre-push hook for environments where bash is not available.
 # Called by the shim pre-push script on Windows PowerShell / PowerShell Core.
@@ -8,12 +8,12 @@
 # Guards:
 #   Guard 1: Remote URL validation (EXISTANT)
 #   Guard 2: Ancestry check (EXISTANT)
-#   Guard 3: Forbidden paths check (NOUVEAU — BRGS)
-#   Guard 4: Branch prefix validation (NOUVEAU — BRGS)
+#   Guard 3: Forbidden paths check (NOUVEAU - BRGS)
+#   Guard 4: Branch prefix validation (NOUVEAU - BRGS)
 #
 # IntentHash: 0xBRG_PRE_PUSH_PS1_20260526
 # Version: 1.0.0
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 
 param(
     [Parameter(Mandatory=$true)]
@@ -26,15 +26,15 @@ param(
 $ErrorActionPreference = "Stop"
 $script:ExitCode = 0
 
-# ── Helpers ───────────────────────────────────────────────────────────────────
+# -- Helpers -------------------------------------------------------------------
 
 function Write-BrgsLog {
     param([string]$Message, [string]$Level = "INFO")
     $prefix = switch ($Level) {
-        "OK"     { "✅" }
-        "WARN"   { "⚠️ " }
-        "ERR"    { "❌" }
-        default  { "ℹ️ " }
+        "OK"     { "[OK]" }
+        "WARN"   { "[WARN] " }
+        "ERR"    { "[KO]" }
+        default  { "i " }
     }
     Write-Host "[BRGS] $prefix $Message"
 }
@@ -55,7 +55,7 @@ function Invoke-Git {
     return ($output -join "`n").Trim()
 }
 
-# ── Config ────────────────────────────────────────────────────────────────────
+# -- Config --------------------------------------------------------------------
 
 $RepoRoot      = Get-GitRepoRoot
 $RepoName      = Split-Path $RepoRoot -Leaf
@@ -69,10 +69,10 @@ Write-BrgsLog "Repo:   $RepoName"
 if (Test-Path $ManifestPath) {
     Write-BrgsLog "Manifest: $ManifestPath"
 } else {
-    Write-BrgsLog "Manifest not found — using fallback rules" "WARN"
+    Write-BrgsLog "Manifest not found - using fallback rules" "WARN"
 }
 
-# ── Load rules from manifest ──────────────────────────────────────────────────
+# -- Load rules from manifest --------------------------------------------------
 
 $ForbiddenPaths  = @()
 $AllowedPrefixes = @()
@@ -122,9 +122,9 @@ if ($ForbiddenPaths.Count -eq 0 -and $RepoName -eq "DevTools") {
     Write-BrgsLog "Using fallback rules for DevTools" "WARN"
 }
 
-# ═══════════════════════════════════════════════════════════════════════════════
+# ===============================================================================
 # Guard 1: Remote URL validation
-# ═══════════════════════════════════════════════════════════════════════════════
+# ===============================================================================
 
 $EcosRoot = Join-Path $RepoRoot "ECOS_ROOT.json"
 if (Test-Path $EcosRoot) {
@@ -136,45 +136,45 @@ if (Test-Path $EcosRoot) {
         Write-Host "  Fix: git remote set-url origin https://github.com/$expectedPattern.git"
         exit 1
     }
-    Write-BrgsLog "Guard 1 — Remote URL validated: $RemoteUrl" "OK"
+    Write-BrgsLog "Guard 1 - Remote URL validated: $RemoteUrl" "OK"
 } else {
-    Write-BrgsLog "Guard 1 — No ECOS_ROOT.json, skipping" "OK"
+    Write-BrgsLog "Guard 1 - No ECOS_ROOT.json, skipping" "OK"
 }
 
-# ═══════════════════════════════════════════════════════════════════════════════
+# ===============================================================================
 # Guard 2: Ancestry check
-# ═══════════════════════════════════════════════════════════════════════════════
+# ===============================================================================
 
 if ($CurrentBranch -ne "main" -and $CurrentBranch -ne "dev") {
     $mergeBase = git merge-base HEAD origin/main 2>$null
     if (-not $mergeBase) {
-        Write-BrgsLog "Guard 2 — Cannot verify ancestry (origin/main not fetched)" "WARN"
+        Write-BrgsLog "Guard 2 - Cannot verify ancestry (origin/main not fetched)" "WARN"
         Write-Host "  Run: git fetch origin main"
     } else {
         $commitsAhead  = (git rev-list --count origin/main..HEAD 2>$null) -replace '\s'
         $commitsBehind = (git rev-list --count HEAD..origin/main 2>$null) -replace '\s'
         $changedFiles  = (git diff --name-only origin/main...HEAD 2>$null | Measure-Object).Count
 
-        Write-BrgsLog "Guard 2 — Branch stats: ahead=$commitsAhead behind=$commitsBehind files=$changedFiles"
+        Write-BrgsLog "Guard 2 - Branch stats: ahead=$commitsAhead behind=$commitsBehind files=$changedFiles"
 
         if ($changedFiles -gt 200) {
-            Write-BrgsLog "BLOCKED: $changedFiles files changed — ancestry mismatch suspected!" "ERR"
+            Write-BrgsLog "BLOCKED: $changedFiles files changed - ancestry mismatch suspected!" "ERR"
             Write-Host "  Fix: rebase onto origin/main"
             exit 1
         }
         if ($commitsBehind -gt 100) {
-            Write-BrgsLog "BLOCKED: Branch is $commitsBehind commits behind main — rebase required" "ERR"
+            Write-BrgsLog "BLOCKED: Branch is $commitsBehind commits behind main - rebase required" "ERR"
             exit 1
         }
-        Write-BrgsLog "Guard 2 — Ancestry validated" "OK"
+        Write-BrgsLog "Guard 2 - Ancestry validated" "OK"
     }
 } else {
-    Write-BrgsLog "Guard 2 — Skipping (on $CurrentBranch)" "OK"
+    Write-BrgsLog "Guard 2 - Skipping (on $CurrentBranch)" "OK"
 }
 
-# ═══════════════════════════════════════════════════════════════════════════════
+# ===============================================================================
 # Guard 3: Forbidden paths check
-# ═══════════════════════════════════════════════════════════════════════════════
+# ===============================================================================
 
 if ($ForbiddenPaths.Count -gt 0) {
     $changedFiles = git diff --name-only HEAD...origin/main 2>$null
@@ -225,14 +225,14 @@ if ($ForbiddenPaths.Count -gt 0) {
             exit 1
         }
     }
-    Write-BrgsLog "Guard 3 — No forbidden path violations" "OK"
+    Write-BrgsLog "Guard 3 - No forbidden path violations" "OK"
 } else {
-    Write-BrgsLog "Guard 3 — No forbidden paths configured" "OK"
+    Write-BrgsLog "Guard 3 - No forbidden paths configured" "OK"
 }
 
-# ═══════════════════════════════════════════════════════════════════════════════
+# ===============================================================================
 # Guard 4: Branch prefix validation
-# ═══════════════════════════════════════════════════════════════════════════════
+# ===============================================================================
 
 if ($AllowedPrefixes.Count -gt 0 -and $CurrentBranch -notin @("main", "dev")) {
     $prefixOk = $false
@@ -262,11 +262,11 @@ if ($AllowedPrefixes.Count -gt 0 -and $CurrentBranch -notin @("main", "dev")) {
         Write-Host "`n  Bypass (NOT recommended): git push --no-verify`n"
         exit 1
     }
-    Write-BrgsLog "Guard 4 — Branch prefix validated ($CurrentBranch)" "OK"
+    Write-BrgsLog "Guard 4 - Branch prefix validated ($CurrentBranch)" "OK"
 } else {
-    Write-BrgsLog "Guard 4 — Skipping (on $CurrentBranch or no rules)" "OK"
+    Write-BrgsLog "Guard 4 - Skipping (on $CurrentBranch or no rules)" "OK"
 }
 
-# ── All guards passed ─────────────────────────────────────────────────────────
-Write-Host "`n[BRGS] ✅ All guards passed — proceeding with push"
+# -- All guards passed ---------------------------------------------------------
+Write-Host "`n[BRGS] [OK] All guards passed - proceeding with push"
 exit 0
