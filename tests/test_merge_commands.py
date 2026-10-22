@@ -217,23 +217,81 @@ class TestMergePRCommand:
 
 
 class TestMergePRRemoteOnly:
-    """Test merge PR for remote-only repos."""
+    """Resolution du chemin local et refus des depots sans chemin resolvable.
+
+    Le contrat courant (resolution SOT, `ADR-001` / commit 57e1b1a) : la SOT
+    `known_repositories.yaml` est la source de verite unique du chemin local.
+    Un depot dont le chemin n'est pas resolvable REFUSE le merge (garde de
+    resolution) ; il n'est plus question de le "skipper" ni de l'evaluer
+    ailleurs.
+    """
 
     @patch('kiva_cli.commands.merge_commands._dag3_validate')
     @patch('kiva_cli.commands.merge_commands._wal_append')
     @patch('kiva_cli.commands.merge_commands._run')
     @patch('subprocess.run')
-    def test_merge_pr_remote_only(self, mock_subprocess, mock_run, mock_wal, mock_dag3, cli_runner):
-        """Test merge PR for NEXUS (remote_only)."""
+    def test_merge_pr_repo_without_local_path_is_refused(self, mock_subprocess, mock_run, mock_wal, mock_dag3, cli_runner):
+        """Un depot declare mais non clone sur ENV2 (chemin non resolvable) : refus.
+
+        Le depot `NEXUS` porte `None` dans la table locale et ne peut etre
+        resolu par la SOT dans cet etat de test.
+        """
         mock_subprocess.return_value = MagicMock(returncode=0, stdout="feature-branch\n")
         mock_dag3.return_value = {"status": "approved", "phi_cps_impact": 0.01}
         mock_run.return_value = 0
 
-        # NEXUS has None as local path
-        result = cli_runner.invoke(merge_cli, ['pr', 'NEXUS', '42', '--dry-run'])
+        with patch(
+            'kiva_cli.commands.merge_commands._resolve_repo_path', return_value=None
+        ):
+            result = cli_runner.invoke(merge_cli, ['pr', 'NEXUS', '42', '--dry-run'])
 
-        assert result.exit_code == 0
-        assert "remote_only" in result.output.lower() or "skipped" in result.output.lower()
+        assert result.exit_code != 0
+        assert "introuvable" in result.output.lower() or "refused" in result.output.lower()
+        self._assert_no_local_pytest(mock_run)
+
+    @patch('kiva_cli.commands.merge_commands._dag3_validate')
+    @patch('kiva_cli.commands.merge_commands._wal_append')
+    @patch('kiva_cli.commands.merge_commands._run')
+    @patch('subprocess.run')
+    def test_merge_pr_unknown_repo_is_refused(self, mock_subprocess, mock_run, mock_wal, mock_dag3, cli_runner):
+        """Un depot non enregistre doit REFUSER le merge, pas etre evalue ailleurs.
+
+        Ancien comportement : repli silencieux sur `python -m pytest` dans le
+        repertoire courant. La porte evaluait alors la suite du depot OU SE
+        TROUVE la commande, et non celle du depot dont on fusionne la PR.
+        Constat : PR RAGX #28, annulee sur les echecs de KIVA-CLI.
+        """
+        mock_subprocess.return_value = MagicMock(returncode=0, stdout="feature-branch\n")
+        mock_dag3.return_value = {"status": "approved", "phi_cps_impact": 0.01}
+        mock_run.return_value = 0
+
+        with patch(
+            'kiva_cli.commands.merge_commands._resolve_repo_path', return_value=None
+        ), patch.dict(
+            'kiva_cli.commands.merge_commands.REPOS_LOCAL_PATHS',
+            {},
+            clear=True,
+        ):
+            result = cli_runner.invoke(
+                merge_cli, ['pr', 'DEPOT-NON-ENREGISTRE', '42', '--dry-run']
+            )
+
+        # Refus explicite, code non nul, et AUCUNE evaluation de pytest ici.
+        assert result.exit_code != 0
+        assert "introuvable" in result.output.lower() or "refused" in result.output.lower()
+        self._assert_no_local_pytest(mock_run)
+
+    @staticmethod
+    def _assert_no_local_pytest(mock_run):
+        """Aucune suite de tests locale ne doit etre executee pour un depot non resolvable."""
+        invoked = [
+            " ".join(str(a) for a in c.args[0])
+            for c in mock_run.call_args_list
+            if c.args and isinstance(c.args[0], list)
+        ]
+        assert not any("pytest" in c for c in invoked), (
+            f"la porte a evalue une suite de tests locale pour un depot non enregistre : {invoked}"
+        )
 
 
 if __name__ == "__main__":
