@@ -21,7 +21,7 @@ import sys
 import click
 
 # -- DAG-3 Integration -------------------------------------------------------
-from kiva_cli.core.dag3 import DAG3Manager, ADMRStatus, CycleSeverity
+from kiva_cli.core.dag3 import DAG3Manager, ADMRStatus, CycleSeverity  # noqa: E402  # import retarde pour eviter le cycle
 
 # -- Source of truth : chemins locaux ENV2 ------------------------------
 # Synchroniser avec .workspace.index.yaml (GOVERNANCE-HUB L0).
