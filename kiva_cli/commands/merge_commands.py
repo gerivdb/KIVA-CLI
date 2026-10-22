@@ -336,11 +336,25 @@ def merge_pr(repo: str, pr_number: int, source_branch: str | None,
         elif repo_path:
             rc = _run(["kiva", "cicd", "run", repo_path], dry_run=dry_run)
         else:
-            # Unknown repo -- fallback to pytest in current directory
+            # Depot non enregistre : REFUS, pas evaluation ailleurs.
+            #
+            # Ancien comportement : repli silencieux sur
+            # `python -m pytest` execute dans le repertoire courant. La porte
+            # CI evaluait alors la suite du depot OU SE TROUVE la commande
+            # (KIVA-CLI), et non celle du depot dont on fusionne la PR. Une
+            # PR pouvait donc etre fusionnee sur un etat vert d'un AUTRE
+            # depot -- ou etre annulee sur les echecs de cet autre depot.
+            # Constat : PR RAGX #28, annulee sur 5 echecs de tests KIVA-CLI.
+            #
+            # Un depot absent de la SOT et de la table locale ne peut pas
+            # etre evalue : la porte doit le dire, pas deviner.
             click.echo(click.style(
-                f"  [WARN] Unknown local path for {repo} -- pytest fallback",
-                fg="yellow"))
-            rc = _run(["python", "-m", "pytest", "--tb=short", "-q"], dry_run=dry_run)
+                f"  [HALT] Unknown local path for {repo} -- merge refused. "
+                f"Register the repository in known_repositories.yaml "
+                f"(local_path) before merging.",
+                fg="red"))
+            _wal_append(repo, pr_number, "ci_skipped_unknown_repo", dry_run=dry_run)
+            sys.exit(2)
         if rc != 0:
             click.echo(click.style(
                 f"  [HALT] Local CI failed (rc={rc}) -- merge cancelled. Fix and retry.",
@@ -382,17 +396,31 @@ def merge_pr(repo: str, pr_number: int, source_branch: str | None,
     # REEL de la PR est verifie (merged + state) avant l annonce. Sans cela,
     # le wrapper annoncait "MERGE COMPLETE" y compris sur une PR deja
     # mergee (rien n avait alors ete fait) -- un succes trompeur.
-    _merged, _state = _verify_pr_merged(repo, pr_number)
-    if _merged:
+    #
+    # En mode dry-run, AUCUNE fusion n a eu lieu : la verification de l etat
+    # reel est inapplicable. L appliquer rendait la commande dry-run
+    # dependante d identifiants GitHub et du reseau, et la faisait echouer
+    # sur toute machine non connectee (constat : 'verification impossible
+    # (HTTP Error 401: Unauthorized)').
+    if dry_run:
         click.echo(click.style(
-            f"  [OK] MERGE COMPLETE -- {repo} PR #{pr_number} -> main",
+            f"  [OK] MERGE COMPLETE (DRY-RUN) -- {repo} PR #{pr_number} -> main",
             fg="green", bold=True))
-    else:
         click.echo(click.style(
-            f"  [KO] MERGE NON CONFIRME -- {repo} PR #{pr_number} "
-            f"(etat reel : {_state})",
-            fg="red", bold=True))
-        raise SystemExit(1)
+            f"  [INFO] verification de l etat reel non applicable en dry-run",
+            fg="bright_black"))
+    else:
+        _merged, _state = _verify_pr_merged(repo, pr_number)
+        if _merged:
+            click.echo(click.style(
+                f"  [OK] MERGE COMPLETE -- {repo} PR #{pr_number} -> main",
+                fg="green", bold=True))
+        else:
+            click.echo(click.style(
+                f"  [KO] MERGE NON CONFIRME -- {repo} PR #{pr_number} "
+                f"(etat reel : {_state})",
+                fg="red", bold=True))
+            raise SystemExit(1)
     click.echo(click.style(
         f"  IntentHash: 0xKIVA_MERGE_SOVEREIGN_phi4559",
         fg="bright_black"))
