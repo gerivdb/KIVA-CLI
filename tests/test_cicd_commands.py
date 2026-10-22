@@ -96,7 +96,12 @@ class TestCicdRunCommand:
     @patch('kiva_cli.commands.cicd_commands.CICDManager')
     def test_run_success(self, mock_manager_class, cli_runner, temp_repo):
         """Test successful CI pipeline run."""
+        from kiva_cli.core.cicd_manager import CIPipelineResult
+
         mock_manager = MagicMock()
+        mock_manager.run_ci_pipeline_detailed.return_value = CIPipelineResult(
+            ok=True, reason="ok", detail="pytest a rendu 0", returncode=0
+        )
         mock_manager.run_ci_pipeline.return_value = True
         mock_manager_class.return_value = mock_manager
 
@@ -104,19 +109,37 @@ class TestCicdRunCommand:
 
         assert result.exit_code == 0
         assert "CI pipeline passed" in result.output
-        mock_manager.run_ci_pipeline.assert_called_once_with(temp_repo)
+        mock_manager.run_ci_pipeline_detailed.assert_called_once_with(temp_repo)
 
     @patch('kiva_cli.commands.cicd_commands.CICDManager')
     def test_run_failure(self, mock_manager_class, cli_runner, temp_repo):
-        """Test failed CI pipeline run."""
+        """Test failed CI pipeline run.
+
+        CORRECTION 2026-10-22 : ce test affirmait jusqu'ici
+        `exit_code == 0`, verrouillant le comportement fail-open du defect
+        P1 (la porte de merge ne pouvait pas detecter un CI en echec).
+        Un pipeline en echec doit maintenant sortir en code NON NUL.
+        ADR-2026-10-22-002.
+        """
+        from kiva_cli.core.cicd_manager import CIPipelineResult
+
         mock_manager = MagicMock()
+        mock_manager.run_ci_pipeline_detailed.return_value = CIPipelineResult(
+            ok=False,
+            reason="test_failure",
+            detail="pytest a rendu 1",
+            returncode=1,
+            tail=["FAILED tests/test_x.py::test_y"],
+        )
         mock_manager.run_ci_pipeline.return_value = False
         mock_manager_class.return_value = mock_manager
 
         result = cli_runner.invoke(cicd_cli, ['run', temp_repo])
 
-        assert result.exit_code == 0
+        assert result.exit_code == 1
         assert "CI pipeline failed" in result.output
+        assert "test_failure" in result.output
+        assert "FAILED tests/test_x.py::test_y" in result.output
 
 
 class TestCicdStatusCommand:
