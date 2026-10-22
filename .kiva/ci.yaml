@@ -163,4 +163,4 @@ zero_github_actions:
   check_paths:
     - ".github/workflows"
     - ".github/actions"
-    error_message: "GITHUB ACTIONS INTERDIT - Utilisez KIVA-CLI Local CI uniquement (.kiva/ci.yaml)"
+  error_message: "GITHUB ACTIONS INTERDIT - Utilisez KIVA-CLI Local CI uniquement (.kiva/ci.yaml)"
