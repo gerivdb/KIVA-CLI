@@ -51,6 +51,13 @@ Deux PR `GOVERNANCE-HUB` ont ete fusionnees avec un CI local en echec
    importait un paquet namespace dont le `__path__` se fige au premier
    import). Sans cette correction, le present ADR serait invérifiable : la
    suite mesuree serait celle d'un autre depot.
+7. **D7** : Le mode `--dry-run` n'exige plus la verification de l'etat reel
+   d'une fusion qui n'a pas eu lieu. Il echouait sur toute machine sans
+   identifiants (`HTTP Error 401`), y compris en CI.
+8. **D8** : Un depot dont le chemin local n'est pas resolvable REFUSE le
+   merge. L'ancien repli (`python -m pytest` dans le repertoire courant)
+   evaluait la suite d'un **autre** depot : une PR pouvait etre fusionnee sur
+   un etat vert qui n'etait pas le sien.
 
 ## Fichiers modifies
 
@@ -59,8 +66,12 @@ Deux PR `GOVERNANCE-HUB` ont ete fusionnees avec un CI local en echec
   sortie.
 - `kiva_cli/commands/cicd_commands.py` : code de sortie non nul, rapport
   d'echec qualifie.
+- `kiva_cli/commands/merge_commands.py` : verification de l'etat reel
+  inapplicable en dry-run (D7) ; refus du depot non resolvable (D8).
 - `tests/test_cicd_commands.py` : assertion fail-open corrigee.
 - `tests/test_cicd_fail_closed.py` : contrat fail-closed (nouveau).
+- `tests/test_merge_commands.py` : contrat de refus reecrit selon le
+  comportement reel.
 - `tests/commands/test_delivery_commands.py` : hermeticite du `sys.path`.
 - `tests/scripts/test_python_helper.py` : import deterministe du module cible.
 
@@ -69,9 +80,9 @@ Deux PR `GOVERNANCE-HUB` ont ete fusionnees avec un CI local en echec
 | Mesure | Resultat |
 |---|---|
 | Falsifiabilite (comportement fail-open restaure) | exactement 5 tests en echec, dont `DID NOT RAISE SystemExit` (la porte fusionnait sur un CI rouge) |
-| Avec le correctif | `29 passed` sur les deux fichiers de test du contrat |
-| Suite complete | `6 failed, 1221 passed, 21 skipped`, 0 erreur de collecte |
-| Echecs restants | 4 `test_merge_commands.py` (verification de merge par API GitHub : `HTTP 401` sans identifiants, y compris en `--dry-run`) + 2 `tests/legacy_root_tests/` (derive de registre, dependante de l'etat live) : **pre-existants**, etabli par `git stash` des fichiers de production |
+| Avec le correctif | `29 passed` sur les deux fichiers de test du contrat, puis `48 passed` sur le perimetre merge inclus |
+| Suite complete | `2 failed, 1226 passed, 21 skipped`, **0 erreur de collecte** |
+| Echecs restants | 2 `tests/legacy_root_tests/` (detection de derive de registre, dependante de l'etat live du registre TOPOS) : **pre-existants**, hors perimetre de la porte CI |
 | Collecte sur `main` | non collectible depuis un worktree (2 `ImportError`) : corrige par D6 |
 
 ## References
