@@ -53,16 +53,34 @@ def run_pipeline(repo_path: str):
 
     REPO_PATH: Path to the repository
 
+    Exit code:
+      0 = pipeline vert
+      1 = pipeline en echec (test, timeout ou erreur d'environnement)
+
+    Le code de sortie porte l'echec : c'est la condition pour que la porte de
+    merge (`kiva merge pr`, qui teste `rc != 0`) soit fail-closed. Historique
+    de ce correctif : ADR-2026-10-22-002.
+    IntentHash: 0xKIVA_CICD_FAIL_CLOSED_20261022
+
     Example:
         kiva cicd run D:\\DO\\WEB\\TOOLS\\KIVA-CLI
     """
     manager = CICDManager()
-    success = manager.run_ci_pipeline(repo_path)
+    result = manager.run_ci_pipeline_detailed(repo_path)
 
-    if success:
+    if result.ok:
         click.echo(click.style("CI pipeline passed!", fg="green"))
-    else:
-        click.echo(click.style("CI pipeline failed!", fg="red"))
+        return
+
+    click.echo(click.style(f"CI pipeline failed! [{result.reason}]", fg="red"))
+    if result.detail:
+        click.echo(click.style(f"  {result.detail}", fg="red"))
+    for line in result.tail:
+        click.echo(f"  {line}")
+
+    # Echec bloquant : on sort en code non nul pour que l'appelant
+    # (porte de merge) puisse bloquer. C'est le point du correctif.
+    click.get_current_context().exit(1)
 
 
 @cicd_cli.command(name='status')
